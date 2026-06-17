@@ -1,0 +1,135 @@
+{
+  "upgradePending": "Upgrade pending",
+  "upgrades": {
+    "virtualizedRendering": "Virtualized rendering",
+    "charts3d": "3D charts",
+    "parallelExecution": "Parallel execution",
+    "postgres": "PostgreSQL"
+  },
+  "nodes": {
+    "frontendReact": {
+      "label": "React 18.2",
+      "items": ["Functional components", "Virtual DOM", "JSX syntax"]
+    },
+    "frontendAntd": {
+      "label": "Ant Design 5.12",
+      "items": ["UI component library", "Forms & tables", "Responsive layout"]
+    },
+    "frontendZustand": {
+      "label": "Zustand 4.4",
+      "items": ["Template state", "User state", "State management"]
+    },
+    "frontendAxios": {
+      "label": "Axios 1.6",
+      "items": ["HTTP client", "Interceptors", "Token handling"]
+    },
+    "frontendRouter": {
+      "label": "React Router 6.20",
+      "items": ["Routing", "Route guards", "Route params"]
+    },
+    "frontendVite": {
+      "label": "Vite 5.0",
+      "items": ["Fast dev server", "HMR", "TypeScript"]
+    },
+    "frontendWorkflow": {
+      "label": "React Flow 11.10",
+      "items": ["Template canvas", "Node drag & drop", "Edge management"]
+    },
+    "frontendEcharts": {
+      "label": "ECharts 5.6",
+      "items": ["Data visualization", "Interactive charts", "Many chart types"]
+    },
+    "frontendWebsocket": {
+      "label": "WebSocket",
+      "items": ["Real-time collaboration", "Cursor sync", "Presence list"]
+    },
+    "frontendHistory": {
+      "label": "History",
+      "items": ["Undo / redo", "Command pattern", "History stack"]
+    },
+    "frontendClipboard": {
+      "label": "Clipboard",
+      "items": ["Copy & paste", "Cross-template", "Preserve connections"]
+    },
+    "frontendShortcuts": {
+      "label": "Shortcuts",
+      "items": ["Shortcut manager", "Custom bindings", "Conflict detection"]
+    },
+    "communication": {
+      "label": "RESTful API",
+      "items": ["JSON payloads", "HTTP/HTTPS", "CORS"]
+    },
+    "backendFastapi": {
+      "label": "FastAPI 0.109",
+      "items": ["API routes", "Auto OpenAPI docs", "CORS middleware"]
+    },
+    "backendUvicorn": {
+      "label": "Uvicorn 0.27",
+      "items": ["ASGI server", "Async I/O", "WebSocket"]
+    },
+    "backendWorkflow": {
+      "label": "Template service",
+      "items": ["CRUD", "Topological sort", "Cycle detection"]
+    },
+    "backendFunction": {
+      "label": "AI algorithm library",
+      "items": ["Function catalog", "Matrix compute", "Search"]
+    },
+    "backendAuth": {
+      "label": "Authentication",
+      "items": ["JWT tokens", "Login", "bcrypt hashing"]
+    },
+    "backendNetworkx": {
+      "label": "NetworkX 3.1",
+      "items": ["Topological sort", "Cycle detection", "Graph algorithms"]
+    },
+    "backendNumpy": {
+      "label": "NumPy 1.24",
+      "items": ["Array math", "Matrix ops", "Linear algebra"]
+    },
+    "backendScipy": {
+      "label": "SciPy 1.11",
+      "items": ["Scientific computing", "Signal processing", "Optimization"]
+    },
+    "backendVersion": {
+      "label": "Version control",
+      "items": ["Version history", "Diffing", "Branching"]
+    },
+    "backendShare": {
+      "label": "Sharing",
+      "items": ["Permissions", "Share links", "Co-editing"]
+    },
+    "backendLlm": {
+      "label": "LLM service",
+      "items": ["LangChain", "AI assistant", "Smart suggestions"]
+    },
+    "backendSchedule": {
+      "label": "Scheduler",
+      "items": ["Celery queues", "Scheduled jobs", "Event triggers"]
+    },
+    "dataSqlalchemy": {
+      "label": "SQLAlchemy 2.0",
+      "items": ["ORM mapping", "Query builder", "Session management"]
+    },
+    "dataPydantic": {
+      "label": "Pydantic 2.5",
+      "items": ["Data validation", "Models", "JSON serialization"]
+    },
+    "database": {
+      "label": "SQLite database",
+      "items": ["User data", "Templates", "Function metadata"]
+    },
+    "dataRedis": {
+      "label": "Redis cache",
+      "items": ["Result cache", "Session store", "Message queue"]
+    },
+    "dataStorage": {
+      "label": "Object storage",
+      "items": ["Large files", "MinIO/S3", "Template export bundles"]
+    },
+    "dataSearch": {
+      "label": "Full-text search",
+      "items": ["SQLite FTS5", "Template search", "Node lookup"]
+    }
+  }
+}

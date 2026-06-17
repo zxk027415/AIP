@@ -1,0 +1,244 @@
+[
+  {
+    "id": "renewable-energy",
+    "name": "新能源发电",
+    "icon": "🔆",
+    "description": "光伏/风电功率预测、设备故障诊断、发电资源评估、概率预测",
+    "industry_tags": [
+      "新能源"
+    ],
+    "capabilities": [
+      "功率预测",
+      "故障诊断",
+      "资源评估",
+      "概率预测"
+    ],
+    "template_count": 17,
+    "function_count": 52,
+    "color": "#faad14",
+    "sort_order": 1
+  },
+  {
+    "id": "thermal-power",
+    "name": "火力发电",
+    "icon": "🔥",
+    "description": "燃烧优化、煤耗优化、煤价预测、库存预测、供应链优化、设备健康、环保监测",
+    "industry_tags": [
+      "传统能源"
+    ],
+    "capabilities": [
+      "燃烧优化",
+      "煤耗优化",
+      "煤价预测",
+      "设备健康",
+      "环保监测"
+    ],
+    "template_count": 25,
+    "function_count": 45,
+    "color": "#fa541c",
+    "sort_order": 2
+  },
+  {
+    "id": "energy-storage",
+    "name": "储能管理",
+    "icon": "🔋",
+    "description": "SOC/SOH估计、调度优化、寿命预测、安全预警、热管理",
+    "industry_tags": [
+      "新能源"
+    ],
+    "capabilities": [
+      "SOC估计",
+      "调度优化",
+      "寿命预测",
+      "安全预警"
+    ],
+    "template_count": 15,
+    "function_count": 36,
+    "color": "#52c41a",
+    "sort_order": 3
+  },
+  {
+    "id": "power-grid",
+    "name": "电网与微网",
+    "icon": "⚡",
+    "description": "负荷预测、调度优化、电能质量分析、异常检测",
+    "industry_tags": [
+      "源网荷储"
+    ],
+    "capabilities": [
+      "负荷预测",
+      "调度优化",
+      "异常检测"
+    ],
+    "template_count": 20,
+    "function_count": 42,
+    "color": "#1890ff",
+    "sort_order": 4
+  },
+  {
+    "id": "steel-manufacturing",
+    "name": "钢铁制造",
+    "icon": "🏭",
+    "description": "质量预测、工艺优化、缺陷检测、轧制力预测、设备健康",
+    "industry_tags": [
+      "工业制造"
+    ],
+    "capabilities": [
+      "质量预测",
+      "工艺优化",
+      "缺陷检测",
+      "设备健康"
+    ],
+    "template_count": 17,
+    "function_count": 38,
+    "color": "#722ed1",
+    "sort_order": 5
+  },
+  {
+    "id": "pv-manufacturing",
+    "name": "光伏制造",
+    "icon": "☀️",
+    "description": "缺陷检测、效率预测、良率优化、隐裂检测、EL图像分析",
+    "industry_tags": [
+      "工业制造"
+    ],
+    "capabilities": [
+      "缺陷检测",
+      "效率预测",
+      "良率优化"
+    ],
+    "template_count": 13,
+    "function_count": 30,
+    "color": "#eb2f96",
+    "sort_order": 6
+  },
+  {
+    "id": "battery-manufacturing",
+    "name": "动力电池",
+    "icon": "🔌",
+    "description": "一致性分析、安全预测、工艺优化、寿命预测",
+    "industry_tags": [
+      "工业制造"
+    ],
+    "capabilities": [
+      "一致性分析",
+      "安全预测",
+      "工艺优化"
+    ],
+    "template_count": 10,
+    "function_count": 32,
+    "color": "#13c2c2",
+    "sort_order": 7
+  },
+  {
+    "id": "semiconductor",
+    "name": "半导体制造",
+    "icon": "💾",
+    "description": "良率预测、缺陷检测、工艺优化、设备健康、晶圆检测",
+    "industry_tags": [
+      "工业制造"
+    ],
+    "capabilities": [
+      "良率预测",
+      "缺陷检测",
+      "工艺优化",
+      "设备健康"
+    ],
+    "template_count": 15,
+    "function_count": 35,
+    "color": "#2f54eb",
+    "sort_order": 8
+  },
+  {
+    "id": "chemical-process",
+    "name": "化工流程",
+    "icon": "⚗️",
+    "description": "工艺优化、安全预警、质量预测、能耗优化、反应器优化",
+    "industry_tags": [
+      "工业制造"
+    ],
+    "capabilities": [
+      "工艺优化",
+      "安全预警",
+      "质量预测",
+      "能耗优化"
+    ],
+    "template_count": 15,
+    "function_count": 35,
+    "color": "#fadb14",
+    "sort_order": 9
+  },
+  {
+    "id": "port-logistics",
+    "name": "港口运输",
+    "icon": "🚢",
+    "description": "泊位调度、AGV路径规划、能耗优化、吞吐预测",
+    "industry_tags": [
+      "港口运输"
+    ],
+    "capabilities": [
+      "泊位调度",
+      "路径规划",
+      "能耗优化"
+    ],
+    "template_count": 10,
+    "function_count": 26,
+    "color": "#fa8c16",
+    "sort_order": 10
+  },
+  {
+    "id": "building-campus",
+    "name": "楼宇园区",
+    "icon": "🏢",
+    "description": "暖通优化、能源审计、负荷预测、需求响应",
+    "industry_tags": [
+      "楼宇园区"
+    ],
+    "capabilities": [
+      "暖通优化",
+      "能源审计",
+      "负荷预测"
+    ],
+    "template_count": 11,
+    "function_count": 28,
+    "color": "#a0d911",
+    "sort_order": 11
+  },
+  {
+    "id": "carbon-management",
+    "name": "碳管理",
+    "icon": "🌱",
+    "description": "碳核算、碳交易策略、碳足迹追踪、减排优化",
+    "industry_tags": [
+      "碳管理"
+    ],
+    "capabilities": [
+      "碳核算",
+      "碳交易",
+      "碳足迹追踪"
+    ],
+    "template_count": 12,
+    "function_count": 22,
+    "color": "#389e0d",
+    "sort_order": 12
+  },
+  {
+    "id": "water-environment",
+    "name": "水务环保",
+    "icon": "💧",
+    "description": "水质预测、管网优化、污染检测、能耗优化、污水处理",
+    "industry_tags": [
+      "公用事业"
+    ],
+    "capabilities": [
+      "水质预测",
+      "管网优化",
+      "污染检测",
+      "能耗优化"
+    ],
+    "template_count": 12,
+    "function_count": 28,
+    "color": "#1890ff",
+    "sort_order": 13
+  }
+]

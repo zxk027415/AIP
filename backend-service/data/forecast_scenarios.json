@@ -1,0 +1,317 @@
+{
+  "forecast_types": {
+    "ultra_short_term": {
+      "id": "ultra_short_term",
+      "name": "超短期预测",
+      "time_horizon": "0-4小时",
+      "resolution": "15分钟",
+      "typical_use_cases": ["实时调度", "AGC调频", "功率平滑控制"],
+      "data_requirements": {
+        "history_length": "1-7天",
+        "update_frequency": "15分钟",
+        "key_features": ["实时功率", "实时气象", "NWP超短期"]
+      },
+      "recommended_algorithms": ["persistence", "arima", "lstm_realtime", "gru"],
+      "accuracy_target": {
+        "mape": "< 5%",
+        "rmse_ratio": "< 8%"
+      }
+    },
+    "short_term": {
+      "id": "short_term",
+      "name": "短期预测",
+      "time_horizon": "4-72小时",
+      "resolution": "15分钟或1小时",
+      "typical_use_cases": ["日前调度", "电力市场交易", "检修计划"],
+      "data_requirements": {
+        "history_length": "30-180天",
+        "update_frequency": "每日1-2次",
+        "key_features": ["历史功率", "NWP气象预报", "日历特征"]
+      },
+      "recommended_algorithms": ["ridge", "xgboost", "lstm", "transformer"],
+      "accuracy_target": {
+        "mape": "< 10%",
+        "rmse_ratio": "< 15%"
+      }
+    },
+    "medium_long_term": {
+      "id": "medium_long_term",
+      "name": "中长期预测",
+      "time_horizon": "3天-1年",
+      "resolution": "1小时或1天",
+      "typical_use_cases": ["月度发电量预测", "年度发电量评估", "投资规划"],
+      "data_requirements": {
+        "history_length": "1-5年",
+        "update_frequency": "每周或每月",
+        "key_features": ["历史发电量", "气候数据", "设备衰减"]
+      },
+      "recommended_algorithms": ["prophet", "sarima", "ensemble", "physical_model"],
+      "accuracy_target": {
+        "mape": "< 15%",
+        "monthly_deviation": "< 5%"
+      }
+    }
+  },
+  "business_scenarios": {
+    "grid_dispatch": {
+      "id": "grid_dispatch",
+      "name": "源网荷储调度优化",
+      "description": "电网调度中心用于优化源网荷储协调运行",
+      "sub_scenarios": [
+        {
+          "id": "agc_control",
+          "name": "AGC自动发电控制",
+          "forecast_type": "ultra_short_term",
+          "accuracy_requirement": "高",
+          "latency_requirement": "< 1秒"
+        },
+        {
+          "id": "day_ahead_dispatch",
+          "name": "日前调度计划",
+          "forecast_type": "short_term",
+          "accuracy_requirement": "中高",
+          "latency_requirement": "< 5分钟"
+        },
+        {
+          "id": "weekly_plan",
+          "name": "周调度计划",
+          "forecast_type": "medium_long_term",
+          "accuracy_requirement": "中",
+          "latency_requirement": "< 1小时"
+        }
+      ],
+      "key_metrics": ["调度偏差率", "弃风弃光率", "系统平衡成本"],
+      "integration_points": ["SCADA", "EMS", "调度自动化系统"]
+    },
+    "power_trading": {
+      "id": "power_trading",
+      "name": "电力市场交易",
+      "description": "新能源场站参与电力市场现货/中长期交易",
+      "sub_scenarios": [
+        {
+          "id": "spot_market",
+          "name": "现货市场报价",
+          "forecast_type": "short_term",
+          "accuracy_requirement": "高",
+          "latency_requirement": "< 10分钟"
+        },
+        {
+          "id": "medium_term_contract",
+          "name": "中长期合约",
+          "forecast_type": "medium_long_term",
+          "accuracy_requirement": "中",
+          "latency_requirement": "< 1天"
+        }
+      ],
+      "key_metrics": ["预测偏差考核", "市场收益", "偏差电量"],
+      "integration_points": ["交易系统", "结算系统"]
+    },
+    "plant_operation": {
+      "id": "plant_operation",
+      "name": "新能源场站运营",
+      "description": "光伏/风电场站日常运营管理",
+      "sub_scenarios": [
+        {
+          "id": "generation_forecast",
+          "name": "发电量预测上报",
+          "forecast_type": "short_term",
+          "accuracy_requirement": "中高",
+          "latency_requirement": "< 30分钟"
+        },
+        {
+          "id": "maintenance_plan",
+          "name": "检修计划安排",
+          "forecast_type": "medium_long_term",
+          "accuracy_requirement": "中",
+          "latency_requirement": "< 1天"
+        },
+        {
+          "id": "performance_analysis",
+          "name": "发电性能分析",
+          "forecast_type": "medium_long_term",
+          "accuracy_requirement": "中",
+          "latency_requirement": "无要求"
+        }
+      ],
+      "key_metrics": ["发电量完成率", "设备可用率", "PR值"],
+      "integration_points": ["SCADA", "运维管理系统", "气象服务"]
+    }
+  },
+  "_comment": "@AI_GENERATED",
+  "load_forecast_scenarios": {
+    "DI": {
+      "task_type": "DI",
+      "name": "日内预测",
+      "description": "超短期负荷预测，预测未来0-4小时的电力负荷",
+      "time_horizon": "0-4小时",
+      "resolution": "15分钟",
+      "typical_use_cases": ["实时调度", "AGC调频", "需求响应"],
+      "data_requirements": {
+        "min_history_days": 7,
+        "update_frequency": "15分钟",
+        "key_features": ["历史负荷", "实时气象", "日历特征"]
+      },
+      "accuracy_target": {
+        "smape": "< 5%",
+        "mape": "< 5%"
+      },
+      "model": "XGBoost + 贝叶斯超参优化",
+      "default_retrain": false,
+      "recommended_config": {
+        "forecast_horizon": 1,
+        "separate_modeling": "true",
+        "time_granularity": "15min"
+      }
+    },
+    "D": {
+      "task_type": "D",
+      "name": "日前预测",
+      "description": "短期负荷预测，预测次日24小时的电力负荷",
+      "time_horizon": "次日24小时",
+      "resolution": "15分钟",
+      "typical_use_cases": ["日前调度", "电力市场交易", "检修计划"],
+      "data_requirements": {
+        "min_history_days": 30,
+        "update_frequency": "每日",
+        "key_features": ["历史负荷", "气象预报", "日历特征", "节假日"]
+      },
+      "accuracy_target": {
+        "smape": "< 8%",
+        "mape": "< 10%"
+      },
+      "model": "XGBoost + 贝叶斯超参优化",
+      "default_retrain": true,
+      "recommended_config": {
+        "forecast_horizon": 1,
+        "separate_modeling": "true",
+        "time_granularity": "15min"
+      }
+    },
+    "WI": {
+      "task_type": "WI",
+      "name": "周内预测",
+      "description": "预测本周剩余天数的电力负荷",
+      "time_horizon": "本周剩余1-7天",
+      "resolution": "15分钟或1小时",
+      "typical_use_cases": ["周度调度", "负荷管理", "检修安排"],
+      "data_requirements": {
+        "min_history_days": 60,
+        "update_frequency": "每日",
+        "key_features": ["历史负荷", "气象预报", "日历特征", "工作日/节假日"]
+      },
+      "accuracy_target": {
+        "smape": "< 10%",
+        "mape": "< 12%"
+      },
+      "model": "XGBoost + 贝叶斯超参优化",
+      "default_retrain": true,
+      "recommended_config": {
+        "forecast_horizon": 7,
+        "separate_modeling": "true",
+        "time_granularity": "15min"
+      }
+    },
+    "W": {
+      "task_type": "W",
+      "name": "周前预测",
+      "description": "预测下周7天的电力负荷",
+      "time_horizon": "下周7天",
+      "resolution": "15分钟或1小时",
+      "typical_use_cases": ["周度计划", "燃料采购", "负荷调度"],
+      "data_requirements": {
+        "min_history_days": 90,
+        "update_frequency": "每周",
+        "key_features": ["历史负荷", "气象预报", "日历特征", "经济指标"]
+      },
+      "accuracy_target": {
+        "smape": "< 12%",
+        "mape": "< 15%"
+      },
+      "model": "XGBoost + 贝叶斯超参优化",
+      "default_retrain": true,
+      "recommended_config": {
+        "forecast_horizon": 7,
+        "separate_modeling": "true",
+        "time_granularity": "15min"
+      }
+    },
+    "MI": {
+      "task_type": "MI",
+      "name": "月内预测",
+      "description": "预测本月剩余天数的电力负荷",
+      "time_horizon": "本月剩余1-30天",
+      "resolution": "1小时或1天",
+      "typical_use_cases": ["月度调整", "需求响应", "负荷管理"],
+      "data_requirements": {
+        "min_history_days": 180,
+        "update_frequency": "每周",
+        "key_features": ["历史负荷", "气候数据", "经济指标", "产业结构"]
+      },
+      "accuracy_target": {
+        "smape": "< 15%",
+        "mape": "< 15%"
+      },
+      "model": "XGBoost + 贝叶斯超参优化",
+      "default_retrain": false,
+      "recommended_config": {
+        "forecast_horizon": 30,
+        "separate_modeling": "true",
+        "time_granularity": "15min"
+      }
+    },
+    "M": {
+      "task_type": "M",
+      "name": "月前预测",
+      "description": "预测下月整月的电力负荷",
+      "time_horizon": "下月30天",
+      "resolution": "1小时或1天",
+      "typical_use_cases": ["月度计划", "容量规划", "电力交易"],
+      "data_requirements": {
+        "min_history_days": 365,
+        "update_frequency": "每月",
+        "key_features": ["历史负荷", "气候数据", "经济指标", "产业结构", "人口数据"]
+      },
+      "accuracy_target": {
+        "smape": "< 15%",
+        "mape": "< 15%"
+      },
+      "model": "XGBoost + 贝叶斯超参优化",
+      "default_retrain": false,
+      "recommended_config": {
+        "forecast_horizon": 30,
+        "separate_modeling": "true",
+        "time_granularity": "15min"
+      }
+    }
+  },
+  "_comment_end": "@AI_GENERATED: end",
+  "clarification_questions": [
+    {
+      "id": "forecast_horizon",
+      "question": "您需要的预测时间尺度是？",
+      "options": [
+        {"value": "ultra_short_term", "label": "超短期（0-4小时）", "description": "用于实时调度、AGC控制"},
+        {"value": "short_term", "label": "短期（4-72小时）", "description": "用于日前调度、电力交易"},
+        {"value": "medium_long_term", "label": "中长期（3天-1年）", "description": "用于月度计划、投资评估"}
+      ]
+    },
+    {
+      "id": "business_purpose",
+      "question": "您的业务场景是？",
+      "options": [
+        {"value": "grid_dispatch", "label": "源网荷储调度优化", "description": "电网调度中心协调优化"},
+        {"value": "power_trading", "label": "电力市场交易", "description": "现货/中长期市场交易"},
+        {"value": "plant_operation", "label": "新能源场站运营", "description": "场站日常运营管理"}
+      ]
+    },
+    {
+      "id": "energy_type",
+      "question": "您的能源类型是？",
+      "options": [
+        {"value": "pv", "label": "光伏发电", "description": "地面电站、分布式光伏"},
+        {"value": "wind", "label": "风力发电", "description": "陆上风电、海上风电"},
+        {"value": "hybrid", "label": "风光储一体化", "description": "多能互补项目"}
+      ]
+    }
+  ]
+}

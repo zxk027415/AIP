@@ -1,0 +1,25 @@
+{
+  "claim": "因为漂移信号极强（0.998659），所以将 train_days 缩短至 14 应该能剔除过期分布，显著改善 MAPE。（第2轮验证，改善112.73%）",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "de7d06892dfb",
+    "target_param": "correlational_text"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "granularity": "intraday",
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-12821a0b3926"
+  ],
+  "knowledge_type": "correlational",
+  "last_validated_at": "2026-05-22T08:41:01.967201",
+  "layer": "L2",
+  "scenario_condition_hash": "bcda466f47f336be",
+  "status": "active"
+}

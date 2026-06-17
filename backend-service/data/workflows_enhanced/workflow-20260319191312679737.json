@@ -1,0 +1,711 @@
+{
+  "id": "workflow-20260319191312679737",
+  "name": "闪变分析 - high-accuracy",
+  "description": "为场景 power-grid 生成工作流：，数据管理层 2 个节点，数据处理层 3 个节点，算法模型层 2 个节点，评估输出层 2 个节点，共 9 个节点、16 条连接",
+  "nodes": [
+    {
+      "id": "node-08bbfe3f",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 80.0
+      },
+      "data": {
+        "label": "CSV/Excel文件加载",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-08bbfe3f-in-file_path",
+            "name": "file_path",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-08bbfe3f-in-delimiter",
+            "name": "delimiter",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-08bbfe3f-in-encoding",
+            "name": "encoding",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-08bbfe3f-in-header_row",
+            "name": "header_row",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-08bbfe3f-in-timestamp_column",
+            "name": "timestamp_column",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-08bbfe3f-in-value_columns",
+            "name": "value_columns",
+            "type": "input",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-08bbfe3f-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "load_csv",
+          "operation": null,
+          "chartType": null,
+          "delimiter": ",",
+          "encoding": "utf-8",
+          "header_row": 0,
+          "timestamp_column": "",
+          "value_columns": []
+        },
+        "status": "idle",
+        "error": null,
+        "description": "从CSV/Excel文件加载数据，支持自动类型推断、编码检测和大文件分块读取。可指定时间戳列和数值列用于时序数据场景。"
+      }
+    },
+    {
+      "id": "node-58b0cc77",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 80.0
+      },
+      "data": {
+        "label": "IEC 61850数据读取",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-58b0cc77-in-server_url",
+            "name": "server_url",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-58b0cc77-in-dataset",
+            "name": "dataset",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-58b0cc77-in-protocol",
+            "name": "protocol",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-58b0cc77-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "load_iec61850",
+          "operation": null,
+          "chartType": null,
+          "protocol": "mms"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "从IEC 61850变电站自动化系统读取电力数据，支持MMS和GOOSE协议。"
+      }
+    },
+    {
+      "id": "node-8a44ad5c",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 230.0
+      },
+      "data": {
+        "label": "缺失值处理",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-8a44ad5c-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-8a44ad5c-in-method",
+            "name": "method",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-8a44ad5c-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "handle_missing",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": "处理时序数据中的缺失值，支持插值、前向填充、后向填充等方法。"
+      }
+    },
+    {
+      "id": "node-de01bd78",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 230.0
+      },
+      "data": {
+        "label": "带通滤波器",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-de01bd78-in-signal",
+            "name": "signal",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-de01bd78-in-low_freq",
+            "name": "low_freq",
+            "type": "input",
+            "dataType": "number",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-de01bd78-in-high_freq",
+            "name": "high_freq",
+            "type": "input",
+            "dataType": "number",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-de01bd78-in-sample_rate",
+            "name": "sample_rate",
+            "type": "input",
+            "dataType": "number",
+            "required": true,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-de01bd78-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "bandpass_filter",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": "对信号进行带通滤波，保留指定频率范围内的成分。"
+      }
+    },
+    {
+      "id": "node-63a9f5b8",
+      "type": "enhanced",
+      "position": {
+        "x": 600.0,
+        "y": 230.0
+      },
+      "data": {
+        "label": "快速傅里叶变换",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-63a9f5b8-in-signal",
+            "name": "signal",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-63a9f5b8-in-sample_rate",
+            "name": "sample_rate",
+            "type": "input",
+            "dataType": "number",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-63a9f5b8-in-window",
+            "name": "window",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-63a9f5b8-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "object",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "fft_transform",
+          "operation": null,
+          "chartType": null,
+          "window": "hann"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "对时域信号进行FFT变换，提取频域特征。"
+      }
+    },
+    {
+      "id": "node-1cef3cfe",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 380.0
+      },
+      "data": {
+        "label": "小波分析",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-1cef3cfe-in-signal",
+            "name": "signal",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-1cef3cfe-in-wavelet",
+            "name": "wavelet",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-1cef3cfe-in-scales",
+            "name": "scales",
+            "type": "input",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-1cef3cfe-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "object",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "wavelet_analysis",
+          "operation": null,
+          "chartType": null,
+          "wavelet": "cmor"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用连续/离散小波变换进行时频分析，适用于非平稳信号分析。"
+      }
+    },
+    {
+      "id": "node-0f85ae3b",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 380.0
+      },
+      "data": {
+        "label": "LSTM时序预测",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-0f85ae3b-in-train_data",
+            "name": "train_data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-0f85ae3b-in-sequence_length",
+            "name": "sequence_length",
+            "type": "input",
+            "dataType": "number",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-0f85ae3b-in-forecast_horizon",
+            "name": "forecast_horizon",
+            "type": "input",
+            "dataType": "number",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-0f85ae3b-in-hidden_units",
+            "name": "hidden_units",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-0f85ae3b-in-auto_tune",
+            "name": "auto_tune",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-0f85ae3b-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "lstm_forecast",
+          "operation": null,
+          "chartType": null,
+          "hidden_units": 64,
+          "auto_tune": "false"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用长短期记忆网络（LSTM）进行时序预测，适用于负荷预测等场景。"
+      }
+    },
+    {
+      "id": "node-a91286f1",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 530.0
+      },
+      "data": {
+        "label": "均方根误差(RMSE)",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-a91286f1-in-y_true",
+            "name": "y_true",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-a91286f1-in-y_pred",
+            "name": "y_pred",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-a91286f1-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "rmse_metric",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": "计算预测值与真实值之间的均方根误差，对大误差更敏感。"
+      }
+    },
+    {
+      "id": "node-36de29ae",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 530.0
+      },
+      "data": {
+        "label": "频谱图可视化",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-36de29ae-in-signal",
+            "name": "signal",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-36de29ae-in-sample_rate",
+            "name": "sample_rate",
+            "type": "input",
+            "dataType": "number",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-36de29ae-in-plot_type",
+            "name": "plot_type",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-36de29ae-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "object",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "spectrogram_plot",
+          "operation": null,
+          "chartType": null,
+          "plot_type": "spectrogram"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "绘制信号的频谱图或时频图，用于振动分析结果展示。"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1c5a2990",
+      "source": "node-08bbfe3f",
+      "target": "node-8a44ad5c",
+      "sourceHandle": "node-08bbfe3f-out-result",
+      "targetHandle": "node-8a44ad5c-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-e23a831f",
+      "source": "node-08bbfe3f",
+      "target": "node-de01bd78",
+      "sourceHandle": "node-08bbfe3f-out-result",
+      "targetHandle": "node-de01bd78-in-signal",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-20f27b6f",
+      "source": "node-08bbfe3f",
+      "target": "node-63a9f5b8",
+      "sourceHandle": "node-08bbfe3f-out-result",
+      "targetHandle": "node-63a9f5b8-in-signal",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-b0e774b1",
+      "source": "node-58b0cc77",
+      "target": "node-8a44ad5c",
+      "sourceHandle": "node-58b0cc77-out-result",
+      "targetHandle": "node-8a44ad5c-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-aed91b22",
+      "source": "node-58b0cc77",
+      "target": "node-de01bd78",
+      "sourceHandle": "node-58b0cc77-out-result",
+      "targetHandle": "node-de01bd78-in-signal",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-c64808e1",
+      "source": "node-58b0cc77",
+      "target": "node-63a9f5b8",
+      "sourceHandle": "node-58b0cc77-out-result",
+      "targetHandle": "node-63a9f5b8-in-signal",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-91eb40ed",
+      "source": "node-8a44ad5c",
+      "target": "node-1cef3cfe",
+      "sourceHandle": "node-8a44ad5c-out-result",
+      "targetHandle": "node-1cef3cfe-in-signal",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-d6971f9c",
+      "source": "node-8a44ad5c",
+      "target": "node-0f85ae3b",
+      "sourceHandle": "node-8a44ad5c-out-result",
+      "targetHandle": "node-0f85ae3b-in-train_data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-11d7a8ca",
+      "source": "node-de01bd78",
+      "target": "node-1cef3cfe",
+      "sourceHandle": "node-de01bd78-out-result",
+      "targetHandle": "node-1cef3cfe-in-signal",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-238d8b5e",
+      "source": "node-de01bd78",
+      "target": "node-0f85ae3b",
+      "sourceHandle": "node-de01bd78-out-result",
+      "targetHandle": "node-0f85ae3b-in-train_data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-95ef7fa9",
+      "source": "node-63a9f5b8",
+      "target": "node-1cef3cfe",
+      "sourceHandle": "node-63a9f5b8-out-result",
+      "targetHandle": "node-1cef3cfe-in-signal",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-8f3dd344",
+      "source": "node-63a9f5b8",
+      "target": "node-0f85ae3b",
+      "sourceHandle": "node-63a9f5b8-out-result",
+      "targetHandle": "node-0f85ae3b-in-train_data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-08e9acbd",
+      "source": "node-1cef3cfe",
+      "target": "node-a91286f1",
+      "sourceHandle": "node-1cef3cfe-out-result",
+      "targetHandle": "node-a91286f1-in-y_true",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-80806001",
+      "source": "node-1cef3cfe",
+      "target": "node-36de29ae",
+      "sourceHandle": "node-1cef3cfe-out-result",
+      "targetHandle": "node-36de29ae-in-signal",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-50f19792",
+      "source": "node-0f85ae3b",
+      "target": "node-a91286f1",
+      "sourceHandle": "node-0f85ae3b-out-result",
+      "targetHandle": "node-a91286f1-in-y_true",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-627d6409",
+      "source": "node-0f85ae3b",
+      "target": "node-36de29ae",
+      "sourceHandle": "node-0f85ae3b-out-result",
+      "targetHandle": "node-36de29ae-in-signal",
+      "type": "smoothstep",
+      "data": null
+    }
+  ],
+  "createdAt": "2026-03-19T19:13:12.680738",
+  "updatedAt": "2026-03-19T19:13:12.680738"
+}

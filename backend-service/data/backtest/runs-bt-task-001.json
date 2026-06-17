@@ -1,0 +1,302 @@
+[
+  {
+    "id": "bt-run-bt-task-001-001",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-001",
+    "dataset_name": "光伏电站A-2025年数据",
+    "algorithm_type": "template",
+    "algorithm_id": "pv_power_forecast",
+    "algorithm_name": "光伏发电功率预测",
+    "status": "completed",
+    "started_at": "2026-03-15T18:56:06.781251",
+    "completed_at": "2026-03-15T19:05:06.781251",
+    "execution_time_ms": 540000,
+    "result": {
+      "rmse": 0.0451,
+      "mae": 0.0268,
+      "r2": 0.9583,
+      "mape": 2.13
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-001-002",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-001",
+    "dataset_name": "光伏电站A-2025年数据",
+    "algorithm_type": "template",
+    "algorithm_id": "lstm_forecast",
+    "algorithm_name": "LSTM时序预测",
+    "status": "completed",
+    "started_at": "2026-03-15T18:58:06.781251",
+    "completed_at": "2026-03-15T19:01:06.781251",
+    "execution_time_ms": 180000,
+    "result": {
+      "rmse": 0.0301,
+      "mae": 0.023,
+      "r2": 0.9586,
+      "mape": 4.47
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-001-003",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-001",
+    "dataset_name": "光伏电站A-2025年数据",
+    "algorithm_type": "workflow",
+    "algorithm_id": "wf-001",
+    "algorithm_name": "集成预测工作流",
+    "status": "completed",
+    "started_at": "2026-03-15T19:00:06.781251",
+    "completed_at": "2026-03-15T19:03:06.781251",
+    "execution_time_ms": 180000,
+    "result": {
+      "rmse": 0.0257,
+      "mae": 0.0369,
+      "r2": 0.942,
+      "mape": 4.41
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-001-004",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-002",
+    "dataset_name": "光伏电站B-2025年数据",
+    "algorithm_type": "template",
+    "algorithm_id": "pv_power_forecast",
+    "algorithm_name": "光伏发电功率预测",
+    "status": "completed",
+    "started_at": "2026-03-15T19:02:06.781251",
+    "completed_at": "2026-03-15T19:05:06.781251",
+    "execution_time_ms": 180000,
+    "result": {
+      "rmse": 0.0524,
+      "mae": 0.0254,
+      "r2": 0.9204,
+      "mape": 1.91
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-001-005",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-002",
+    "dataset_name": "光伏电站B-2025年数据",
+    "algorithm_type": "template",
+    "algorithm_id": "lstm_forecast",
+    "algorithm_name": "LSTM时序预测",
+    "status": "completed",
+    "started_at": "2026-03-15T19:04:06.781251",
+    "completed_at": "2026-03-15T19:08:06.781251",
+    "execution_time_ms": 240000,
+    "result": {
+      "rmse": 0.0283,
+      "mae": 0.0379,
+      "r2": 0.9551,
+      "mape": 1.65
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-001-006",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-002",
+    "dataset_name": "光伏电站B-2025年数据",
+    "algorithm_type": "workflow",
+    "algorithm_id": "wf-001",
+    "algorithm_name": "集成预测工作流",
+    "status": "completed",
+    "started_at": "2026-03-15T19:06:06.781251",
+    "completed_at": "2026-03-15T19:10:06.781251",
+    "execution_time_ms": 240000,
+    "result": {
+      "rmse": 0.0341,
+      "mae": 0.0202,
+      "r2": 0.9553,
+      "mape": 4.79
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-001-007",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-003",
+    "dataset_name": "光伏电站C-2024年数据",
+    "algorithm_type": "template",
+    "algorithm_id": "pv_power_forecast",
+    "algorithm_name": "光伏发电功率预测",
+    "status": "completed",
+    "started_at": "2026-03-15T19:08:06.781251",
+    "completed_at": "2026-03-15T19:15:06.781251",
+    "execution_time_ms": 420000,
+    "result": {
+      "rmse": 0.0512,
+      "mae": 0.0298,
+      "r2": 0.9571,
+      "mape": 3.24
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-001-008",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-003",
+    "dataset_name": "光伏电站C-2024年数据",
+    "algorithm_type": "template",
+    "algorithm_id": "lstm_forecast",
+    "algorithm_name": "LSTM时序预测",
+    "status": "completed",
+    "started_at": "2026-03-15T19:10:06.781251",
+    "completed_at": "2026-03-15T19:13:06.781251",
+    "execution_time_ms": 180000,
+    "result": {
+      "rmse": 0.0508,
+      "mae": 0.0397,
+      "r2": 0.9617,
+      "mape": 2.68
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-001-009",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-003",
+    "dataset_name": "光伏电站C-2024年数据",
+    "algorithm_type": "workflow",
+    "algorithm_id": "wf-001",
+    "algorithm_name": "集成预测工作流",
+    "status": "completed",
+    "started_at": "2026-03-15T19:12:06.781251",
+    "completed_at": "2026-03-15T19:15:06.781251",
+    "execution_time_ms": 180000,
+    "result": {
+      "rmse": 0.0346,
+      "mae": 0.0381,
+      "r2": 0.9747,
+      "mape": 4.4
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-001-010",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-004",
+    "dataset_name": "光伏电站D-2025年数据",
+    "algorithm_type": "template",
+    "algorithm_id": "pv_power_forecast",
+    "algorithm_name": "光伏发电功率预测",
+    "status": "completed",
+    "started_at": "2026-03-15T19:14:06.781251",
+    "completed_at": "2026-03-15T19:23:06.781251",
+    "execution_time_ms": 540000,
+    "result": {
+      "rmse": 0.0583,
+      "mae": 0.027,
+      "r2": 0.9654,
+      "mape": 2.54
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-001-011",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-004",
+    "dataset_name": "光伏电站D-2025年数据",
+    "algorithm_type": "template",
+    "algorithm_id": "lstm_forecast",
+    "algorithm_name": "LSTM时序预测",
+    "status": "completed",
+    "started_at": "2026-03-15T19:16:06.781251",
+    "completed_at": "2026-03-15T19:26:06.781251",
+    "execution_time_ms": 600000,
+    "result": {
+      "rmse": 0.0372,
+      "mae": 0.0295,
+      "r2": 0.9446,
+      "mape": 3.24
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-001-012",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-004",
+    "dataset_name": "光伏电站D-2025年数据",
+    "algorithm_type": "workflow",
+    "algorithm_id": "wf-001",
+    "algorithm_name": "集成预测工作流",
+    "status": "completed",
+    "started_at": "2026-03-15T19:18:06.781251",
+    "completed_at": "2026-03-15T19:27:06.781251",
+    "execution_time_ms": 540000,
+    "result": {
+      "rmse": 0.0249,
+      "mae": 0.0176,
+      "r2": 0.978,
+      "mape": 2.85
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-001-013",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-005",
+    "dataset_name": "光伏电站E-2024年数据",
+    "algorithm_type": "template",
+    "algorithm_id": "pv_power_forecast",
+    "algorithm_name": "光伏发电功率预测",
+    "status": "completed",
+    "started_at": "2026-03-15T19:20:06.781251",
+    "completed_at": "2026-03-15T19:27:06.781251",
+    "execution_time_ms": 420000,
+    "result": {
+      "rmse": 0.0436,
+      "mae": 0.019,
+      "r2": 0.9535,
+      "mape": 2.0
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-001-014",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-005",
+    "dataset_name": "光伏电站E-2024年数据",
+    "algorithm_type": "template",
+    "algorithm_id": "lstm_forecast",
+    "algorithm_name": "LSTM时序预测",
+    "status": "completed",
+    "started_at": "2026-03-15T19:22:06.781251",
+    "completed_at": "2026-03-15T19:27:06.781251",
+    "execution_time_ms": 300000,
+    "result": {
+      "rmse": 0.0399,
+      "mae": 0.0226,
+      "r2": 0.9638,
+      "mape": 4.39
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-001-015",
+    "task_id": "bt-task-001",
+    "dataset_id": "ds-005",
+    "dataset_name": "光伏电站E-2024年数据",
+    "algorithm_type": "workflow",
+    "algorithm_id": "wf-001",
+    "algorithm_name": "集成预测工作流",
+    "status": "completed",
+    "started_at": "2026-03-15T19:24:06.781251",
+    "completed_at": "2026-03-15T19:33:06.781251",
+    "execution_time_ms": 540000,
+    "result": {
+      "rmse": 0.0348,
+      "mae": 0.0413,
+      "r2": 0.9508,
+      "mape": 3.67
+    },
+    "error_message": null
+  }
+]

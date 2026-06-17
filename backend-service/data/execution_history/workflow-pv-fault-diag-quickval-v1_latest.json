@@ -1,0 +1,425 @@
+{
+  "execution_id": "exec-bfdea1e709c2",
+  "workflow_id": "workflow-pv-fault-diag-quickval-v1",
+  "status": "success",
+  "nodeResults": {
+    "qv-load_csv-n1": {
+      "status": "success",
+      "outputSummary": {
+        "data": "DataFrame[57385, 6]"
+      },
+      "executionTime": 0.013
+    },
+    "qv-load_csv-n2": {
+      "status": "success",
+      "outputSummary": {
+        "data": "DataFrame[272, 5]"
+      },
+      "executionTime": 0.005
+    },
+    "qv-merge_label-n3": {
+      "status": "success",
+      "outputSummary": {
+        "data": "DataFrame[57385, 7]"
+      },
+      "executionTime": 0.03
+    },
+    "qv-time_window_split-n4": {
+      "status": "success",
+      "outputSummary": {
+        "data": "DataFrame[57385, 8]"
+      },
+      "executionTime": 0.174
+    },
+    "qv-handle_missing-n5": {
+      "status": "success",
+      "outputSummary": {
+        "data": "DataFrame[57385, 8]"
+      },
+      "executionTime": 0.019
+    },
+    "qv-detect_outliers-n6": {
+      "status": "success",
+      "outputSummary": {
+        "data": "DataFrame[57385, 8]",
+        "outlier_indices": "list[0]"
+      },
+      "executionTime": 0.229
+    },
+    "qv-extract_statistical_features-n7": {
+      "status": "success",
+      "outputSummary": {
+        "data": "DataFrame[272, 63]"
+      },
+      "executionTime": 0.364
+    },
+    "qv-ts_comparison_features-n9": {
+      "status": "success",
+      "outputSummary": {
+        "data": "DataFrame[272, 10]"
+      },
+      "executionTime": 0.236
+    },
+    "qv-tsfresh_extract-n8": {
+      "status": "success",
+      "outputSummary": {
+        "data": "DataFrame[272, 20]"
+      },
+      "executionTime": 0.093
+    },
+    "qv-feature_select-n10": {
+      "status": "success",
+      "outputSummary": {
+        "selected_features": "DataFrame[272, 20]",
+        "feature_list": "list[20]",
+        "target": "DataFrame[272]"
+      },
+      "executionTime": 2.42
+    },
+    "qv-smote_oversample-n11": {
+      "status": "success",
+      "outputSummary": {
+        "features": "DataFrame[272, 20]",
+        "target": "DataFrame[272]"
+      },
+      "executionTime": 0.025
+    },
+    "qv-random_forest_classifier-n12": {
+      "status": "success",
+      "outputSummary": {
+        "model": "RandomForestClassifier",
+        "model_id": "pv_fault_rfc_1781600596_cb83da",
+        "feature_list": "list[20]",
+        "predictions": "DataFrame[55]",
+        "y_true": "DataFrame[55]",
+        "feature_importances": "DataFrame[20]"
+      },
+      "executionTime": 0.095
+    },
+    "qv-confusion_matrix-n14": {
+      "status": "success",
+      "outputSummary": {
+        "matrix": "DataFrame[8, 8]",
+        "report": "              precision    recall  f1-score   support\n\n           0       0.00      0.00      0.00         1\n           1       1.00      1.00      1.00         3\n           4       1.00      1.00      1.00        10\n           7       0.85      0.97      0.91        30\n           8       1.00      0.20      0.33         5\n          11       0.80      0.80      0.80         5\n          12       0.00      0.00      0.00         0\n          16       0.00      0.00      0.00         1\n\n    accuracy                           0.85        55\n   macro avg       0.58      0.50      0.50        55\nweighted avg       0.87      0.85      0.83        55\n"
+      },
+      "executionTime": 0.002
+    },
+    "qv-precision_recall_f1-n13": {
+      "status": "success",
+      "outputSummary": {
+        "accuracy": 0.8545454545454545,
+        "precision": 0.5816176470588236,
+        "recall": 0.49583333333333335,
+        "f1": 0.5049479166666666
+      },
+      "executionTime": 0.001
+    }
+  },
+  "logs": [
+    {
+      "timestamp": "17:03:13",
+      "message": "流水线开始执行: 光伏故障诊断 - 快速验证 (算子数: 14)",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:13",
+      "message": "▶ 光伏源数据 (train_small) 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:13",
+      "message": "✓ 光伏源数据 (train_small) 完成 (耗时 0.01s)",
+      "type": "success"
+    },
+    {
+      "timestamp": "17:03:13",
+      "message": "▶ 标签数据 (label_small) 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:13",
+      "message": "✓ 标签数据 (label_small) 完成 (耗时 0.00s)",
+      "type": "success"
+    },
+    {
+      "timestamp": "17:03:13",
+      "message": "▶ 合并标签 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:13",
+      "message": "✓ 合并标签 完成 (耗时 0.03s)",
+      "type": "success"
+    },
+    {
+      "timestamp": "17:03:13",
+      "message": "▶ 时间窗口切分 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:13",
+      "message": "✓ 时间窗口切分 完成 (耗时 0.17s)",
+      "type": "success"
+    },
+    {
+      "timestamp": "17:03:13",
+      "message": "▶ 缺失值处理 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:13",
+      "message": "✓ 缺失值处理 完成 (耗时 0.02s)",
+      "type": "success"
+    },
+    {
+      "timestamp": "17:03:13",
+      "message": "▶ 鲁棒异常裁剪 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:13",
+      "message": "✓ 鲁棒异常裁剪 完成 (耗时 0.23s)",
+      "type": "success"
+    },
+    {
+      "timestamp": "17:03:13",
+      "message": "▶ 统计特征提取 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:14",
+      "message": "✓ 统计特征提取 完成 (耗时 0.36s)",
+      "type": "success"
+    },
+    {
+      "timestamp": "17:03:14",
+      "message": "▶ 多变量对比特征 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:14",
+      "message": "✓ 多变量对比特征 完成 (耗时 0.24s)",
+      "type": "success"
+    },
+    {
+      "timestamp": "17:03:14",
+      "message": "▶ tsfresh 特征 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:14",
+      "message": "✓ tsfresh 特征 完成 (耗时 0.09s)",
+      "type": "success"
+    },
+    {
+      "timestamp": "17:03:14",
+      "message": "▶ mRMR 特征选择 (Top-20) 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:16",
+      "message": "✓ mRMR 特征选择 (Top-20) 完成 (耗时 2.42s)",
+      "type": "success"
+    },
+    {
+      "timestamp": "17:03:16",
+      "message": "▶ SMOTE 过采样 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:16",
+      "message": "✓ SMOTE 过采样 完成 (耗时 0.03s)",
+      "type": "success"
+    },
+    {
+      "timestamp": "17:03:16",
+      "message": "▶ 随机森林训练 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:16",
+      "message": "✓ 随机森林训练 完成 (耗时 0.10s)",
+      "type": "success"
+    },
+    {
+      "timestamp": "17:03:16",
+      "message": "▶ 混淆矩阵 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:16",
+      "message": "✓ 混淆矩阵 完成 (耗时 0.00s)",
+      "type": "success"
+    },
+    {
+      "timestamp": "17:03:16",
+      "message": "▶ 分类指标 (Accuracy/F1) 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "17:03:16",
+      "message": "✓ 分类指标 (Accuracy/F1) 完成 (耗时 0.00s)",
+      "type": "success"
+    },
+    {
+      "timestamp": "17:03:16",
+      "message": "✓ 流水线执行完成，总耗时 3.71s",
+      "type": "success"
+    }
+  ],
+  "executionTime": 3.707,
+  "error": null,
+  "created_at": "2026-06-16T17:03:13.233908",
+  "started_at": "2026-06-16T17:03:13.234016",
+  "finished_at": "2026-06-16T17:03:16.943150",
+  "forecast_timestamps": null,
+  "forecast_values": null,
+  "y_true": null,
+  "y_pred": null,
+  "ranked_candidates": null,
+  "best_recommendation": null,
+  "mode": null,
+  "metrics": {
+    "feature_list": [
+      "value_diff_max",
+      "value_flat_count",
+      "i_cal_skew",
+      "i_cal_variation_coef",
+      "i_cal_diff_skew",
+      "value_diff_max_min",
+      "i_cal_above_mean_ratio",
+      "value_skew",
+      "i_cal_std",
+      "value_diff_std",
+      "i_cal_quantile_75",
+      "i_cal_mean",
+      "i_cal_max",
+      "value_min",
+      "i_cal_flat_count",
+      "i_cal_max_min",
+      "i_cal_autocorr_lag1",
+      "value_diff_mean",
+      "value_flat_rate",
+      "value_autocorr_lag1"
+    ],
+    "model_id": "pv_fault_rfc_1781600596_cb83da",
+    "confusion_matrix": {
+      "labels": [
+        "0",
+        "1",
+        "4",
+        "7",
+        "8",
+        "11",
+        "12",
+        "16"
+      ],
+      "data": [
+        [
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          10,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          29,
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          4,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    "classification_report": "              precision    recall  f1-score   support\n\n           0       0.00      0.00      0.00         1\n           1       1.00      1.00      1.00         3\n           4       1.00      1.00      1.00        10\n           7       0.85      0.97      0.91        30\n           8       1.00      0.20      0.33         5\n          11       0.80      0.80      0.80         5\n          12       0.00      0.00      0.00         0\n          16       0.00      0.00      0.00         1\n\n    accuracy                           0.85        55\n   macro avg       0.58      0.50      0.50        55\nweighted avg       0.87      0.85      0.83        55\n",
+    "accuracy": 0.8545,
+    "precision": 0.5816,
+    "recall": 0.4958,
+    "f1": 0.5049
+  },
+  "model_id": "pv_fault_rfc_1781600596_cb83da",
+  "nodeDurations": {
+    "光伏源数据 (train_small)": 0.013,
+    "标签数据 (label_small)": 0.005,
+    "合并标签": 0.03,
+    "时间窗口切分": 0.174,
+    "缺失值处理": 0.019,
+    "鲁棒异常裁剪": 0.229,
+    "统计特征提取": 0.364,
+    "多变量对比特征": 0.236,
+    "tsfresh 特征": 0.093,
+    "mRMR 特征选择 (Top-20)": 2.42,
+    "SMOTE 过采样": 0.025,
+    "随机森林训练": 0.095,
+    "混淆矩阵": 0.002,
+    "分类指标 (Accuracy/F1)": 0.001
+  },
+  "fault_predictions": null,
+  "fault_timeseries": null
+}

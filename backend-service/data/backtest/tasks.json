@@ -1,0 +1,233 @@
+[
+  {
+    "id": "bt-task-001",
+    "name": "光伏发电预测算法对比",
+    "description": "对比3种预测算法在5个光伏电站数据集上的表现",
+    "scenario_id": "renewable-energy",
+    "datasets": [
+      {
+        "id": "ds-001",
+        "name": "光伏电站A-2025年数据"
+      },
+      {
+        "id": "ds-002",
+        "name": "光伏电站B-2025年数据"
+      },
+      {
+        "id": "ds-003",
+        "name": "光伏电站C-2024年数据"
+      },
+      {
+        "id": "ds-004",
+        "name": "光伏电站D-2025年数据"
+      },
+      {
+        "id": "ds-005",
+        "name": "光伏电站E-2024年数据"
+      }
+    ],
+    "algorithms": [
+      {
+        "type": "template",
+        "id": "pv_power_forecast",
+        "name": "光伏发电功率预测"
+      },
+      {
+        "type": "template",
+        "id": "lstm_forecast",
+        "name": "LSTM时序预测"
+      },
+      {
+        "type": "workflow",
+        "id": "wf-001",
+        "name": "集成预测算法模板"
+      }
+    ],
+    "metrics_config": {
+      "primary_metric": "rmse",
+      "metrics": [
+        "rmse",
+        "mae",
+        "r2",
+        "mape"
+      ],
+      "thresholds": {
+        "rmse": 0.05,
+        "mae": 0.03
+      }
+    },
+    "status": "completed",
+    "created_by": "engineer_01",
+    "created_at": "2026-03-15T17:54:06.781251",
+    "started_at": "2026-03-15T18:54:06.781251",
+    "completed_at": "2026-03-15T19:54:06.781251",
+    "total_runs": 15,
+    "completed_runs": 15,
+    "failed_runs": 0
+  },
+  {
+    "id": "bt-task-002",
+    "name": "负荷预测模型竞赛",
+    "description": "10个负荷数据集×4个算法模板的竞争评估",
+    "scenario_id": "grid-load-storage",
+    "datasets": [
+      {
+        "id": "ds-101",
+        "name": "华东电网-2025Q1"
+      },
+      {
+        "id": "ds-102",
+        "name": "华南电网-2025Q1"
+      },
+      {
+        "id": "ds-103",
+        "name": "华北电网-2024Q4"
+      }
+    ],
+    "algorithms": [
+      {
+        "type": "template",
+        "id": "load_forecast_lstm",
+        "name": "LSTM负荷预测"
+      },
+      {
+        "type": "template",
+        "id": "load_forecast_xgb",
+        "name": "XGBoost负荷预测"
+      },
+      {
+        "type": "template",
+        "id": "load_forecast_transformer",
+        "name": "Transformer负荷预测"
+      },
+      {
+        "type": "workflow",
+        "id": "wf-load-ensemble",
+        "name": "集成负荷预测算法模板"
+      }
+    ],
+    "metrics_config": {
+      "primary_metric": "rmse",
+      "metrics": [
+        "rmse",
+        "mae",
+        "r2"
+      ],
+      "thresholds": {
+        "rmse": 0.04
+      }
+    },
+    "status": "running",
+    "created_by": "engineer_02",
+    "created_at": "2026-03-18T12:54:06.781251",
+    "started_at": "2026-03-18T13:54:06.781251",
+    "completed_at": null,
+    "total_runs": 12,
+    "completed_runs": 8,
+    "failed_runs": 1
+  },
+  {
+    "id": "bt-task-003",
+    "name": "故障诊断算法评估",
+    "description": "工业设备故障诊断算法在不同设备数据集上的分类性能对比",
+    "scenario_id": "industrial-manufacturing",
+    "datasets": [
+      {
+        "id": "ds-201",
+        "name": "电机振动数据集"
+      },
+      {
+        "id": "ds-202",
+        "name": "轴承温度数据集"
+      }
+    ],
+    "algorithms": [
+      {
+        "type": "template",
+        "id": "fault_svm",
+        "name": "SVM故障分类"
+      },
+      {
+        "type": "template",
+        "id": "fault_rf",
+        "name": "随机森林故障诊断"
+      }
+    ],
+    "metrics_config": {
+      "primary_metric": "f1",
+      "metrics": [
+        "f1",
+        "precision",
+        "recall",
+        "accuracy"
+      ],
+      "thresholds": {
+        "f1": 0.85
+      }
+    },
+    "status": "completed",
+    "created_by": "engineer_01",
+    "created_at": "2026-03-18T16:54:06.781251",
+    "started_at": "2026-03-23T15:07:54.294813",
+    "completed_at": "2026-03-23T15:07:54.297228",
+    "total_runs": 4,
+    "completed_runs": 3,
+    "failed_runs": 1
+  },
+  {
+    "id": "bt-task-004",
+    "name": "碳排放预测模型验证",
+    "description": "碳排放预测算法在多个园区数据集上的回测验证",
+    "scenario_id": "carbon-management",
+    "datasets": [
+      {
+        "id": "ds-301",
+        "name": "工业园区A碳排放"
+      },
+      {
+        "id": "ds-302",
+        "name": "工业园区B碳排放"
+      },
+      {
+        "id": "ds-303",
+        "name": "商业园区C碳排放"
+      }
+    ],
+    "algorithms": [
+      {
+        "type": "template",
+        "id": "carbon_predict_lr",
+        "name": "线性回归碳预测"
+      },
+      {
+        "type": "template",
+        "id": "carbon_predict_nn",
+        "name": "神经网络碳预测"
+      },
+      {
+        "type": "workflow",
+        "id": "wf-carbon",
+        "name": "碳排放综合预测流"
+      }
+    ],
+    "metrics_config": {
+      "primary_metric": "rmse",
+      "metrics": [
+        "rmse",
+        "mae",
+        "r2"
+      ],
+      "thresholds": {
+        "rmse": 0.06
+      }
+    },
+    "status": "failed",
+    "created_by": "admin",
+    "created_at": "2026-03-17T17:54:06.781251",
+    "started_at": "2026-03-17T18:24:06.781251",
+    "completed_at": "2026-03-17T18:54:06.781251",
+    "total_runs": 9,
+    "completed_runs": 6,
+    "failed_runs": 3
+  }
+]

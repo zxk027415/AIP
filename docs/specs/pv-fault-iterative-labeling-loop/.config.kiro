@@ -1,0 +1,6 @@
+{
+  "specId": "ff4ff78e-52bf-474f-8066-1ca41c2456fb",
+  "specType": "feature",
+  "workflowType": "requirements-first",
+  "featureName": "pv-fault-iterative-labeling-loop"
+}

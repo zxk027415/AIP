@@ -1,0 +1,121 @@
+{
+  "id": "template-data-visualization",
+  "name": "数据可视化示例",
+  "category": "可视化",
+  "description": "展示如何使用不同类型的图表进行数据可视化",
+  "workflow": {
+    "nodes": [
+      {
+        "id": "node-1",
+        "type": "function",
+        "position": { "x": 100, "y": 100 },
+        "data": {
+          "label": "生成数据",
+          "functionId": "linspace",
+          "parameters": {
+            "start": 0,
+            "stop": 10,
+            "num": 50
+          },
+          "inputs": [],
+          "outputs": [
+            {
+              "id": "output",
+              "name": "数组",
+              "type": "array",
+              "required": false
+            }
+          ]
+        }
+      },
+      {
+        "id": "node-2",
+        "type": "function",
+        "position": { "x": 100, "y": 250 },
+        "data": {
+          "label": "计算正弦",
+          "functionId": "sin",
+          "parameters": {},
+          "inputs": [
+            {
+              "id": "x",
+              "name": "x",
+              "type": "array",
+              "required": true
+            }
+          ],
+          "outputs": [
+            {
+              "id": "y",
+              "name": "y",
+              "type": "array",
+              "required": false
+            }
+          ]
+        }
+      },
+      {
+        "id": "node-3",
+        "type": "visualization",
+        "position": { "x": 400, "y": 150 },
+        "data": {
+          "label": "折线图",
+          "chartType": "line",
+          "parameters": {
+            "title": "正弦函数",
+            "xLabel": "x",
+            "yLabel": "sin(x)"
+          },
+          "inputs": [
+            {
+              "id": "x",
+              "name": "X轴数据",
+              "type": "array",
+              "required": true
+            },
+            {
+              "id": "y",
+              "name": "Y轴数据",
+              "type": "array",
+              "required": true
+            }
+          ],
+          "outputs": []
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-1",
+        "source": "node-1",
+        "sourceHandle": "output",
+        "target": "node-2",
+        "targetHandle": "x"
+      },
+      {
+        "id": "edge-2",
+        "source": "node-1",
+        "sourceHandle": "output",
+        "target": "node-3",
+        "targetHandle": "x"
+      },
+      {
+        "id": "edge-3",
+        "source": "node-2",
+        "sourceHandle": "y",
+        "target": "node-3",
+        "targetHandle": "y"
+      }
+    ],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  },
+  "documentation": "# 数据可视化示例模板\n\n这个模板演示了如何创建数据可视化算法模板。\n\n## 算法模板步骤\n\n1. **生成数据**: 使用linspace函数生成0到10之间的50个点\n2. **数据处理**: 计算每个点的正弦值\n3. **可视化**: 使用折线图显示结果\n\n## 支持的图表类型\n\n- 折线图 (line)\n- 散点图 (scatter)\n- 柱状图 (bar)\n\n## 使用方法\n\n1. 加载此模板\n2. 修改参数（如数据范围、点数等）\n3. 执行算法模板\n4. 查看生成的图表\n\n## 扩展建议\n\n- 尝试其他数学函数（cos、tan等）\n- 添加多条曲线对比\n- 使用不同的图表类型",
+  "tags": ["可视化", "图表", "数据分析", "教程"],
+  "author": "系统",
+  "version": "1.0.0",
+  "previewImage": null
+}

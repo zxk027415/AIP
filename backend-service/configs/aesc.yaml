@@ -1,0 +1,68 @@
+# AESC 客户日前负荷预测配置
+customer:
+  name: "aesc"
+  task_id: "0515_v21_aesc_d1_15min"
+  output_dir: "./output/aesc_dataset"
+
+data_source:
+  dataset_name: "ai-suite-load-v2-1"
+  table_name: "sgms_hbuilding_load_quarter3"
+  parent_field: "parent_id"
+  child_field: "child_id"
+  time_field: "record_time"
+  load_field: "load"
+  time_granularity: "15min"
+  time_zone: "Asia/Shanghai"
+  offline_csv_path: ""
+
+forecast:
+  task_type: "D"
+  forecast_horizon: 1
+  forecast_start_time: "00:00"
+  specify_model: "xgb"
+  separate_modeling: "false"
+  operate_status: "local_offline"
+
+id_lists:
+  park_01:
+    - device_01
+
+weather_cols:
+  train:
+    - EC.WS
+    - ENS_AVG.WS
+    - EC.WD
+    - ENS_AVG.WD
+    - EC.TMP
+    - ENS_AVG.TMP
+    - EC.PRES
+    - ENS_AVG.PRES
+    - EC.TCC
+    - ENS_AVG.TCC
+    - EC.RAINFALL
+    - ENS_AVG.RAINFALL
+    - EC.ghi
+    - EC.poa
+    - ENS_AVG.ghi
+    - ENS_AVG.poa
+  predict:
+    - EC.WS
+    - ENS_AVG.WS
+    - EC.WD
+    - ENS_AVG.WD
+    - EC.TMP
+    - ENS_AVG.TMP
+    - EC.PRES
+    - ENS_AVG.PRES
+    - EC.TCC
+    - ENS_AVG.TCC
+    - EC.RAINFALL
+    - ENS_AVG.RAINFALL
+    - EC.ghi
+    - EC.poa
+    - ENS_AVG.ghi
+    - ENS_AVG.poa
+
+backtest:
+  start_date: "2025-03-15"
+  end_date: "2025-03-26"

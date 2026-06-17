@@ -1,0 +1,1437 @@
+{
+  "id": "workflow-autoresearch-verify-top2-ares9c-20260526",
+  "name": "负荷预测回测流水线5.05最优版_20260511 - AutoResearch verify Top2 ares9c 20260526",
+  "description": "基于通用算子版，train_days=30 + 气象 + OOF权重集成，3.1~3.8回测平均SMAPE=5.05%\nTemporary challenger workflow for AutoResearch P0.7 validation; do not promote directly.",
+  "nodes": [
+    {
+      "id": "tpl-load_csv-0",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 100.0
+      },
+      "data": {
+        "label": "CSV数据加载",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "load_csv",
+          "operation": null,
+          "chartType": null,
+          "timestamp_column": "record_time",
+          "delimiter": ",",
+          "encoding": "utf-8",
+          "header_row": 0,
+          "file_path": "datasets/load_true_weihai_260415.csv",
+          "parent_field": "parent_id",
+          "child_field": "child_id",
+          "parent_id": "park_01",
+          "child_id": "yARGkDuq"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "从 CSV 文件加载负荷时序数据，支持指定时间戳列和数值列"
+      }
+    },
+    {
+      "id": "tpl-row_filter-1",
+      "type": "enhanced",
+      "position": {
+        "x": 300.0,
+        "y": 100.0
+      },
+      "data": {
+        "label": "行过滤",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "row_filter",
+          "operation": null,
+          "chartType": null,
+          "column_filters": "{\"parent_id\": \"park_01\", \"child_id\": \"yARGkDuq\"}",
+          "target_column": "value",
+          "load_field": "value"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "按父子节点 ID 过滤数据行，筛选出目标测量点的负荷数据"
+      }
+    },
+    {
+      "id": "tpl-resample_timeseries-2",
+      "type": "enhanced",
+      "position": {
+        "x": 500.0,
+        "y": 100.0
+      },
+      "data": {
+        "label": "时序重采样",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "resample_timeseries",
+          "operation": null,
+          "chartType": null,
+          "frequency": "15min",
+          "method": "mean",
+          "time_field": "record_time",
+          "load_field": "value",
+          "skip_when_strict_alignment": true
+        },
+        "status": "idle",
+        "error": null,
+        "description": "将数据重采样到 15 分钟粒度，补全缺失时间戳"
+      }
+    },
+    {
+      "id": "tpl-detect_outliers-3",
+      "type": "enhanced",
+      "position": {
+        "x": 700.0,
+        "y": 100.0
+      },
+      "data": {
+        "label": "异常值检测",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "detect_outliers",
+          "operation": null,
+          "chartType": null,
+          "method": "zscore",
+          "threshold": 6,
+          "load_field": "value",
+          "window_size": 96,
+          "skip_when_strict_alignment": true
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用滚动 Z-Score 检测异常值，将异常点标记为 NaN"
+      }
+    },
+    {
+      "id": "tpl-handle_missing-4",
+      "type": "enhanced",
+      "position": {
+        "x": 900.0,
+        "y": 100.0
+      },
+      "data": {
+        "label": "缺失值处理",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "handle_missing",
+          "operation": null,
+          "chartType": null,
+          "method": "linear",
+          "time_field": "record_time",
+          "load_field": "value"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用线性插值填充缺失值，确保数据无 NaN"
+      }
+    },
+    {
+      "id": "tpl-extract_time_features-5",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 300.0
+      },
+      "data": {
+        "label": "时间特征",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "extract_time_features",
+          "operation": null,
+          "chartType": null,
+          "features": [
+            "hour",
+            "minute",
+            "period",
+            "dayofweek",
+            "month",
+            "day",
+            "yday",
+            "hour_sin",
+            "hour_cos",
+            "wday_sin",
+            "wday_cos",
+            "yday_sin",
+            "yday_cos",
+            "month_sin",
+            "month_cos"
+          ],
+          "time_field": "record_time"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "提取小时、星期、月份等时间特征"
+      }
+    },
+    {
+      "id": "tpl-holiday_features-6",
+      "type": "enhanced",
+      "position": {
+        "x": 300.0,
+        "y": 300.0
+      },
+      "data": {
+        "label": "节假日特征",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "holiday_features",
+          "operation": null,
+          "chartType": null,
+          "time_field": "record_time",
+          "remove_spring_festival": false
+        },
+        "status": "idle",
+        "error": null,
+        "description": "标记中国法定节假日，区分节假日用电模式"
+      }
+    },
+    {
+      "id": "tpl-workday_features-7",
+      "type": "enhanced",
+      "position": {
+        "x": 500.0,
+        "y": 300.0
+      },
+      "data": {
+        "label": "工作日特征",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "workday_features",
+          "operation": null,
+          "chartType": null,
+          "time_field": "record_time"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "标记工作日/休息日，区分工作日用电模式"
+      }
+    },
+    {
+      "id": "tpl-rolling_statistics-8",
+      "type": "enhanced",
+      "position": {
+        "x": 700.0,
+        "y": 300.0
+      },
+      "data": {
+        "label": "滚动统计",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "rolling_statistics",
+          "operation": null,
+          "chartType": null,
+          "target_column": "value",
+          "window_sizes": [
+            4,
+            8,
+            12,
+            24,
+            48,
+            96
+          ],
+          "statistics": [
+            "mean",
+            "std",
+            "max",
+            "min"
+          ],
+          "base_shift": 96
+        },
+        "status": "idle",
+        "error": null,
+        "description": "计算滚动均值和标准差，捕捉局部趋势"
+      }
+    },
+    {
+      "id": "tpl-create_lag_features-9",
+      "type": "enhanced",
+      "position": {
+        "x": 900.0,
+        "y": 300.0
+      },
+      "data": {
+        "label": "滞后特征",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "create_lag_features",
+          "operation": null,
+          "chartType": null,
+          "lags": [],
+          "lag_days": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            14,
+            21,
+            28
+          ],
+          "horizon_per_day": 96,
+          "add_same_time_ensemble": true,
+          "target_column": "value"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "生成 1 步、24 步、168 步滞后特征"
+      }
+    },
+    {
+      "id": "tpl-extract_statistical_features-9a",
+      "type": "enhanced",
+      "position": {
+        "x": 1080.0,
+        "y": 300.0
+      },
+      "data": {
+        "label": "日统计特征",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "extract_statistical_features",
+          "operation": null,
+          "chartType": null,
+          "mode": "groupby",
+          "target_column": "value",
+          "source_column": "value",
+          "group_by_from_time": "date",
+          "group_shift": 1,
+          "statistics": [
+            "mean",
+            "max",
+            "min",
+            "std"
+          ],
+          "output_prefix": "day",
+          "add_daily_derived": true,
+          "time_field": "record_time"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "按日期聚合并前移1天，生成日均值、峰谷等统计特征"
+      }
+    },
+    {
+      "id": "tpl-extract_statistical_features-9b",
+      "type": "enhanced",
+      "position": {
+        "x": 1260.0,
+        "y": 300.0
+      },
+      "data": {
+        "label": "lag1d日统计特征",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "extract_statistical_features",
+          "operation": null,
+          "chartType": null,
+          "mode": "groupby",
+          "target_column": "value",
+          "source_column": "value_lag_96",
+          "group_by_from_time": "date",
+          "group_shift": 1,
+          "statistics": [
+            "mean",
+            "std"
+          ],
+          "output_prefix": "lag1d_day",
+          "time_field": "record_time"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "按日期聚合 lag1d 序列并前移1天，生成 lag1d 日统计特征"
+      }
+    },
+    {
+      "id": "tpl-diff_features-9c",
+      "type": "enhanced",
+      "position": {
+        "x": 1440.0,
+        "y": 300.0
+      },
+      "data": {
+        "label": "差分特征",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "diff_features",
+          "operation": null,
+          "chartType": null,
+          "target_column": "value",
+          "diff_periods": [
+            1
+          ],
+          "seasonal_period": 24,
+          "no_leak_mode": true,
+          "horizon_per_day": 96,
+          "include_cross_day_diff": true
+        },
+        "status": "idle",
+        "error": null,
+        "description": "按无穿越模式生成差分特征（含日尺度差分）"
+      }
+    },
+    {
+      "id": "tpl-sliding_window-10",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 500.0
+      },
+      "data": {
+        "label": "滑动窗口",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "sliding_window",
+          "operation": null,
+          "chartType": null,
+          "window_size": 96,
+          "step": 1,
+          "target_column": "value",
+          "skip_when_strict_alignment": true
+        },
+        "status": "idle",
+        "error": null,
+        "description": "按 96 点窗口切片数据，生成模型输入样本"
+      }
+    },
+    {
+      "id": "tpl-train_test_split_ts-11",
+      "type": "enhanced",
+      "position": {
+        "x": 300.0,
+        "y": 500.0
+      },
+      "data": {
+        "label": "数据切分",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "train_test_split_ts",
+          "operation": null,
+          "chartType": null,
+          "train_ratio": 0.8,
+          "val_ratio": 0.1,
+          "target_column": "value",
+          "time_field": "record_time"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "按 80/10/10 比例切分训练集/验证集/测试集"
+      }
+    },
+    {
+      "id": "tpl-multi_step_forecast-12",
+      "type": "enhanced",
+      "position": {
+        "x": 500.0,
+        "y": 500.0
+      },
+      "data": {
+        "label": "多步预测配置",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "multi_step_forecast",
+          "operation": null,
+          "chartType": null,
+          "forecast_steps": 96,
+          "strategy": "recursive",
+          "step_size": 1,
+          "forecast_start_time": "00:15"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "配置预测 96 步（未来 24 小时），递归策略"
+      }
+    },
+    {
+      "id": "tpl-auto_tune_xgboost-13",
+      "type": "enhanced",
+      "position": {
+        "x": 600.0,
+        "y": 650.0
+      },
+      "data": {
+        "label": "贝叶斯超参优化",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "auto_tune_xgboost",
+          "operation": null,
+          "chartType": null,
+          "n_trials": 5,
+          "cv_folds": 5,
+          "metric": "rmse"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "贝叶斯优化搜索 XGBoost 最优超参数（5折交叉验证，30轮搜索）"
+      }
+    },
+    {
+      "id": "tpl-xgboost_forecast-14",
+      "type": "enhanced",
+      "position": {
+        "x": 750.0,
+        "y": 500.0
+      },
+      "data": {
+        "label": "XGBoost预测",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "xgboost_forecast",
+          "operation": null,
+          "chartType": null,
+          "n_estimators": 200,
+          "auto_tune": false,
+          "local_parity_mode": false,
+          "local_parity_models": "xgb,lgb,catb,ridge",
+          "local_parity_use_bayesian_tuning": true,
+          "local_parity_n_splits": 5,
+          "local_parity_bo_init_points": 3,
+          "local_parity_bo_n_iter": 12,
+          "mode": "train",
+          "separate_modeling": "true",
+          "prefer_unit_len": 2,
+          "default_retrain": true,
+          "sample_weight_decay": 0.99,
+          "task_type": "D",
+          "output_prefix": "xgb"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用优化后的超参数训练 XGBoost 模型并预测"
+      }
+    },
+    {
+      "id": "tpl-smape_score-15",
+      "type": "enhanced",
+      "position": {
+        "x": 900.0,
+        "y": 500.0
+      },
+      "data": {
+        "label": "SMAPE评估",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "smape_score",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": "计算 SMAPE 对称百分比误差"
+      }
+    },
+    {
+      "id": "tpl-mse_rmse_mae-16",
+      "type": "enhanced",
+      "position": {
+        "x": 900.0,
+        "y": 650.0
+      },
+      "data": {
+        "label": "MSE/RMSE/MAE",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "mse_rmse_mae",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": "计算 MSE、RMSE、MAE 三个误差指标"
+      }
+    },
+    {
+      "id": "tpl-lightgbm_forecast-17",
+      "type": "enhanced",
+      "position": {
+        "x": 900.0,
+        "y": 430.0
+      },
+      "data": {
+        "label": "LightGBM预测",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "lightgbm_forecast",
+          "operation": null,
+          "chartType": null,
+          "n_estimators": 200,
+          "auto_tune": false,
+          "mode": "train",
+          "separate_modeling": "true",
+          "prefer_unit_len": 2,
+          "default_retrain": true,
+          "sample_weight_decay": 0.99,
+          "task_type": "D",
+          "output_prefix": "lgb",
+          "allow_missing_dependency": true
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用LightGBM预测训练并输出预测"
+      }
+    },
+    {
+      "id": "tpl-catboost_forecast-18",
+      "type": "enhanced",
+      "position": {
+        "x": 900.0,
+        "y": 560.0
+      },
+      "data": {
+        "label": "CatBoost预测",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "catboost_forecast",
+          "operation": null,
+          "chartType": null,
+          "n_estimators": 200,
+          "auto_tune": false,
+          "mode": "train",
+          "separate_modeling": "true",
+          "prefer_unit_len": 2,
+          "default_retrain": true,
+          "sample_weight_decay": 0.99,
+          "task_type": "D",
+          "output_prefix": "catb",
+          "allow_missing_dependency": true
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用CatBoost预测训练并输出预测"
+      }
+    },
+    {
+      "id": "tpl-ridge_forecast-19",
+      "type": "enhanced",
+      "position": {
+        "x": 900.0,
+        "y": 690.0
+      },
+      "data": {
+        "label": "Ridge预测",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "ridge_forecast",
+          "operation": null,
+          "chartType": null,
+          "n_estimators": 200,
+          "auto_tune": false,
+          "mode": "train",
+          "separate_modeling": "true",
+          "prefer_unit_len": 2,
+          "default_retrain": true,
+          "sample_weight_decay": 0.99,
+          "task_type": "D",
+          "output_prefix": "ridge"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用Ridge预测训练并输出预测"
+      }
+    },
+    {
+      "id": "tpl-ensemble_forecast-20",
+      "type": "enhanced",
+      "position": {
+        "x": 1120.0,
+        "y": 520.0
+      },
+      "data": {
+        "label": "集成预测",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "ensemble_forecast",
+          "operation": null,
+          "chartType": null,
+          "prediction_keys": "y_pred_xgb,y_pred_lgb,y_pred_catb,y_pred_ridge",
+          "weight_mode": "upstream_oof_rmse",
+          "weights": ""
+        },
+        "status": "idle",
+        "error": null,
+        "description": "汇总多模型预测并输出加权集成结果"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "tpl-edge-0",
+      "source": "tpl-load_csv-0",
+      "target": "tpl-row_filter-1",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-1",
+      "source": "tpl-row_filter-1",
+      "target": "tpl-resample_timeseries-2",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-2",
+      "source": "tpl-resample_timeseries-2",
+      "target": "tpl-detect_outliers-3",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-3",
+      "source": "tpl-detect_outliers-3",
+      "target": "tpl-handle_missing-4",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-4",
+      "source": "tpl-handle_missing-4",
+      "target": "tpl-extract_time_features-5",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-5",
+      "source": "tpl-extract_time_features-5",
+      "target": "tpl-holiday_features-6",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-6",
+      "source": "tpl-holiday_features-6",
+      "target": "tpl-workday_features-7",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-7",
+      "source": "tpl-workday_features-7",
+      "target": "tpl-rolling_statistics-8",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-8",
+      "source": "tpl-rolling_statistics-8",
+      "target": "tpl-create_lag_features-9",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-9",
+      "source": "tpl-create_lag_features-9",
+      "target": "tpl-extract_statistical_features-9a",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-9a",
+      "source": "tpl-extract_statistical_features-9a",
+      "target": "tpl-extract_statistical_features-9b",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-9b",
+      "source": "tpl-extract_statistical_features-9b",
+      "target": "tpl-diff_features-9c",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-9c",
+      "source": "tpl-diff_features-9c",
+      "target": "tpl-sliding_window-10",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-10",
+      "source": "tpl-sliding_window-10",
+      "target": "tpl-train_test_split_ts-11",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-11",
+      "source": "tpl-train_test_split_ts-11",
+      "target": "tpl-multi_step_forecast-12",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-12",
+      "source": "tpl-multi_step_forecast-12",
+      "target": "tpl-auto_tune_xgboost-13",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-13",
+      "source": "tpl-auto_tune_xgboost-13",
+      "target": "tpl-xgboost_forecast-14",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-14",
+      "source": "tpl-ensemble_forecast-20",
+      "target": "tpl-smape_score-15",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-15",
+      "source": "tpl-ensemble_forecast-20",
+      "target": "tpl-mse_rmse_mae-16",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-16",
+      "source": "tpl-multi_step_forecast-12",
+      "target": "tpl-lightgbm_forecast-17",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-17",
+      "source": "tpl-multi_step_forecast-12",
+      "target": "tpl-catboost_forecast-18",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-18",
+      "source": "tpl-multi_step_forecast-12",
+      "target": "tpl-ridge_forecast-19",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-19",
+      "source": "tpl-xgboost_forecast-14",
+      "target": "tpl-ensemble_forecast-20",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-20",
+      "source": "tpl-lightgbm_forecast-17",
+      "target": "tpl-ensemble_forecast-20",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-21",
+      "source": "tpl-catboost_forecast-18",
+      "target": "tpl-ensemble_forecast-20",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-22",
+      "source": "tpl-ridge_forecast-19",
+      "target": "tpl-ensemble_forecast-20",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    }
+  ],
+  "metadata": {
+    "global_config": {
+      "time_zone": "Asia/Shanghai",
+      "operate_status": "backtest",
+      "nowtime": "",
+      "run_mode": "backtest",
+      "backtest_mode": "rolling_retrain",
+      "backtest_model_ref": "",
+      "use_reference_rolling_engine": false,
+      "strict_alignment_mode": true,
+      "backtest_train_days": 30,
+      "backtest_daily_horizon": 96,
+      "backtest_gap_days": 1,
+      "xgb_eta_high": 0.15,
+      "xgb_max_depth_high": 8.0,
+      "xgb_min_child_weight_high": 10.0,
+      "xgb_subsample_low": 0.5,
+      "xgb_seed": 42,
+      "xgb_nthread": 4,
+      "exclude_feature_columns": "is_workday,value_lag_1,value_prev"
+    },
+    "template_type": "load_forecast",
+    "autoresearch_validation": {
+      "source_run_id": "ares-9c429d5ed43c",
+      "created_for": "top3_multi_window_retest",
+      "temporary": true,
+      "candidate_rank": "2",
+      "patches": {
+        "tpl-auto_tune_xgboost-13": {
+          "n_trials": 5,
+          "cv_folds": 5
+        }
+      }
+    }
+  },
+  "createdAt": "2026-05-11T17:43:14.636173",
+  "updatedAt": "2026-05-11T17:43:14.636179"
+}

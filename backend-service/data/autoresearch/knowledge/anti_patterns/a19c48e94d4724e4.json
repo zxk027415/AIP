@@ -1,0 +1,27 @@
+{
+  "claim": "因为短期滚动统计窗口无法平抑midday的剧烈波动，所以将rolling_statistics的window_sizes扩大至包含48和96，应该能增强模型对midday趋势的鲁棒性。（第8轮，实际=0.2894999999999994）",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "5b5b5ef1db22",
+    "target_param": "anti_pattern_text"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "granularity": "intraday",
+    "registry_id": "load_forecast_v1",
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 0.2,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-dcc56d3068fc"
+  ],
+  "knowledge_type": "anti_pattern",
+  "last_validated_at": "2026-05-27T09:53:19.823547",
+  "layer": "L3",
+  "scenario_condition_hash": "d29d5efea0d8e46b",
+  "status": "candidate"
+}

@@ -1,0 +1,466 @@
+{
+  "_comment": "场景→算法组合映射规则（已对齐functions.json 中的实际ID）。每个场景至少high-accuracy 和balanced 两个方案，每方案 4 层。数据管理层统一使用单一数据集源。",
+  "renewable-energy": {
+    "high-accuracy": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features",
+        "extract_frequency_features"
+      ],
+      "算法模型层": [
+        "lstm_forecast",
+        "xgboost_forecast"
+      ],
+      "评估输出层": [
+        "mape_metric",
+        "rmse_metric"
+      ]
+    },
+    "balanced": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "arima_forecast"
+      ],
+      "评估输出层": [
+        "mape_metric"
+      ]
+    }
+  },
+  "energy-storage": {
+    "high-accuracy": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "lstm_forecast",
+        "random_forest_classifier"
+      ],
+      "评估输出层": [
+        "rmse_metric",
+        "mae_metric"
+      ]
+    },
+    "balanced": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "xgboost_forecast"
+      ],
+      "评估输出层": [
+        "rmse_metric"
+      ]
+    }
+  },
+  "power-grid": {
+    "high-accuracy": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "extract_frequency_features",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "lstm_forecast",
+        "xgboost_forecast"
+      ],
+      "评估输出层": [
+        "mape_metric",
+        "r2_score"
+      ]
+    },
+    "balanced": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "arima_forecast"
+      ],
+      "评估输出层": [
+        "mape_metric"
+      ]
+    }
+  },
+  "steel-manufacturing": {
+    "high-accuracy": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features",
+        "extract_statistical_features"
+      ],
+      "算法模型层": [
+        "xgboost_forecast",
+        "random_forest_classifier"
+      ],
+      "评估输出层": [
+        "rmse_metric",
+        "f1_score"
+      ]
+    },
+    "balanced": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "xgboost_forecast"
+      ],
+      "评估输出层": [
+        "accuracy_score"
+      ]
+    }
+  },
+  "pv-manufacturing": {
+    "high-accuracy": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "svm_classifier",
+        "random_forest_classifier"
+      ],
+      "评估输出层": [
+        "f1_score",
+        "accuracy_score"
+      ]
+    },
+    "balanced": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "svm_classifier"
+      ],
+      "评估输出层": [
+        "accuracy_score"
+      ]
+    }
+  },
+  "battery-manufacturing": {
+    "high-accuracy": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features",
+        "detect_outliers"
+      ],
+      "算法模型层": [
+        "lstm_forecast",
+        "isolation_forest_anomaly"
+      ],
+      "评估输出层": [
+        "rmse_metric",
+        "f1_score"
+      ]
+    },
+    "balanced": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "xgboost_forecast"
+      ],
+      "评估输出层": [
+        "rmse_metric"
+      ]
+    }
+  },
+  "port-logistics": {
+    "high-accuracy": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "lstm_forecast",
+        "xgboost_forecast"
+      ],
+      "评估输出层": [
+        "rmse_metric",
+        "mae_metric"
+      ]
+    },
+    "balanced": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "arima_forecast"
+      ],
+      "评估输出层": [
+        "mape_metric"
+      ]
+    }
+  },
+  "building-campus": {
+    "high-accuracy": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "lstm_forecast",
+        "xgboost_forecast"
+      ],
+      "评估输出层": [
+        "rmse_metric",
+        "mape_metric"
+      ]
+    },
+    "balanced": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "arima_forecast"
+      ],
+      "评估输出层": [
+        "mape_metric"
+      ]
+    }
+  },
+  "carbon-management": {
+    "high-accuracy": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "xgboost_forecast",
+        "arima_forecast"
+      ],
+      "评估输出层": [
+        "rmse_metric",
+        "r2_score"
+      ]
+    },
+    "balanced": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "arima_forecast"
+      ],
+      "评估输出层": [
+        "r2_score"
+      ]
+    }
+  },
+  "thermal-power": {
+    "high-accuracy": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features",
+        "extract_statistical_features"
+      ],
+      "算法模型层": [
+        "lstm_forecast",
+        "xgboost_forecast",
+        "arima_forecast"
+      ],
+      "评估输出层": [
+        "mape_metric",
+        "rmse_metric",
+        "r2_score"
+      ]
+    },
+    "balanced": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "xgboost_forecast"
+      ],
+      "评估输出层": [
+        "mape_metric",
+        "rmse_metric"
+      ]
+    }
+  },
+  "semiconductor": {
+    "high-accuracy": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features",
+        "detect_outliers"
+      ],
+      "算法模型层": [
+        "xgboost_forecast",
+        "random_forest_classifier",
+        "svm_classifier"
+      ],
+      "评估输出层": [
+        "f1_score",
+        "accuracy_score",
+        "rmse_metric"
+      ]
+    },
+    "balanced": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "xgboost_forecast",
+        "random_forest_classifier"
+      ],
+      "评估输出层": [
+        "f1_score",
+        "accuracy_score"
+      ]
+    }
+  },
+  "chemical-process": {
+    "high-accuracy": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features",
+        "extract_statistical_features"
+      ],
+      "算法模型层": [
+        "lstm_forecast",
+        "xgboost_forecast",
+        "isolation_forest_anomaly"
+      ],
+      "评估输出层": [
+        "rmse_metric",
+        "mape_metric",
+        "f1_score"
+      ]
+    },
+    "balanced": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "xgboost_forecast"
+      ],
+      "评估输出层": [
+        "rmse_metric",
+        "mape_metric"
+      ]
+    }
+  },
+  "water-environment": {
+    "high-accuracy": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features",
+        "detect_outliers"
+      ],
+      "算法模型层": [
+        "lstm_forecast",
+        "xgboost_forecast",
+        "arima_forecast"
+      ],
+      "评估输出层": [
+        "rmse_metric",
+        "mape_metric",
+        "r2_score"
+      ]
+    },
+    "balanced": {
+      "数据管理层": [
+        "load_csv"
+      ],
+      "数据处理层": [
+        "handle_missing",
+        "normalize_features"
+      ],
+      "算法模型层": [
+        "arima_forecast"
+      ],
+      "评估输出层": [
+        "rmse_metric",
+        "mape_metric"
+      ]
+    }
+  }
+}

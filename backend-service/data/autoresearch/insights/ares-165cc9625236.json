@@ -1,0 +1,89 @@
+{
+  "run_id": "ares-165cc9625236",
+  "created_at": "2026-05-24T06:33:04.727714",
+  "baseline_workflow_id": "workflow-20260511-optimal-505",
+  "registry_id": "load_forecast_v1",
+  "scenario_fingerprint": {
+    "granularity": "intraday",
+    "span_days": null,
+    "load_type": null,
+    "seasonality": null,
+    "weekend_sensitivity": "normal",
+    "anomaly_ratio": null,
+    "backtest_mode": "rolling_retrain",
+    "train_days": 30
+  },
+  "total_iterations": 50,
+  "best_mape_improvement": 1.5522999999999998,
+  "best_candidate_config": {
+    "override": {
+      "ensemble_mode": "all_adaptive",
+      "train_days": 60
+    },
+    "global_config_patch": {
+      "ensemble_mode": "all_adaptive"
+    }
+  },
+  "data_profile": {
+    "granularity_minutes": null,
+    "span_days": null,
+    "weekend_weekday_gap": null,
+    "outlier_ratio": null
+  },
+  "exploration_summary": {
+    "phases": [
+      "feature_exploration",
+      "model_exploration"
+    ],
+    "hypotheses_tested": 49,
+    "hypotheses_verified": 23,
+    "hypotheses_disproved": 26,
+    "total_iterations": 50,
+    "completed_iterations": 50,
+    "success_iterations": 50,
+    "improved_iterations": 26,
+    "failed_iterations": 0,
+    "cancelled_iterations": 0,
+    "success_iterations_legacy_note": "success_iterations counts completed successful executions; use improved_iterations for positive MAPE gains"
+  },
+  "error_diagnostics": [],
+  "learned_rules": [
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第27轮验证，改善17.07%）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第28轮验证，改善109.31%）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第33轮验证，改善97.86%）",
+    "训练窗口偏长导致过拟合，缩短后 MAPE 应有改善（诊断：parameter_saturation）（第36轮验证，改善53.11%）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第38轮验证，改善53.11%）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第41轮验证，改善118.82%）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第42轮验证，改善53.11%）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第43轮验证，改善109.31%）",
+    "训练窗口偏长导致过拟合，缩短后 MAPE 应有改善（诊断：parameter_saturation）（第48轮验证，改善141.95%）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第49轮验证，改善112.73%）"
+  ],
+  "ineffective_attempts": [
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第15轮，实际=-5.790800000000001）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第17轮，实际=-0.05609999999999982）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第19轮，实际=0.0）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第20轮，实际=-5.707800000000001）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第24轮，实际=-1.2788000000000004）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第25轮，实际=-8.7246）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第29轮，实际=0.0）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第30轮，实际=-21.8134）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第31轮，实际=-1.2788000000000004）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第32轮，实际=0.0）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第34轮，实际=-0.05609999999999982）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第35轮，实际=-7.602499999999999）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第37轮，实际=0.17070000000000007）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第39轮，实际=0.0）",
+    "训练窗口偏长导致过拟合，缩短后 MAPE 应有改善（诊断：parameter_saturation）（第40轮，实际=-13.9981）",
+    "训练窗口偏长导致过拟合，缩短后 MAPE 应有改善（诊断：parameter_saturation）（第44轮，实际=-0.05609999999999982）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第45轮，实际=-3.1967999999999996）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第46轮，实际=-1.2788000000000004）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第47轮，实际=-1.2788000000000004）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第50轮，实际=-11.0887）"
+  ],
+  "open_questions": [],
+  "recommended_starting_config_for_similar": {
+    "train_days": 60,
+    "ensemble_mode": "all_adaptive"
+  }
+}

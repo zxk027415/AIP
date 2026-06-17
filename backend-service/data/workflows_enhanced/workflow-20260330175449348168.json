@@ -1,0 +1,696 @@
+{
+  "id": "workflow-20260330175449348168",
+  "name": "工艺参数优化 - high-accuracy",
+  "description": "为场景 steel-manufacturing 生成算法模板：，数据管理层 2 个节点，数据处理层 3 个节点，算法模型层 2 个节点，评估输出层 2 个节点，共 9 个节点、16 条连接",
+  "nodes": [
+    {
+      "id": "node-02f7a22a",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 80.0
+      },
+      "data": {
+        "label": "CSV/Excel文件加载",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-02f7a22a-in-file_path",
+            "name": "file_path",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-02f7a22a-in-delimiter",
+            "name": "delimiter",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-02f7a22a-in-encoding",
+            "name": "encoding",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-02f7a22a-in-header_row",
+            "name": "header_row",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-02f7a22a-in-timestamp_column",
+            "name": "timestamp_column",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-02f7a22a-in-value_columns",
+            "name": "value_columns",
+            "type": "input",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-02f7a22a-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "load_csv",
+          "operation": null,
+          "chartType": null,
+          "delimiter": ",",
+          "encoding": "utf-8",
+          "header_row": 0,
+          "timestamp_column": "",
+          "value_columns": []
+        },
+        "status": "idle",
+        "error": null,
+        "description": "从CSV/Excel文件加载数据，支持自动类型推断、编码检测和大文件分块读取。可指定时间戳列和数值列用于时序数据场景。"
+      }
+    },
+    {
+      "id": "node-0fe33af7",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 80.0
+      },
+      "data": {
+        "label": "数据库连接",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-0fe33af7-in-db_type",
+            "name": "db_type",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-0fe33af7-in-connection_string",
+            "name": "connection_string",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-0fe33af7-in-query",
+            "name": "query",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-0fe33af7-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "load_database",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": "连接关系型数据库执行SQL查询，支持MySQL、PostgreSQL、SQLite等。"
+      }
+    },
+    {
+      "id": "node-4a0ba368",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 230.0
+      },
+      "data": {
+        "label": "缺失值处理",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-4a0ba368-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-4a0ba368-in-method",
+            "name": "method",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-4a0ba368-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "handle_missing",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": "处理时序数据中的缺失值，支持插值、前向填充、后向填充等方法。"
+      }
+    },
+    {
+      "id": "node-ee66cb5a",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 230.0
+      },
+      "data": {
+        "label": "Z-Score标准化",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-ee66cb5a-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-ee66cb5a-in-columns",
+            "name": "columns",
+            "type": "input",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-ee66cb5a-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "z_score_scale",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用Z-Score方法将数据标准化为均值0、标准差1的分布。"
+      }
+    },
+    {
+      "id": "node-bb93022a",
+      "type": "enhanced",
+      "position": {
+        "x": 600.0,
+        "y": 230.0
+      },
+      "data": {
+        "label": "特征选择",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-bb93022a-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-bb93022a-in-target",
+            "name": "target",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-bb93022a-in-method",
+            "name": "method",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-bb93022a-in-top_k",
+            "name": "top_k",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-bb93022a-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "feature_select",
+          "operation": null,
+          "chartType": null,
+          "method": "mutual_info",
+          "top_k": "10"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "基于统计方法或模型重要性进行特征选择。"
+      }
+    },
+    {
+      "id": "node-fa41365e",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 380.0
+      },
+      "data": {
+        "label": "遗传算法优化",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-fa41365e-in-objective_fn",
+            "name": "objective_fn",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-fa41365e-in-bounds",
+            "name": "bounds",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-fa41365e-in-population_size",
+            "name": "population_size",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-fa41365e-in-generations",
+            "name": "generations",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-fa41365e-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "object",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "genetic_algorithm",
+          "operation": null,
+          "chartType": null,
+          "population_size": "100",
+          "generations": "200"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用遗传算法进行全局优化，适用于调度、排产等组合优化问题。"
+      }
+    },
+    {
+      "id": "node-6d310a9d",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 380.0
+      },
+      "data": {
+        "label": "XGBoost时序预测",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-6d310a9d-in-train_features",
+            "name": "train_features",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-6d310a9d-in-train_target",
+            "name": "train_target",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-6d310a9d-in-n_estimators",
+            "name": "n_estimators",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-6d310a9d-in-auto_tune",
+            "name": "auto_tune",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-6d310a9d-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "xgboost_forecast",
+          "operation": null,
+          "chartType": null,
+          "n_estimators": 100,
+          "auto_tune": "false"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用XGBoost梯度提升树进行时序预测，适合处理非线性关系。"
+      }
+    },
+    {
+      "id": "node-a5f12e6f",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 530.0
+      },
+      "data": {
+        "label": "均方根误差(RMSE)",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-a5f12e6f-in-y_true",
+            "name": "y_true",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-a5f12e6f-in-y_pred",
+            "name": "y_pred",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-a5f12e6f-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "rmse_metric",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": "计算预测值与真实值之间的均方根误差，对大误差更敏感。"
+      }
+    },
+    {
+      "id": "node-6f66f9da",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 530.0
+      },
+      "data": {
+        "label": "优化报告生成",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-6f66f9da-in-result",
+            "name": "result",
+            "type": "input",
+            "dataType": "object",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-6f66f9da-in-format",
+            "name": "format",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-6f66f9da-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "object",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "optimization_report",
+          "operation": null,
+          "chartType": null,
+          "format": "html"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "生成优化结果报告，包含目标函数收敛曲线、最优解和约束满足情况。"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-8a5042a4",
+      "source": "node-02f7a22a",
+      "target": "node-4a0ba368",
+      "sourceHandle": "node-02f7a22a-out-result",
+      "targetHandle": "node-4a0ba368-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-e78ea89c",
+      "source": "node-02f7a22a",
+      "target": "node-ee66cb5a",
+      "sourceHandle": "node-02f7a22a-out-result",
+      "targetHandle": "node-ee66cb5a-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-707f0fbe",
+      "source": "node-02f7a22a",
+      "target": "node-bb93022a",
+      "sourceHandle": "node-02f7a22a-out-result",
+      "targetHandle": "node-bb93022a-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-8bb1f50e",
+      "source": "node-0fe33af7",
+      "target": "node-4a0ba368",
+      "sourceHandle": "node-0fe33af7-out-result",
+      "targetHandle": "node-4a0ba368-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-28351d15",
+      "source": "node-0fe33af7",
+      "target": "node-ee66cb5a",
+      "sourceHandle": "node-0fe33af7-out-result",
+      "targetHandle": "node-ee66cb5a-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-6c904ce8",
+      "source": "node-0fe33af7",
+      "target": "node-bb93022a",
+      "sourceHandle": "node-0fe33af7-out-result",
+      "targetHandle": "node-bb93022a-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-fa5f3316",
+      "source": "node-4a0ba368",
+      "target": "node-fa41365e",
+      "sourceHandle": "node-4a0ba368-out-result",
+      "targetHandle": "node-fa41365e-in-objective_fn",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-b633389d",
+      "source": "node-4a0ba368",
+      "target": "node-6d310a9d",
+      "sourceHandle": "node-4a0ba368-out-result",
+      "targetHandle": "node-6d310a9d-in-train_features",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-2ddb4a96",
+      "source": "node-ee66cb5a",
+      "target": "node-fa41365e",
+      "sourceHandle": "node-ee66cb5a-out-result",
+      "targetHandle": "node-fa41365e-in-objective_fn",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-bd4a0cc9",
+      "source": "node-ee66cb5a",
+      "target": "node-6d310a9d",
+      "sourceHandle": "node-ee66cb5a-out-result",
+      "targetHandle": "node-6d310a9d-in-train_features",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-38146732",
+      "source": "node-bb93022a",
+      "target": "node-fa41365e",
+      "sourceHandle": "node-bb93022a-out-result",
+      "targetHandle": "node-fa41365e-in-objective_fn",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-2101709c",
+      "source": "node-bb93022a",
+      "target": "node-6d310a9d",
+      "sourceHandle": "node-bb93022a-out-result",
+      "targetHandle": "node-6d310a9d-in-train_features",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-d0d5d00c",
+      "source": "node-fa41365e",
+      "target": "node-a5f12e6f",
+      "sourceHandle": "node-fa41365e-out-result",
+      "targetHandle": "node-a5f12e6f-in-y_true",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-f1d8a31b",
+      "source": "node-fa41365e",
+      "target": "node-6f66f9da",
+      "sourceHandle": "node-fa41365e-out-result",
+      "targetHandle": "node-6f66f9da-in-result",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-7beb4375",
+      "source": "node-6d310a9d",
+      "target": "node-a5f12e6f",
+      "sourceHandle": "node-6d310a9d-out-result",
+      "targetHandle": "node-a5f12e6f-in-y_true",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-a132ee8b",
+      "source": "node-6d310a9d",
+      "target": "node-6f66f9da",
+      "sourceHandle": "node-6d310a9d-out-result",
+      "targetHandle": "node-6f66f9da-in-result",
+      "type": "smoothstep",
+      "data": null
+    }
+  ],
+  "createdAt": "2026-03-30T17:54:49.348168",
+  "updatedAt": "2026-03-30T17:54:49.348168"
+}

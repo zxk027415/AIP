@@ -1,0 +1,108 @@
+{
+  "run_id": "ares-a933ad5c217a",
+  "created_at": "2026-05-26T17:01:59.530930",
+  "baseline_workflow_id": "workflow-load-forecast-backtest-v2",
+  "registry_id": "load_forecast_v1",
+  "scenario_fingerprint": {
+    "granularity": "intraday",
+    "weekend_sensitivity": "normal",
+    "backtest_mode": "rolling_retrain",
+    "train_days": 30,
+    "baseline_workflow_id": "workflow-load-forecast-backtest-v2",
+    "registry_id": "load_forecast_v1"
+  },
+  "scenario_fingerprint_inputs": {
+    "baseline_workflow_id": "workflow-load-forecast-backtest-v2",
+    "registry_id": "load_forecast_v1",
+    "evaluation_contract": {
+      "auto_tune_n_trials": 15,
+      "backtest_apply_window_filter": true,
+      "backtest_mask_target_values": true,
+      "backtest_mode": "rolling_retrain",
+      "daily_horizon": 96,
+      "train_days": 30
+    },
+    "scenario_tags": [
+      "general"
+    ],
+    "windows": [
+      {
+        "end_date": "2026-03-8",
+        "start_date": "2026-03-01"
+      }
+    ]
+  },
+  "scenario_condition_hash_fields": [
+    "granularity",
+    "weekend_sensitivity",
+    "backtest_mode",
+    "train_days",
+    "baseline_workflow_id",
+    "registry_id"
+  ],
+  "total_iterations": 10,
+  "best_mape_improvement": 1.5522999999999998,
+  "best_candidate_config": {
+    "override": {
+      "ensemble_mode": "all_adaptive",
+      "train_days": 60
+    },
+    "global_config_patch": {
+      "ensemble_mode": "all_adaptive"
+    }
+  },
+  "data_profile": {
+    "granularity_minutes": null,
+    "span_days": null,
+    "weekend_weekday_gap": -0.013607,
+    "outlier_ratio": 0.00651,
+    "profile_quality": {
+      "source": "time_load_dataframe",
+      "point_count": 768,
+      "valid_point_count": 768,
+      "source_days": 8,
+      "is_empty": false,
+      "has_real_load_curve": true,
+      "has_periodicity_signal": true,
+      "has_weekday_weekend_signal": true
+    },
+    "periodicity_strength": {
+      "daily_autocorr": 0.6239994578978579,
+      "weekly_autocorr": 0.8412351296386931
+    }
+  },
+  "exploration_summary": {
+    "phases": [
+      "parameter_exploration"
+    ],
+    "hypotheses_tested": 9,
+    "hypotheses_verified": 7,
+    "hypotheses_disproved": 2,
+    "total_iterations": 10,
+    "completed_iterations": 10,
+    "success_iterations": 10,
+    "improved_iterations": 8,
+    "failed_iterations": 0,
+    "cancelled_iterations": 0,
+    "success_iterations_legacy_note": "success_iterations counts completed successful executions; use improved_iterations for positive MAPE gains"
+  },
+  "error_diagnostics": [],
+  "learned_rules": [
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第2轮验证，改善112.73%）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第3轮验证，改善109.31%）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第4轮验证，改善112.73%）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第6轮验证，改善96.72%）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第7轮验证，改善155.23%）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第8轮验证，改善113.89%）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第9轮验证，改善141.95%）"
+  ],
+  "ineffective_attempts": [
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第5轮，实际=-0.1253000000000002）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第10轮，实际=-0.1253000000000002）"
+  ],
+  "open_questions": [],
+  "recommended_starting_config_for_similar": {
+    "train_days": 60,
+    "ensemble_mode": "all_adaptive"
+  }
+}

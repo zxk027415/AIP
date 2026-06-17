@@ -1,0 +1,558 @@
+{
+  "id": "workflow-pv-fault-diag-quickval-predict-v1",
+  "name": "光伏故障诊断 - 快速验证（预测）",
+  "description": "使用训练模板产出的 model_id，对 predict_small.parquet 执行批量故障诊断预测，输出各设备的故障标签。执行前需将训练模板输出的 model_id 填入 n9 节点。",
+  "category": "fault_diagnosis",
+  "createdAt": "2026-06-09T00:00:00",
+  "updatedAt": "2026-06-09T00:00:00",
+  "metadata": {
+    "global_config": {
+      "time_zone": "Asia/Shanghai",
+      "scene": "solar",
+      "device_type": "combinerbox",
+      "operate_status": "predict",
+      "run_mode": "predict"
+    },
+    "template_type": "pv_fault_diagnosis_quickval_predict",
+    "note": "预测快速验证模板：输入 predict_small.parquet，路径已预填。执行前在 p9（批量分类预测）节点填入训练模板输出的 model_id，在 p8（特征筛选）节点填入 feature_list。",
+    "user_params_required": [
+      {
+        "node_id": "qvp-random_forest_classifier-p9",
+        "param": "model_id",
+        "description": "训练模板执行成功后，从 n12（随机森林训练）节点的输出摘要中复制 model_id"
+      },
+      {
+        "node_id": "qvp-feature_select-p8",
+        "param": "feature_list",
+        "description": "训练模板执行成功后，从 n10（mRMR特征选择）节点的输出摘要中复制 feature_list"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "qvp-load_csv-p1",
+      "type": "enhanced",
+      "position": {
+        "x": 275,
+        "y": 80
+      },
+      "data": {
+        "label": "预测数据 (predict_small)",
+        "type": "function",
+        "icon": null,
+        "inputs": [],
+        "outputs": [
+          {
+            "id": "p1-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix"
+          }
+        ],
+        "config": {
+          "functionId": "load_csv",
+          "file_path": "/Users/zxk/Desktop/project/AIP/fault-diag-algo-release-3.1/相关数据/train_ori/data_long#dangyang&_&_.csv",
+          "time_field": "time",
+          "id_fields": [
+            "site_id",
+            "device_id",
+            "branch_id"
+          ],
+          "rename_columns": "{\"data_date\": \"time\", \"branch\": \"branch_id\"}"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "加载 predict_small.parquet — 不含标签，仅含时序测量数据"
+      }
+    },
+    {
+      "id": "qvp-time_window_split-p2",
+      "type": "enhanced",
+      "position": {
+        "x": 275,
+        "y": 240
+      },
+      "data": {
+        "label": "时间窗口切分",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "p2-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "p2-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix"
+          }
+        ],
+        "config": {
+          "functionId": "time_window_split",
+          "window": "1d",
+          "id_fields": [
+            "site_id",
+            "device_id",
+            "branch_id"
+          ],
+          "time_field": "time"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "按天切分，每条记录分配 time_window 标识（与训练保持一致）"
+      }
+    },
+    {
+      "id": "qvp-handle_missing-p3",
+      "type": "enhanced",
+      "position": {
+        "x": 275,
+        "y": 400
+      },
+      "data": {
+        "label": "缺失值处理",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "p3-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "p3-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix"
+          }
+        ],
+        "config": {
+          "functionId": "handle_missing",
+          "method": "drop_insufficient",
+          "keep_threshold": 0.75,
+          "id_fields": [
+            "site_id",
+            "device_id",
+            "branch_id",
+            "time_window"
+          ],
+          "value_fields": [
+            "value",
+            "i_cal"
+          ]
+        },
+        "status": "idle",
+        "error": null,
+        "description": "丢弃有效值不足 75% 的设备×窗口组"
+      }
+    },
+    {
+      "id": "qvp-detect_outliers-p4",
+      "type": "enhanced",
+      "position": {
+        "x": 275,
+        "y": 560
+      },
+      "data": {
+        "label": "鲁棒异常裁剪",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "p4-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "p4-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix"
+          }
+        ],
+        "config": {
+          "functionId": "detect_outliers",
+          "method": "robust_clip",
+          "id_fields": [
+            "site_id",
+            "device_id",
+            "branch_id",
+            "time_window"
+          ],
+          "value_fields": [
+            "value",
+            "i_cal"
+          ]
+        },
+        "status": "idle",
+        "error": null,
+        "description": "按差分排序去除极端最大值和最小值"
+      }
+    },
+    {
+      "id": "qvp-extract_statistical_features-p5",
+      "type": "enhanced",
+      "position": {
+        "x": 0,
+        "y": 720
+      },
+      "data": {
+        "label": "统计特征提取",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "p5-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "p5-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix"
+          }
+        ],
+        "config": {
+          "functionId": "extract_statistical_features",
+          "mode": "groupby_aggregate",
+          "id_fields": [
+            "site_id",
+            "device_id",
+            "branch_id",
+            "time_window"
+          ],
+          "value_fields": [
+            "value",
+            "i_cal"
+          ],
+          "compute_diff": true,
+          "quantiles": [
+            0.25,
+            0.75
+          ]
+        },
+        "status": "idle",
+        "error": null,
+        "description": "与训练保持完全相同的特征提取配置"
+      }
+    },
+    {
+      "id": "qvp-tsfresh_extract-p6",
+      "type": "enhanced",
+      "position": {
+        "x": 300,
+        "y": 720
+      },
+      "data": {
+        "label": "tsfresh 特征",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "p6-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "p6-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix"
+          }
+        ],
+        "config": {
+          "functionId": "tsfresh_extract",
+          "id_fields": [
+            "site_id",
+            "device_id",
+            "branch_id",
+            "time_window"
+          ],
+          "value_fields": [
+            "value",
+            "i_cal"
+          ]
+        },
+        "status": "idle",
+        "error": null,
+        "description": "与训练保持完全相同的 tsfresh 特征提取配置"
+      }
+    },
+    {
+      "id": "qvp-ts_comparison_features-p7",
+      "type": "enhanced",
+      "position": {
+        "x": 600,
+        "y": 720
+      },
+      "data": {
+        "label": "多变量对比特征",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "p7-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "p7-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix"
+          }
+        ],
+        "config": {
+          "functionId": "ts_comparison_features",
+          "id_fields": [
+            "site_id",
+            "device_id",
+            "branch_id",
+            "time_window"
+          ],
+          "value_fields": [
+            "value",
+            "i_cal"
+          ],
+          "options": "{\"compute_correlation\": true, \"compute_distance\": true, \"compute_regression\": true}"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "与训练保持完全相同的对比特征提取配置"
+      }
+    },
+    {
+      "id": "qvp-feature_select-p8",
+      "type": "enhanced",
+      "position": {
+        "x": 275,
+        "y": 900
+      },
+      "data": {
+        "label": "特征筛选（复用训练特征列表）",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "p8-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix"
+          },
+          {
+            "id": "p8-in-1",
+            "name": "data_tsfresh",
+            "type": "input",
+            "dataType": "matrix"
+          },
+          {
+            "id": "p8-in-2",
+            "name": "data_compare",
+            "type": "input",
+            "dataType": "matrix"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "p8-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "object"
+          }
+        ],
+        "config": {
+          "functionId": "feature_select",
+          "method": "mrmr",
+          "mode": "transform",
+          "feature_list": "latest",
+          "k": 20,
+          "target_col": "label"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "transform 模式：按训练输出的 feature_list 筛选特征列，不重新计算 mRMR。请填入 feature_list。"
+      }
+    },
+    {
+      "id": "qvp-random_forest_classifier-p9",
+      "type": "enhanced",
+      "position": {
+        "x": 275,
+        "y": 1080
+      },
+      "data": {
+        "label": "故障分类预测（加载已训练模型）",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "p9-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "object"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "p9-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "object"
+          }
+        ],
+        "config": {
+          "functionId": "random_forest_classifier",
+          "mode": "predict",
+          "model_id": "latest"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "从磁盘加载已训练的随机森林模型。请将训练模板 n12 输出的 model_id 填入此处。"
+      }
+    },
+    {
+      "id": "qvp-label_encode-p10",
+      "type": "enhanced",
+      "position": {
+        "x": 275,
+        "y": 1240
+      },
+      "data": {
+        "label": "标签反映射（数值→故障名称）",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "p10-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "object"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "p10-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix"
+          }
+        ],
+        "config": {
+          "functionId": "label_encode",
+          "mode": "decode",
+          "label_col": "predictions",
+          "label_map": "{\"0\":0,\"1\":1,\"4\":4,\"7\":7,\"8\":8,\"11\":11,\"12\":12,\"16\":16}"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "将预测整数标签反映射为故障类型编号（0=正常, 1/4/7/8/11/12/16=各类故障）"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "ep-p1-p2",
+      "source": "qvp-load_csv-p1",
+      "target": "qvp-time_window_split-p2",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "ep-p2-p3",
+      "source": "qvp-time_window_split-p2",
+      "target": "qvp-handle_missing-p3",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "ep-p3-p4",
+      "source": "qvp-handle_missing-p3",
+      "target": "qvp-detect_outliers-p4",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "ep-p4-p5",
+      "source": "qvp-detect_outliers-p4",
+      "target": "qvp-extract_statistical_features-p5",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "ep-p4-p6",
+      "source": "qvp-detect_outliers-p4",
+      "target": "qvp-tsfresh_extract-p6",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "ep-p4-p7",
+      "source": "qvp-detect_outliers-p4",
+      "target": "qvp-ts_comparison_features-p7",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "ep-p5-p8",
+      "source": "qvp-extract_statistical_features-p5",
+      "target": "qvp-feature_select-p8",
+      "type": "smoothstep",
+      "data": {
+        "label": "merge_features"
+      }
+    },
+    {
+      "id": "ep-p6-p8",
+      "source": "qvp-tsfresh_extract-p6",
+      "target": "qvp-feature_select-p8",
+      "type": "smoothstep",
+      "data": {
+        "label": "merge_features"
+      }
+    },
+    {
+      "id": "ep-p7-p8",
+      "source": "qvp-ts_comparison_features-p7",
+      "target": "qvp-feature_select-p8",
+      "type": "smoothstep",
+      "data": {
+        "label": "merge_features"
+      }
+    },
+    {
+      "id": "ep-p8-p9",
+      "source": "qvp-feature_select-p8",
+      "target": "qvp-random_forest_classifier-p9",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "ep-p9-p10",
+      "source": "qvp-random_forest_classifier-p9",
+      "target": "qvp-label_encode-p10",
+      "type": "smoothstep",
+      "data": null
+    }
+  ]
+}

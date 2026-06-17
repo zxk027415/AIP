@@ -1,0 +1,142 @@
+[
+  {
+    "id": "svc-001",
+    "task_id": "deploy-task-001",
+    "name": "负荷预测LSTM服务",
+    "endpoint": "http://localhost:8080/api/predict/load-forecast",
+    "version": "v1.2",
+    "replicas": {
+      "desired": 2,
+      "running": 2,
+      "ready": 2
+    },
+    "health": "healthy",
+    "qps": 45.2,
+    "avg_latency_ms": 128,
+    "error_rate": 0.02,
+    "uptime": "5d 3h 20m",
+    "created_at": "2026-03-13T18:34:33.146980",
+    "versions": [
+      {
+        "version": "v1.0",
+        "published_at": "2026-03-08T18:34:33.146980",
+        "status": "inactive"
+      },
+      {
+        "version": "v1.1",
+        "published_at": "2026-03-11T18:34:33.146980",
+        "status": "inactive"
+      },
+      {
+        "version": "v1.2",
+        "published_at": "2026-03-13T18:34:33.146980",
+        "status": "active"
+      }
+    ]
+  },
+  {
+    "id": "svc-002",
+    "task_id": "deploy-task-002",
+    "name": "光伏发电预测服务",
+    "endpoint": "http://localhost:8080/api/predict/pv-power",
+    "version": "v2.0",
+    "replicas": {
+      "desired": 3,
+      "running": 3,
+      "ready": 2
+    },
+    "health": "warning",
+    "qps": 120.5,
+    "avg_latency_ms": 256,
+    "error_rate": 0.05,
+    "uptime": "3d 0h 15m",
+    "created_at": "2026-03-15T18:34:33.146980",
+    "versions": [
+      {
+        "version": "v1.0",
+        "published_at": "2026-03-10T18:34:33.146980",
+        "status": "inactive"
+      },
+      {
+        "version": "v2.0",
+        "published_at": "2026-03-15T18:34:33.146980",
+        "status": "active"
+      }
+    ]
+  },
+  {
+    "id": "svc-003",
+    "task_id": "deploy-task-003",
+    "name": "故障诊断服务",
+    "endpoint": "http://localhost:8080/api/predict/fault-diagnosis",
+    "version": "v1.0",
+    "replicas": {
+      "desired": 1,
+      "running": 0,
+      "ready": 0
+    },
+    "health": "stopped",
+    "qps": 0,
+    "avg_latency_ms": 0,
+    "error_rate": 0,
+    "uptime": "0",
+    "created_at": "2026-03-08T18:34:33.146980",
+    "versions": [
+      {
+        "version": "v1.0",
+        "published_at": "2026-03-08T18:34:33.146980",
+        "status": "inactive"
+      }
+    ]
+  },
+  {
+    "id": "svc-20260325164000-992",
+    "task_id": "deploy-task-004",
+    "name": "电价预测模型服务",
+    "endpoint": "http://localhost:8080/api/predict/price",
+    "version": "v1.0",
+    "replicas": {
+      "desired": 1,
+      "running": 1,
+      "ready": 1
+    },
+    "health": "healthy",
+    "qps": 93.3,
+    "avg_latency_ms": 224.0,
+    "error_rate": 0.02,
+    "uptime": "0d 0h 0m",
+    "created_at": "2026-03-25T16:40:00.316244",
+    "versions": [
+      {
+        "version": "v1.0",
+        "published_at": "2026-03-25T16:40:00.316244",
+        "status": "active"
+      }
+    ]
+  },
+  {
+    "id": "svc-20260419130822-336",
+    "task_id": "deploy-task-20260409140811-6126",
+    "name": "电价预测模型服务 (副本)",
+    "endpoint": "http://localhost:8080/api/predict/price",
+    "version": "v1.0",
+    "replicas": {
+      "desired": 1,
+      "running": 1,
+      "ready": 1
+    },
+    "health": "healthy",
+    "qps": 64.2,
+    "avg_latency_ms": 261.0,
+    "error_rate": 0.029,
+    "uptime": "0d 0h 0m",
+    "created_at": "2026-04-19T13:08:22.517138",
+    "versions": [
+      {
+        "version": "v1.0",
+        "published_at": "2026-04-19T13:08:22.517138",
+        "status": "active"
+      }
+    ]
+  }
+]

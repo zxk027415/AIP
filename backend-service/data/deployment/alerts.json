@@ -1,0 +1,64 @@
+{
+  "rules": [
+    {
+      "id": "rule-001",
+      "service_id": "svc-001",
+      "metric_name": "latency_p99",
+      "operator": "gt",
+      "threshold": 500,
+      "severity": "warning",
+      "enabled": true
+    },
+    {
+      "id": "rule-002",
+      "service_id": "svc-001",
+      "metric_name": "error_rate",
+      "operator": "gt",
+      "threshold": 0.05,
+      "severity": "critical",
+      "enabled": true
+    },
+    {
+      "id": "rule-003",
+      "service_id": "svc-002",
+      "metric_name": "cpu_usage",
+      "operator": "gt",
+      "threshold": 80,
+      "severity": "warning",
+      "enabled": true
+    },
+    {
+      "id": "rule-004",
+      "service_id": "svc-002",
+      "metric_name": "error_rate",
+      "operator": "gt",
+      "threshold": 0.05,
+      "severity": "critical",
+      "enabled": true
+    }
+  ],
+  "history": [
+    {
+      "id": "alert-001",
+      "rule_id": "rule-003",
+      "service_id": "svc-002",
+      "metric_name": "cpu_usage",
+      "triggered_value": 85.3,
+      "severity": "warning",
+      "status": "recovered",
+      "triggered_at": "2026-03-18T06:34:33.146980",
+      "recovered_at": "2026-03-18T07:34:33.146980"
+    },
+    {
+      "id": "alert-002",
+      "rule_id": "rule-004",
+      "service_id": "svc-002",
+      "metric_name": "error_rate",
+      "triggered_value": 0.068,
+      "severity": "critical",
+      "status": "triggered",
+      "triggered_at": "2026-03-18T16:34:33.146980",
+      "recovered_at": null
+    }
+  ]
+}

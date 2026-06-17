@@ -1,0 +1,28 @@
+{
+  "claim": "cb_depth_high evidence=multi_window_rejected mape_improvement=-0.5915000000000008",
+  "claim_key": {
+    "direction": "negative",
+    "metric": "mape",
+    "recommended_value": "{\"global_config_patch\": {\"cb_depth_high\": 10, \"cb_learning_rate_high\": 0.2, \"ensemble_mode\": \"single_best\", \"lgb_learning_rate_high\": 0.05, \"lgb_num_leaves_high\": 63, \"xgb_eta_high\": 0.1, \"xgb_max_depth_high\": 6, \"xgb_subsample_high\": 0.6}, \"node_param_patches\": [{\"functionId\": \"ensemble_forecast\", \"node_id\": \"tpl-ensemble_forecast-20\", \"param_patch\": {\"weight_mode\": \"equal\"}}], \"override\": {\"cb_depth_high\": 10, \"cb_learning_rate_high\": 0.2, \"ensemble_mode\": \"single_best\", \"lgb_learning_rate_high\": 0.05, \"lgb_num_leaves_high\": 63, \"xgb_eta_high\": 0.1, \"xgb_max_depth_high\": 6, \"xgb_subsample_high\": 0.6}, \"structure_patch\": {}}",
+    "target_param": "cb_depth_high"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "granularity": "intraday",
+    "registry_id": "load_forecast_v2",
+    "span_days": 36,
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 0.0,
+  "counter_evidence": [
+    "ares-aa02bea5f158:iter3:group1:{\"global_config_patch\": {\"cb_depth_high\": 10, \"cb_learning_rate_high\": 0.2, \"ensemble_mode\": \"single_best\", \"lgb_learning_rate_high\": 0.05, \"lgb_num_leaves_high\": 63, \"xgb_eta_high\": 0.1, \"xgb_max_depth_high\": 6, \"xgb_subsample_high\": 0.6}, \"node_param_patches\": [{\"functionId\": \"ensemble_forecast\", \"node_id\": \"tpl-ensemble_forecast-20\", \"param_patch\": {\"weight_mode\": \"equal\"}}], \"override\": {\"cb_depth_high\": 10, \"cb_learning_rate_high\": 0.2, \"ensemble_mode\": \"single_best\", \"lgb_learning_rate_high\": 0.05, \"lgb_num_leaves_high\": 63, \"xgb_eta_high\": 0.1, \"xgb_max_depth_high\": 6, \"xgb_subsample_high\": 0.6}, \"structure_patch\": {}}"
+  ],
+  "evidence": [],
+  "knowledge_type": "correlational",
+  "last_validated_at": "2026-05-29T07:33:35.382978",
+  "layer": "L3",
+  "scenario_condition_hash": "5f9e9cd2346d0d3c",
+  "status": "rejected"
+}

@@ -1,0 +1,25 @@
+{
+  "claim": "因为存在参数饱和且晚高峰呈现强烈上升趋势，所以引入 Ridge 线性回归并启用集成学习（ensemble_forecast），应该能利用线性模型的趋势外推能力降低晚高峰误差。（第16轮验证，改善53.11%）",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "45b1e872b404",
+    "target_param": "correlational_text"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "granularity": "intraday",
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-12821a0b3926"
+  ],
+  "knowledge_type": "correlational",
+  "last_validated_at": "2026-05-22T08:41:01.967286",
+  "layer": "L2",
+  "scenario_condition_hash": "bcda466f47f336be",
+  "status": "active"
+}

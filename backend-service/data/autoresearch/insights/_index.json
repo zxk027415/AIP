@@ -1,0 +1,736 @@
+[
+  {
+    "run_id": "ares-659af6a40498",
+    "created_at": "2026-05-07T15:48:36.086762",
+    "baseline_workflow_id": "workflow-load-forecast-backtest-v2",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 0.5975999999999999,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": [
+      "因为历史记忆显示 train_days=44 曾带来 +0.306 的正向改善，而当前 train_days=60 导致负向收益，所以将训练窗口缩减至 45 应该能改善 MAPE。（第2轮验证，改善20.37%）",
+      "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第4轮验证，改善59.76%）",
+      "因为诊断表明 parameter_saturation 且极短数据窗口（total_days=2）容易引发过拟合，所以为 xgboost_forecast 引入更强的衰减权重（sample_weight_decay）应该能缓解过拟合并改善 MAPE。（第5轮验证，改善23.51%）"
+    ]
+  },
+  {
+    "run_id": "ares-c954b16dc1c4",
+    "created_at": "2026-05-07T18:12:11.322220",
+    "baseline_workflow_id": "workflow-load-forecast-backtest-v2",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 0.2378,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-6ff1ec9e7e65",
+    "created_at": "2026-05-09T14:23:09.615350",
+    "baseline_workflow_id": "workflow-load-forecast-backtest-v2",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-b9e459f02755",
+    "created_at": "2026-05-11T17:51:11.086064",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-6ed686e1d1d2",
+    "created_at": "2026-05-11T18:14:49.203139",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 1.2909000000000006,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": [
+      "因为较短的训练窗口（train_days=14）已经表现出明显的优势（score_advantage=1.2909），但绝对误差 avg_mape=11.533 仍有下降空间，所以在保持短窗口的前提下引入额外的时间特征（如工作日/节假日特征）应该能进一步降低预测误差。（第2轮验证，改善273.46%）"
+    ]
+  },
+  {
+    "run_id": "ares-008f5ad201c9",
+    "created_at": "2026-05-12T10:34:49.388269",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-78028be72ece",
+    "created_at": "2026-05-12T11:02:51.704847",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 1.2932000000000006,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-d16de2005d41",
+    "created_at": "2026-05-12T14:45:43.037902",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-8ea2ea98a85f",
+    "created_at": "2026-05-13T11:08:54.349153",
+    "baseline_workflow_id": "workflow-load-forecast-backtest-v2",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 3.7088000000000036,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-a6f3700deed1",
+    "created_at": "2026-05-14T18:47:23.756689",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 1.1273,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-b550ad3db972",
+    "created_at": "2026-05-15T13:32:24.144513",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-adac109837a0",
+    "created_at": "2026-05-15T14:27:57.818831",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-b6bc77e93276",
+    "created_at": "2026-05-15T17:44:20.572623",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 1.1273,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": [
+      "因为现有特征无法表征日内极值波动的幅度，所以增加rolling_statistics的min统计特征应该能让模型更好地学习到midday的深V形态。（第4轮验证，改善112.73%）",
+      "因为现有的极小值特征不足以刻画日内极端波动的全貌，所以增加 rolling_statistics 的 std 统计特征应该能帮助模型学习 midday 的剧烈波幅。（第8轮验证，改善112.73%）"
+    ]
+  },
+  {
+    "run_id": "ares-d9c21469bc56",
+    "created_at": "2026-05-18T12:06:16.735843",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-0f1823cab2fb",
+    "created_at": "2026-05-18T15:20:32.786830",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-e8049d7f64f9",
+    "created_at": "2026-05-18T15:28:58.638170",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-2b53a8cceaf6",
+    "created_at": "2026-05-18T17:51:50.866290",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-305bdc9c66ae",
+    "created_at": "2026-05-18T22:36:24.226830",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 0.17070000000000007,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-154aec2a111a",
+    "created_at": "2026-05-21T11:10:19.812042",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 0.5311000000000003,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-8d357cb29618",
+    "created_at": "2026-05-21T11:51:23.286157",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 0.17070000000000007,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-45bc4d1e50aa",
+    "created_at": "2026-05-21T15:55:58.311028",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 1.0930999999999997,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": [
+      "参数层已接近饱和，扩展搜索范围或引入结构变更（第4轮验证，改善109.31%）",
+      "参数层已接近饱和，扩展搜索范围或引入结构变更（第6轮验证，改善53.11%）"
+    ]
+  },
+  {
+    "run_id": "ares-12821a0b3926",
+    "created_at": "2026-05-22T16:41:01.964745",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 1.1388999999999996,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": [
+      "因为漂移信号极强（0.998659），所以将 train_days 缩短至 14 应该能剔除过期分布，显著改善 MAPE。（第2轮验证，改善112.73%）",
+      "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第7轮验证，改善96.72%）",
+      "因为存在数据漂移且短窗口失效，所以对xgboost_forecast增加近期样本权重（sample_weight_decay）应该能在保留长窗口历史信息的同时提升对近期分布的适应性。（第8轮验证，改善109.31%）"
+    ]
+  },
+  {
+    "run_id": "ares-09488fac3a34",
+    "created_at": "2026-05-23T13:56:46.951007",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-124b9a168bda",
+    "created_at": "2026-05-23T14:48:38.369278",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-971d01e49b92",
+    "created_at": "2026-05-23T19:15:56.833506",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 1.1882000000000001,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": [
+      "参数层已接近饱和，扩展搜索范围或引入结构变更（第3轮验证，改善58.23%）",
+      "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第11轮验证，改善53.11%）",
+      "训练窗口偏长导致过拟合，缩短后 MAPE 应有改善（诊断：parameter_saturation）（第13轮验证，改善118.82%）"
+    ]
+  },
+  {
+    "run_id": "ares-165cc9625236",
+    "created_at": "2026-05-24T06:33:04.727714",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 1.5522999999999998,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": [
+      "参数层已接近饱和，扩展搜索范围或引入结构变更（第27轮验证，改善17.07%）",
+      "参数层已接近饱和，扩展搜索范围或引入结构变更（第28轮验证，改善109.31%）",
+      "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第33轮验证，改善97.86%）"
+    ]
+  },
+  {
+    "run_id": "ares-24a9506ebb51",
+    "created_at": "2026-05-25T02:10:13.152666",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 1.1273,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-9c429d5ed43c",
+    "created_at": "2026-05-26T08:23:57.045900",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 1.4195000000000002,
+    "fingerprint": {
+      "granularity": "intraday",
+      "span_days": null,
+      "load_type": null,
+      "seasonality": null,
+      "weekend_sensitivity": "normal",
+      "anomaly_ratio": null,
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30
+    },
+    "learned_rules_preview": [
+      "参数层已接近饱和，扩展搜索范围或引入结构变更（第3轮验证，改善109.31%）",
+      "参数层已接近饱和，扩展搜索范围或引入结构变更（第4轮验证，改善51.86%）",
+      "参数层已接近饱和，扩展搜索范围或引入结构变更（第6轮验证，改善96.72%）"
+    ]
+  },
+  {
+    "run_id": "ares-a933ad5c217a",
+    "created_at": "2026-05-26T17:01:59.530930",
+    "baseline_workflow_id": "workflow-load-forecast-backtest-v2",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 1.5522999999999998,
+    "fingerprint": {
+      "granularity": "intraday",
+      "weekend_sensitivity": "normal",
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30,
+      "baseline_workflow_id": "workflow-load-forecast-backtest-v2",
+      "registry_id": "load_forecast_v1"
+    },
+    "learned_rules_preview": [
+      "参数层已接近饱和，扩展搜索范围或引入结构变更（第2轮验证，改善112.73%）",
+      "参数层已接近饱和，扩展搜索范围或引入结构变更（第3轮验证，改善109.31%）",
+      "参数层已接近饱和，扩展搜索范围或引入结构变更（第4轮验证，改善112.73%）"
+    ]
+  },
+  {
+    "run_id": "ares-dcc56d3068fc",
+    "created_at": "2026-05-27T17:53:19.822127",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1",
+    "best_mape_improvement": 0.9466000000000001,
+    "fingerprint": {
+      "granularity": "intraday",
+      "weekend_sensitivity": "normal",
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30,
+      "baseline_workflow_id": "workflow-20260511-optimal-505",
+      "registry_id": "load_forecast_v1"
+    },
+    "learned_rules_preview": [
+      "参数层已接近饱和，扩展搜索范围或引入结构变更（第3轮验证，改善94.66%）"
+    ]
+  },
+  {
+    "run_id": "ares-6f3d6049c5de",
+    "created_at": "2026-05-28T13:09:54.748397",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v2",
+    "best_mape_improvement": 0.5906000000000002,
+    "fingerprint": {
+      "granularity": "intraday",
+      "weekend_sensitivity": "normal",
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30,
+      "baseline_workflow_id": "workflow-20260511-optimal-505",
+      "registry_id": "load_forecast_v2"
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-53dd6cf78b82",
+    "created_at": "2026-05-28T17:29:09.381891",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v2",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "weekend_sensitivity": "normal",
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30,
+      "baseline_workflow_id": "workflow-20260511-optimal-505",
+      "registry_id": "load_forecast_v2"
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-bbfc7342da8b",
+    "created_at": "2026-05-29T10:48:44.531586",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v2",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "weekend_sensitivity": "normal",
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30,
+      "baseline_workflow_id": "workflow-20260511-optimal-505",
+      "registry_id": "load_forecast_v2"
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-aa02bea5f158",
+    "created_at": "2026-05-29T19:40:16.613181",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v2",
+    "best_mape_improvement": 0.2560000000000002,
+    "fingerprint": {
+      "granularity": "intraday",
+      "weekend_sensitivity": "normal",
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30,
+      "baseline_workflow_id": "workflow-20260511-optimal-505",
+      "registry_id": "load_forecast_v2"
+    },
+    "learned_rules_preview": [
+      "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第3轮验证，改善25.60%）"
+    ]
+  },
+  {
+    "run_id": "ares-4e948fa1413d",
+    "created_at": "2026-06-08T16:32:57.795011",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v2",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "weekend_sensitivity": "normal",
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30,
+      "baseline_workflow_id": "workflow-20260511-optimal-505",
+      "registry_id": "load_forecast_v2"
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-48bef4742f3f",
+    "created_at": "2026-06-08T17:30:14.965251",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v2",
+    "best_mape_improvement": 0.0,
+    "fingerprint": {
+      "granularity": "intraday",
+      "weekend_sensitivity": "normal",
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30,
+      "baseline_workflow_id": "workflow-20260511-optimal-505",
+      "registry_id": "load_forecast_v2"
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-9a5e7c8b1863",
+    "created_at": "2026-06-08T18:04:37.227481",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v2",
+    "best_mape_improvement": 0.45779999999999976,
+    "fingerprint": {
+      "granularity": "intraday",
+      "weekend_sensitivity": "normal",
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30,
+      "baseline_workflow_id": "workflow-20260511-optimal-505",
+      "registry_id": "load_forecast_v2"
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-ca2b743ef809",
+    "created_at": "2026-06-08T18:17:38.939925",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v2",
+    "best_mape_improvement": null,
+    "fingerprint": {
+      "granularity": "intraday",
+      "weekend_sensitivity": "normal",
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30,
+      "baseline_workflow_id": "workflow-20260511-optimal-505",
+      "registry_id": "load_forecast_v2"
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-fec6cb7b1265",
+    "created_at": "2026-06-09T12:49:26.023606",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v2",
+    "best_mape_improvement": 0.17070000000000007,
+    "fingerprint": {
+      "granularity": "intraday",
+      "weekend_sensitivity": "normal",
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30,
+      "baseline_workflow_id": "workflow-20260511-optimal-505",
+      "registry_id": "load_forecast_v2"
+    },
+    "learned_rules_preview": []
+  },
+  {
+    "run_id": "ares-a0019b68744a",
+    "created_at": "2026-06-09T14:20:08.571218",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v3",
+    "best_mape_improvement": 0.5179,
+    "fingerprint": {
+      "granularity": "intraday",
+      "weekend_sensitivity": "normal",
+      "backtest_mode": "rolling_retrain",
+      "train_days": 30,
+      "baseline_workflow_id": "workflow-20260511-optimal-505",
+      "registry_id": "load_forecast_v3"
+    },
+    "learned_rules_preview": [
+      "参数层已接近饱和，扩展搜索范围或引入结构变更（第3轮验证，改善51.79%）"
+    ]
+  }
+]

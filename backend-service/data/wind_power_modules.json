@@ -1,0 +1,239 @@
+[
+  {
+    "id": "wind_data_loader",
+    "name": "风电场站数据加载器",
+    "category": "data_source",
+    "description": "从数据库加载风电场站的NWP气象预报数据和真实功率数据。支持多气象源（EC_10D、GFS、DWD等）数据合并，自动处理时间对齐和数据格式转换。",
+    "parameters": [
+      {"name": "station_id", "type": "STRING", "required": true, "description": "风电场站ID（master_id）", "validation": {"pattern": "^[A-Z0-9_-]{3,50}$", "pattern_description": "场站ID格式：3-50位大写字母、数字、下划线或连字符"}},
+      {"name": "start_date", "type": "STRING", "required": false, "description": "开始日期，格式YYYY-MM-DD", "default": "", "validation": {"pattern": "^\\d{4}-\\d{2}-\\d{2}$", "pattern_description": "日期格式：YYYY-MM-DD"}},
+      {"name": "end_date", "type": "STRING", "required": false, "description": "结束日期，格式YYYY-MM-DD", "default": "", "validation": {"pattern": "^\\d{4}-\\d{2}-\\d{2}$", "pattern_description": "日期格式：YYYY-MM-DD"}},
+      {"name": "load_all_nwp", "type": "BOOLEAN", "required": false, "description": "是否加载全量气象数据（48小时预报）", "default": false, "validation": {"type_check": "boolean"}}
+    ],
+    "return_type": "OBJECT",
+    "examples": ["data = wind_data_loader(station_id='FARM001')"]
+  },
+  {
+    "id": "wind_station_scanner",
+    "name": "风电场站扫描器",
+    "category": "data_source",
+    "description": "扫描数据库中所有可用的风电场站，获取场站列表、容量信息和气象源配置。支持场站数据可用性验证。",
+    "parameters": [
+      {"name": "validate_data", "type": "BOOLEAN", "required": false, "description": "是否验证场站数据可用性", "default": false, "validation": {"type_check": "boolean"}}
+    ],
+    "return_type": "ARRAY",
+    "examples": ["stations = wind_station_scanner()"]
+  },
+  {
+    "id": "wind_data_processor",
+    "name": "风电数据处理器",
+    "category": "data_preprocessing",
+    "description": "对风电场站数据进行时间对齐、插值和数据清洗。支持多种时间分辨率（15分钟/30分钟/1小时），自动删除完全缺失的气象源列。",
+    "parameters": [
+      {"name": "nwp_data", "type": "MATRIX", "required": true, "description": "NWP气象预报数据DataFrame", "validation": {"required_columns": ["datetime"], "min_rows": 1}},
+      {"name": "true_data", "type": "MATRIX", "required": true, "description": "真实功率/风速数据DataFrame", "validation": {"required_columns": ["datetime", "POWER"], "min_rows": 1}},
+      {"name": "resolution", "type": "STRING", "required": false, "description": "时间分辨率：15T/30T/1H/3H", "default": "1H", "validation": {"enum": ["15T", "30T", "1H", "3H"]}},
+      {"name": "interpolate_method", "type": "STRING", "required": false, "description": "插值方法：linear/nearest/cubic", "default": "linear", "validation": {"enum": ["linear", "nearest", "cubic", "spline", "polynomial"]}}
+    ],
+    "return_type": "OBJECT",
+    "examples": ["processed = wind_data_processor(nwp_data, true_data)"]
+  },
+  {
+    "id": "wind_missing_cleaner",
+    "name": "风电缺失值清洗器",
+    "category": "data_preprocessing",
+    "description": "检测并处理风电数据中的缺失值。支持删除完全缺失的列、按阈值过滤高缺失率数据、多种缺失值填充策略。",
+    "parameters": [
+      {"name": "data", "type": "MATRIX", "required": true, "description": "待清洗的数据DataFrame", "validation": {"min_rows": 1}},
+      {"name": "missing_threshold", "type": "NUMBER", "required": false, "description": "缺失率阈值（0-1）", "default": 0.5, "validation": {"range": [0.0, 1.0]}},
+      {"name": "fill_method", "type": "STRING", "required": false, "description": "填充方法：ffill/bfill/interpolate/mean/median", "default": "interpolate", "validation": {"enum": ["ffill", "bfill", "interpolate", "mean", "median", "zero", "drop"]}}
+    ],
+    "return_type": "MATRIX",
+    "examples": ["clean_data = wind_missing_cleaner(data, missing_threshold=0.3)"]
+  },
+  {
+    "id": "wind_time_features",
+    "name": "风电时间特征构建",
+    "category": "feature_engineering",
+    "description": "构建风电预测的时间特征，包括小时、星期、月份、季节、周末标识，以及周期性编码（正弦/余弦变换）。",
+    "parameters": [
+      {"name": "data", "type": "MATRIX", "required": true, "description": "带有时间索引的数据DataFrame", "validation": {"required_index": "datetime"}},
+      {"name": "include_cyclic", "type": "BOOLEAN", "required": false, "description": "是否包含周期性编码", "default": true, "validation": {"type_check": "boolean"}}
+    ],
+    "return_type": "MATRIX",
+    "examples": ["data_with_time = wind_time_features(data)"]
+  },
+  {
+    "id": "wind_business_features",
+    "name": "风电业务特征构建",
+    "category": "feature_engineering",
+    "description": "构建风电预测的业务特征，包括滞后/超前风速、空气密度、风速分量(u/v)、趋势特征等。基于气象学原理设计的专业特征。",
+    "parameters": [
+      {"name": "data", "type": "MATRIX", "required": true, "description": "包含气象要素的数据DataFrame", "validation": {"min_columns": 1}},
+      {"name": "nwp_sources", "type": "ARRAY", "required": true, "description": "气象源名称列表，如['EC_10D', 'GFS', 'DWD']", "validation": {"min_length": 1, "max_length": 10, "item_pattern": "^[A-Z0-9_]{2,20}$"}},
+      {"name": "lag_windows", "type": "ARRAY", "required": false, "description": "滞后窗口列表", "default": [1, 2, 3], "validation": {"min_length": 1, "max_length": 24, "item_range": [1, 168]}}
+    ],
+    "return_type": "MATRIX",
+    "examples": ["data_with_business = wind_business_features(data, nwp_sources=['EC_10D', 'GFS'])"]
+  },
+  {
+    "id": "wind_statistical_features",
+    "name": "风电统计特征构建",
+    "category": "feature_engineering",
+    "description": "构建风电预测的滚动统计特征，包括滚动均值、标准差、最小值、最大值。支持多窗口大小配置。",
+    "parameters": [
+      {"name": "data", "type": "MATRIX", "required": true, "description": "包含风速列的数据DataFrame", "validation": {"min_rows": 10}},
+      {"name": "window_sizes", "type": "ARRAY", "required": false, "description": "滚动窗口大小列表", "default": [3, 6, 12], "validation": {"min_length": 1, "max_length": 10, "item_range": [2, 168]}},
+      {"name": "target_columns", "type": "ARRAY", "required": false, "description": "目标列名列表", "default": [], "validation": {"min_length": 0, "max_length": 50}}
+    ],
+    "return_type": "MATRIX",
+    "examples": ["data_with_stats = wind_statistical_features(data, window_sizes=[3, 6, 12])"]
+  },
+  {
+    "id": "wind_difference_features",
+    "name": "风电差值特征构建",
+    "category": "feature_engineering",
+    "description": "构建气象源之间的差值特征，用于捕捉不同气象预报之间的差异信息，提升模型对预报不确定性的感知能力。",
+    "parameters": [
+      {"name": "data", "type": "MATRIX", "required": true, "description": "包含多气象源风速的数据DataFrame", "validation": {"min_columns": 2}},
+      {"name": "nwp_sources", "type": "ARRAY", "required": true, "description": "气象源名称列表", "validation": {"min_length": 2, "max_length": 10, "item_pattern": "^[A-Z0-9_]{2,20}$"}}
+    ],
+    "return_type": "MATRIX",
+    "examples": ["data_with_diff = wind_difference_features(data, nwp_sources=['EC_10D', 'GFS', 'DWD'])"]
+  },
+  {
+    "id": "wind_interaction_features",
+    "name": "风电交互特征构建",
+    "category": "feature_engineering",
+    "description": "构建气象要素之间的交互特征，包括风速平方、风速与风向/温度/气压的交互、风向的正弦余弦分量。",
+    "parameters": [
+      {"name": "data", "type": "MATRIX", "required": true, "description": "包含气象要素的数据DataFrame", "validation": {"min_columns": 1}},
+      {"name": "nwp_sources", "type": "ARRAY", "required": true, "description": "气象源名称列表", "validation": {"min_length": 1, "max_length": 10, "item_pattern": "^[A-Z0-9_]{2,20}$"}}
+    ],
+    "return_type": "MATRIX",
+    "examples": ["data_with_interaction = wind_interaction_features(data, nwp_sources=['EC_10D', 'GFS'])"]
+  },
+  {
+    "id": "wind_tree_model",
+    "name": "风电树模型训练器",
+    "category": "ts_forecast",
+    "description": "基于树模型的风电功率预测，支持决策树、随机森林、GBDT。采用五折交叉验证和超参数自动搜索，输出特征重要性分析。",
+    "parameters": [
+      {"name": "X", "type": "MATRIX", "required": true, "description": "特征矩阵DataFrame", "validation": {"min_rows": 100, "min_columns": 1, "no_nan": true}},
+      {"name": "y", "type": "MATRIX", "required": true, "description": "目标变量DataFrame，包含POWER列", "validation": {"required_columns": ["POWER"], "min_rows": 100, "value_range": [0, null]}},
+      {"name": "model_type", "type": "STRING", "required": false, "description": "模型类型：decision_tree/random_forest/gbdt", "default": "random_forest", "validation": {"enum": ["decision_tree", "random_forest", "gbdt", "extra_trees"]}},
+      {"name": "farm_id", "type": "STRING", "required": true, "description": "场站ID", "validation": {"pattern": "^[A-Z0-9_-]{3,50}$"}},
+      {"name": "capacity", "type": "NUMBER", "required": true, "description": "场站容量（MW）", "validation": {"range": [0.1, 10000]}},
+      {"name": "enable_search", "type": "BOOLEAN", "required": false, "description": "是否启用超参数搜索", "default": true, "validation": {"type_check": "boolean"}}
+    ],
+    "return_type": "OBJECT",
+    "examples": ["result = wind_tree_model(X, y, model_type='random_forest', farm_id='FARM001', capacity=50.0)"]
+  },
+  {
+    "id": "wind_linear_model",
+    "name": "风电线性模型训练器",
+    "category": "ts_forecast",
+    "description": "基于线性模型的风电功率预测，支持线性回归、Ridge、Lasso。采用五折交叉验证和正则化参数自动搜索。",
+    "parameters": [
+      {"name": "X", "type": "MATRIX", "required": true, "description": "特征矩阵DataFrame", "validation": {"min_rows": 50, "min_columns": 1, "no_nan": true}},
+      {"name": "y", "type": "MATRIX", "required": true, "description": "目标变量DataFrame，包含POWER列", "validation": {"required_columns": ["POWER"], "min_rows": 50, "value_range": [0, null]}},
+      {"name": "model_type", "type": "STRING", "required": false, "description": "模型类型：linear/ridge/lasso", "default": "ridge", "validation": {"enum": ["linear", "ridge", "lasso", "elastic_net"]}},
+      {"name": "farm_id", "type": "STRING", "required": true, "description": "场站ID", "validation": {"pattern": "^[A-Z0-9_-]{3,50}$"}},
+      {"name": "capacity", "type": "NUMBER", "required": true, "description": "场站容量（MW）", "validation": {"range": [0.1, 10000]}}
+    ],
+    "return_type": "OBJECT",
+    "examples": ["result = wind_linear_model(X, y, model_type='ridge', farm_id='FARM001', capacity=50.0)"]
+  },
+  {
+    "id": "wind_xgboost_stacking",
+    "name": "风电XGBoost堆叠模型",
+    "category": "ts_forecast",
+    "description": "基于XGBoost的两阶段堆叠模型，专为风电功率预测设计。第一阶段预测风速，第二阶段结合空气密度预测功率，最终通过线性融合输出。",
+    "parameters": [
+      {"name": "X", "type": "MATRIX", "required": true, "description": "特征矩阵DataFrame", "validation": {"min_rows": 200, "min_columns": 5, "no_nan": true}},
+      {"name": "y", "type": "MATRIX", "required": true, "description": "目标变量DataFrame，包含POWER/WS/WS_min/WS_median/WS_max列", "validation": {"required_columns": ["POWER", "WS"], "optional_columns": ["WS_min", "WS_median", "WS_max"], "min_rows": 200}},
+      {"name": "farm_id", "type": "STRING", "required": true, "description": "场站ID", "validation": {"pattern": "^[A-Z0-9_-]{3,50}$"}},
+      {"name": "capacity", "type": "NUMBER", "required": true, "description": "场站容量（MW）", "validation": {"range": [0.1, 10000]}},
+      {"name": "nwp_sources", "type": "ARRAY", "required": true, "description": "气象源名称列表", "validation": {"min_length": 1, "max_length": 10, "item_pattern": "^[A-Z0-9_]{2,20}$"}}
+    ],
+    "return_type": "OBJECT",
+    "examples": ["result = wind_xgboost_stacking(X, y, farm_id='FARM001', capacity=50.0, nwp_sources=['EC_10D', 'GFS'])"]
+  },
+  {
+    "id": "wind_correlation",
+    "name": "风电相关性分析",
+    "category": "evaluation_metrics",
+    "description": "计算气象源之间以及与真实风速的相关性矩阵，用于评估气象预报质量和选择最优气象源。",
+    "parameters": [
+      {"name": "nwp_data", "type": "MATRIX", "required": true, "description": "NWP气象预报数据DataFrame", "validation": {"min_rows": 30}},
+      {"name": "true_data", "type": "MATRIX", "required": true, "description": "真实风速数据DataFrame", "validation": {"min_rows": 30, "required_columns": ["WS"]}},
+      {"name": "sources", "type": "ARRAY", "required": true, "description": "气象源名称列表", "validation": {"min_length": 1, "max_length": 20, "item_pattern": "^[A-Z0-9_]{2,20}$"}}
+    ],
+    "return_type": "MATRIX",
+    "examples": ["corr_matrix = wind_correlation(nwp_data, true_data, sources=['EC_10D', 'GFS', 'DWD'])"]
+  },
+  {
+    "id": "wind_error_metrics",
+    "name": "风电误差指标计算",
+    "category": "evaluation_metrics",
+    "description": "批量计算所有气象源的误差指标（RMSE、MAE），按误差从低到高排序，用于气象源质量评估。",
+    "parameters": [
+      {"name": "nwp_data", "type": "MATRIX", "required": true, "description": "NWP气象预报数据DataFrame", "validation": {"min_rows": 10}},
+      {"name": "true_data", "type": "MATRIX", "required": true, "description": "真实风速数据DataFrame", "validation": {"min_rows": 10, "required_columns": ["WS"]}},
+      {"name": "sources", "type": "ARRAY", "required": true, "description": "气象源名称列表", "validation": {"min_length": 1, "max_length": 20, "item_pattern": "^[A-Z0-9_]{2,20}$"}}
+    ],
+    "return_type": "MATRIX",
+    "examples": ["error_df = wind_error_metrics(nwp_data, true_data, sources=['EC_10D', 'GFS', 'DWD'])"]
+  },
+  {
+    "id": "wind_distribution",
+    "name": "风电分布统计分析",
+    "category": "evaluation_metrics",
+    "description": "计算风速/功率数据的分布统计量，包括均值、中位数、标准差、分位数等，用于数据质量评估。",
+    "parameters": [
+      {"name": "data", "type": "ARRAY", "required": true, "description": "待分析的数据序列", "validation": {"min_length": 10, "no_nan": true}}
+    ],
+    "return_type": "OBJECT",
+    "examples": ["stats = wind_distribution(wind_speed_data)"]
+  },
+  {
+    "id": "wind_missing_rate",
+    "name": "风电缺失率统计",
+    "category": "evaluation_metrics",
+    "description": "统计各数据源的缺失率，按缺失率从低到高排序，用于数据质量评估。",
+    "parameters": [
+      {"name": "nwp_data", "type": "MATRIX", "required": true, "description": "NWP气象预报数据DataFrame", "validation": {"min_rows": 1}},
+      {"name": "true_data", "type": "MATRIX", "required": true, "description": "真实风速数据DataFrame", "validation": {"min_rows": 1}},
+      {"name": "sources", "type": "ARRAY", "required": true, "description": "气象源名称列表", "validation": {"min_length": 1, "max_length": 20, "item_pattern": "^[A-Z0-9_]{2,20}$"}}
+    ],
+    "return_type": "MATRIX",
+    "examples": ["missing_df = wind_missing_rate(nwp_data, true_data, sources=['EC_10D', 'GFS', 'DWD'])"]
+  },
+  {
+    "id": "wind_range_analysis",
+    "name": "风电风速区间分析",
+    "category": "evaluation_metrics",
+    "description": "分析不同风速区间的预测表现，评估模型在小风/中风/大风条件下的精度。",
+    "parameters": [
+      {"name": "nwp_data", "type": "MATRIX", "required": true, "description": "NWP气象预报数据DataFrame", "validation": {"min_rows": 100}},
+      {"name": "true_data", "type": "MATRIX", "required": true, "description": "真实风速数据DataFrame", "validation": {"min_rows": 100, "required_columns": ["WS"]}},
+      {"name": "sources", "type": "ARRAY", "required": true, "description": "气象源名称列表", "validation": {"min_length": 1, "max_length": 20, "item_pattern": "^[A-Z0-9_]{2,20}$"}},
+      {"name": "ranges", "type": "ARRAY", "required": false, "description": "风速区间列表", "default": [[0, 3], [3, 6], [6, 10], [10, 15], [15, 100]], "validation": {"min_length": 2, "max_length": 20, "item_format": "[min, max]"}}
+    ],
+    "return_type": "OBJECT",
+    "examples": ["range_analysis = wind_range_analysis(nwp_data, true_data, sources=['EC_10D', 'GFS'])"]
+  },
+  {
+    "id": "wind_seasonal_analysis",
+    "name": "风电季节性分析",
+    "category": "evaluation_metrics",
+    "description": "分析不同季节的预测表现，评估模型在春夏秋冬各季节的精度差异。",
+    "parameters": [
+      {"name": "nwp_data", "type": "MATRIX", "required": true, "description": "NWP气象预报数据DataFrame", "validation": {"min_rows": 8760}},
+      {"name": "true_data", "type": "MATRIX", "required": true, "description": "真实风速数据DataFrame", "validation": {"min_rows": 8760, "required_columns": ["WS"], "required_index": "datetime"}},
+      {"name": "sources", "type": "ARRAY", "required": true, "description": "气象源名称列表", "validation": {"min_length": 1, "max_length": 20, "item_pattern": "^[A-Z0-9_]{2,20}$"}}
+    ],
+    "return_type": "OBJECT",
+    "examples": ["seasonal_analysis = wind_seasonal_analysis(nwp_data, true_data, sources=['EC_10D', 'GFS'])"]
+  }
+]

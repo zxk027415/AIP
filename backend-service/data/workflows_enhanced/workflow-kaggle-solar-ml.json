@@ -1,0 +1,493 @@
+{
+  "id": "workflow-kaggle-solar-ml",
+  "name": "Kaggle 太阳能发电预测 - 完整ML流程",
+  "description": "基于 Kaggle 印度太阳能发电数据集的完整机器学习流程，使用基础算法库通用函数。目标：复现 Kaggle 论文指标 R² ≈ 0.93-0.96",
+  "createdAt": "2026-03-21T10:00:00.000Z",
+  "updatedAt": "2026-03-21T10:00:00.000Z",
+  "nodes": [
+    {
+      "id": "node-1",
+      "type": "enhanced",
+      "position": { "x": 100, "y": 100 },
+      "data": {
+        "label": "加载Kaggle太阳能数据",
+        "type": "function",
+        "icon": "database",
+        "inputs": [],
+        "outputs": [
+          {
+            "id": "node-1-out-data",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix"
+          }
+        ],
+        "config": {
+          "functionId": "load_dataset",
+          "dataset_id": "kaggle-solar-india",
+          "time_column": "DATE_TIME",
+          "target_column": "DC_POWER"
+        },
+        "status": "idle",
+        "description": "加载 Kaggle 印度太阳能发电数据集（34天，15分钟间隔）"
+      }
+    },
+    {
+      "id": "node-2",
+      "type": "enhanced",
+      "position": { "x": 100, "y": 250 },
+      "data": {
+        "label": "描述性统计分析",
+        "type": "function",
+        "icon": "bar-chart",
+        "inputs": [
+          {
+            "id": "node-2-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-2-out-stats",
+            "name": "statistics",
+            "type": "output",
+            "dataType": "object"
+          }
+        ],
+        "config": {
+          "functionId": "descriptive_stats"
+        },
+        "status": "idle",
+        "description": "统计分析和相关性矩阵计算"
+      }
+    },
+    {
+      "id": "node-3",
+      "type": "enhanced",
+      "position": { "x": 100, "y": 400 },
+      "data": {
+        "label": "时间特征提取",
+        "type": "function",
+        "icon": "tool",
+        "inputs": [
+          {
+            "id": "node-3-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-3-out-data",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix"
+          }
+        ],
+        "config": {
+          "functionId": "extract_time_features",
+          "time_column": "DATE_TIME",
+          "add_time_features": true,
+          "add_cyclic_features": true
+        },
+        "status": "idle",
+        "description": "添加时间特征、周期特征和温度差特征"
+      }
+    },
+    {
+      "id": "node-4",
+      "type": "enhanced",
+      "position": { "x": 100, "y": 550 },
+      "data": {
+        "label": "数据集划分",
+        "type": "function",
+        "icon": "split-cells",
+        "inputs": [
+          {
+            "id": "node-4-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-4-out-split",
+            "name": "split_data",
+            "type": "output",
+            "dataType": "object"
+          }
+        ],
+        "config": {
+          "functionId": "train_test_split",
+          "test_ratio": 0.2,
+          "shuffle": false,
+          "target_column": "DC_POWER",
+          "feature_columns": ["IRRADIATION", "AMBIENT_TEMPERATURE", "MODULE_TEMPERATURE", "HOUR_SIN", "HOUR_COS", "TEMP_DIFF"]
+        },
+        "status": "idle",
+        "description": "按 80/20 比例划分训练集和测试集"
+      }
+    },
+    {
+      "id": "node-5",
+      "type": "enhanced",
+      "position": { "x": -150, "y": 700 },
+      "data": {
+        "label": "线性回归",
+        "type": "function",
+        "icon": "experiment",
+        "inputs": [
+          {
+            "id": "node-5-in-data",
+            "name": "split_data",
+            "type": "input",
+            "dataType": "object",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-5-out-model",
+            "name": "model_result",
+            "type": "output",
+            "dataType": "object"
+          }
+        ],
+        "config": {
+          "functionId": "linear_regression",
+          "regularization": "none"
+        },
+        "status": "idle",
+        "description": "训练线性回归模型（基准模型）"
+      }
+    },
+    {
+      "id": "node-6",
+      "type": "enhanced",
+      "position": { "x": 100, "y": 700 },
+      "data": {
+        "label": "随机森林回归",
+        "type": "function",
+        "icon": "experiment",
+        "inputs": [
+          {
+            "id": "node-6-in-data",
+            "name": "split_data",
+            "type": "input",
+            "dataType": "object",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-6-out-model",
+            "name": "model_result",
+            "type": "output",
+            "dataType": "object"
+          }
+        ],
+        "config": {
+          "functionId": "random_forest_regression",
+          "n_estimators": 20,
+          "max_depth": 8
+        },
+        "status": "idle",
+        "description": "训练随机森林回归模型"
+      }
+    },
+    {
+      "id": "node-7",
+      "type": "enhanced",
+      "position": { "x": 350, "y": 700 },
+      "data": {
+        "label": "XGBoost回归",
+        "type": "function",
+        "icon": "experiment",
+        "inputs": [
+          {
+            "id": "node-7-in-data",
+            "name": "split_data",
+            "type": "input",
+            "dataType": "object",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-7-out-model",
+            "name": "model_result",
+            "type": "output",
+            "dataType": "object"
+          }
+        ],
+        "config": {
+          "functionId": "xgboost_regression",
+          "n_estimators": 100,
+          "learning_rate": 0.1,
+          "max_depth": 5
+        },
+        "status": "idle",
+        "description": "训练XGBoost回归模型（梯度提升）"
+      }
+    },
+    {
+      "id": "node-8",
+      "type": "enhanced",
+      "position": { "x": -150, "y": 850 },
+      "data": {
+        "label": "线性回归评估",
+        "type": "function",
+        "icon": "bar-chart",
+        "inputs": [
+          {
+            "id": "node-8-in-model",
+            "name": "model_result",
+            "type": "input",
+            "dataType": "object",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-8-out-metrics",
+            "name": "metrics",
+            "type": "output",
+            "dataType": "object"
+          }
+        ],
+        "config": {
+          "functionId": "regression_metrics"
+        },
+        "status": "idle",
+        "description": "评估线性回归模型（RMSE, MAE, R²）"
+      }
+    },
+    {
+      "id": "node-9",
+      "type": "enhanced",
+      "position": { "x": 100, "y": 850 },
+      "data": {
+        "label": "随机森林评估",
+        "type": "function",
+        "icon": "bar-chart",
+        "inputs": [
+          {
+            "id": "node-9-in-model",
+            "name": "model_result",
+            "type": "input",
+            "dataType": "object",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-9-out-metrics",
+            "name": "metrics",
+            "type": "output",
+            "dataType": "object"
+          }
+        ],
+        "config": {
+          "functionId": "regression_metrics"
+        },
+        "status": "idle",
+        "description": "评估随机森林模型（RMSE, MAE, R²）"
+      }
+    },
+    {
+      "id": "node-10",
+      "type": "enhanced",
+      "position": { "x": 350, "y": 850 },
+      "data": {
+        "label": "XGBoost评估",
+        "type": "function",
+        "icon": "bar-chart",
+        "inputs": [
+          {
+            "id": "node-10-in-model",
+            "name": "model_result",
+            "type": "input",
+            "dataType": "object",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-10-out-metrics",
+            "name": "metrics",
+            "type": "output",
+            "dataType": "object"
+          }
+        ],
+        "config": {
+          "functionId": "regression_metrics"
+        },
+        "status": "idle",
+        "description": "评估XGBoost模型（RMSE, MAE, R²）"
+      }
+    },
+    {
+      "id": "node-11",
+      "type": "enhanced",
+      "position": { "x": 350, "y": 1000 },
+      "data": {
+        "label": "预测散点图",
+        "type": "visualization",
+        "icon": "dot-chart",
+        "inputs": [
+          {
+            "id": "node-11-in-model",
+            "name": "model_result",
+            "type": "input",
+            "dataType": "object",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-11-out-chart",
+            "name": "chart",
+            "type": "output",
+            "dataType": "chart"
+          }
+        ],
+        "config": {
+          "functionId": "scatter_plot",
+          "title": "XGBoost回归 - 预测 vs 实际"
+        },
+        "status": "idle",
+        "description": "绘制预测值与实际值的散点图"
+      }
+    },
+    {
+      "id": "node-12",
+      "type": "enhanced",
+      "position": { "x": 100, "y": 1000 },
+      "data": {
+        "label": "特征重要性图",
+        "type": "visualization",
+        "icon": "bar-chart",
+        "inputs": [
+          {
+            "id": "node-12-in-model",
+            "name": "model_result",
+            "type": "input",
+            "dataType": "object",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-12-out-chart",
+            "name": "chart",
+            "type": "output",
+            "dataType": "chart"
+          }
+        ],
+        "config": {
+          "functionId": "bar_chart",
+          "title": "随机森林 - 特征重要性"
+        },
+        "status": "idle",
+        "description": "绘制特征重要性柱状图"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1-2",
+      "source": "node-1",
+      "target": "node-2",
+      "sourceHandle": "node-1-out-data",
+      "targetHandle": "node-2-in-data",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-1-3",
+      "source": "node-1",
+      "target": "node-3",
+      "sourceHandle": "node-1-out-data",
+      "targetHandle": "node-3-in-data",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-3-4",
+      "source": "node-3",
+      "target": "node-4",
+      "sourceHandle": "node-3-out-data",
+      "targetHandle": "node-4-in-data",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-4-5",
+      "source": "node-4",
+      "target": "node-5",
+      "sourceHandle": "node-4-out-split",
+      "targetHandle": "node-5-in-data",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-4-6",
+      "source": "node-4",
+      "target": "node-6",
+      "sourceHandle": "node-4-out-split",
+      "targetHandle": "node-6-in-data",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-4-7",
+      "source": "node-4",
+      "target": "node-7",
+      "sourceHandle": "node-4-out-split",
+      "targetHandle": "node-7-in-data",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-5-8",
+      "source": "node-5",
+      "target": "node-8",
+      "sourceHandle": "node-5-out-model",
+      "targetHandle": "node-8-in-model",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-6-9",
+      "source": "node-6",
+      "target": "node-9",
+      "sourceHandle": "node-6-out-model",
+      "targetHandle": "node-9-in-model",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-7-10",
+      "source": "node-7",
+      "target": "node-10",
+      "sourceHandle": "node-7-out-model",
+      "targetHandle": "node-10-in-model",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-7-11",
+      "source": "node-7",
+      "target": "node-11",
+      "sourceHandle": "node-7-out-model",
+      "targetHandle": "node-11-in-model",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-6-12",
+      "source": "node-6",
+      "target": "node-12",
+      "sourceHandle": "node-6-out-model",
+      "targetHandle": "node-12-in-model",
+      "type": "smoothstep"
+    }
+  ]
+}

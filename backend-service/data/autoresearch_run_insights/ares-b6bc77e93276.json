@@ -1,0 +1,57 @@
+{
+  "run_id": "ares-b6bc77e93276",
+  "created_at": "2026-05-15T17:44:20.572623",
+  "baseline_workflow_id": "workflow-20260511-optimal-505",
+  "registry_id": "load_forecast_v1",
+  "scenario_fingerprint": {
+    "granularity": "intraday",
+    "span_days": null,
+    "load_type": null,
+    "seasonality": null,
+    "weekend_sensitivity": "normal",
+    "anomaly_ratio": null,
+    "backtest_mode": "rolling_retrain",
+    "train_days": 30
+  },
+  "total_iterations": 10,
+  "best_mape_improvement": 1.1273,
+  "best_candidate_config": {
+    "override": {
+      "train_days": 90
+    },
+    "global_config_patch": {}
+  },
+  "data_profile": {
+    "granularity_minutes": null,
+    "span_days": null,
+    "weekend_weekday_gap": null,
+    "outlier_ratio": null
+  },
+  "exploration_summary": {
+    "phases": [
+      "parameter_exploration"
+    ],
+    "hypotheses_tested": 9,
+    "hypotheses_verified": 2,
+    "hypotheses_disproved": 7,
+    "total_iterations": 10,
+    "success_iterations": 10
+  },
+  "learned_rules": [
+    "因为现有特征无法表征日内极值波动的幅度，所以增加rolling_statistics的min统计特征应该能让模型更好地学习到midday的深V形态。（第4轮验证，改善112.73%）",
+    "因为现有的极小值特征不足以刻画日内极端波动的全貌，所以增加 rolling_statistics 的 std 统计特征应该能帮助模型学习 midday 的剧烈波幅。（第8轮验证，改善112.73%）"
+  ],
+  "ineffective_attempts": [
+    "因为当前 60 天的训练窗口引入了过多已漂移的陈旧数据，所以将 train_days 缩短至 14-21 天应该能显著改善模型泛化能力并降低 MAPE。（第2轮，实际=-0.05609999999999982）",
+    "因为现有特征无法表征日内极值波动的幅度，所以增加rolling_statistics的min统计特征应该能让模型更好地学习到midday的深V形态。（第3轮，实际=-1.2788000000000004）",
+    "因为现有的极小值特征不足以刻画日内极端波动的全貌，所以增加 rolling_statistics 的 std 统计特征应该能帮助模型学习 midday 的剧烈波幅。（第5轮，实际=0.0）",
+    "因为现有的极小值特征不足以刻画日内极端波动的全貌，所以增加 rolling_statistics 的 std 统计特征应该能帮助模型学习 midday 的剧烈波幅。（第6轮，实际=-1.2788000000000004）",
+    "因为现有的极小值特征不足以刻画日内极端波动的全貌，所以增加 rolling_statistics 的 std 统计特征应该能帮助模型学习 midday 的剧烈波幅。（第7轮，实际=-0.05609999999999982）",
+    "因为当前滚动统计窗口太短，无法捕捉 midday 周期性长波段波动，所以增大 rolling_statistics 的 window_sizes 应该能提取更稳健的中长期特征，从而改善 midday 误差。（第9轮，实际=-1.2788000000000004）",
+    "因为当前滚动统计窗口太短，无法捕捉 midday 周期性长波段波动，所以增大 rolling_statistics 的 window_sizes 应该能提取更稳健的中长期特征，从而改善 midday 误差。（第10轮，实际=0.0）"
+  ],
+  "open_questions": [],
+  "recommended_starting_config_for_similar": {
+    "train_days": 90
+  }
+}

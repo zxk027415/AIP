@@ -1,0 +1,25 @@
+{
+  "claim": "因为模型未能有效区分工作日与周末的midday模式，所以启用workday_features应该能捕获时段特异性，改善预测精度。（第2轮，实际=0.0）",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "135bf98fec7c",
+    "target_param": "anti_pattern_text"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "granularity": "intraday",
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-24a9506ebb51"
+  ],
+  "knowledge_type": "anti_pattern",
+  "last_validated_at": "2026-05-24T18:10:13.155358",
+  "layer": "L3",
+  "scenario_condition_hash": "bcda466f47f336be",
+  "status": "candidate"
+}

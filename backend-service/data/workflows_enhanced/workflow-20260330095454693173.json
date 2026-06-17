@@ -1,0 +1,789 @@
+{
+  "id": "workflow-20260330095454693173",
+  "name": "SOC估计 - high-accuracy",
+  "description": "为场景 energy-storage 生成算法模板：，数据管理层 3 个节点，数据处理层 3 个节点，算法模型层 2 个节点，评估输出层 2 个节点，共 10 个节点、19 条连接",
+  "nodes": [
+    {
+      "id": "node-421d1fc4",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 80.0
+      },
+      "data": {
+        "label": "CSV/Excel文件加载",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-421d1fc4-in-file_path",
+            "name": "file_path",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-421d1fc4-in-delimiter",
+            "name": "delimiter",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-421d1fc4-in-encoding",
+            "name": "encoding",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-421d1fc4-in-header_row",
+            "name": "header_row",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-421d1fc4-in-timestamp_column",
+            "name": "timestamp_column",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-421d1fc4-in-value_columns",
+            "name": "value_columns",
+            "type": "input",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-421d1fc4-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "load_csv",
+          "operation": null,
+          "chartType": null,
+          "delimiter": ",",
+          "encoding": "utf-8",
+          "header_row": 0,
+          "timestamp_column": "",
+          "value_columns": []
+        },
+        "status": "idle",
+        "error": null,
+        "description": "从CSV/Excel文件加载数据，支持自动类型推断、编码检测和大文件分块读取。可指定时间戳列和数值列用于时序数据场景。"
+      }
+    },
+    {
+      "id": "node-04f4a34f",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 80.0
+      },
+      "data": {
+        "label": "CAN总线数据读取",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-04f4a34f-in-interface",
+            "name": "interface",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-04f4a34f-in-bitrate",
+            "name": "bitrate",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-04f4a34f-in-duration_sec",
+            "name": "duration_sec",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-04f4a34f-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "load_canbus",
+          "operation": null,
+          "chartType": null,
+          "bitrate": "500000",
+          "duration_sec": "60"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "从CAN总线读取工业设备通信数据，支持CAN 2.0A/B和CAN FD协议。"
+      }
+    },
+    {
+      "id": "node-0a2fb22b",
+      "type": "enhanced",
+      "position": {
+        "x": 600.0,
+        "y": 80.0
+      },
+      "data": {
+        "label": "时序数据库接入",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-0a2fb22b-in-db_type",
+            "name": "db_type",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-0a2fb22b-in-connection_string",
+            "name": "connection_string",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-0a2fb22b-in-query",
+            "name": "query",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-0a2fb22b-in-start_time",
+            "name": "start_time",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-0a2fb22b-in-end_time",
+            "name": "end_time",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-0a2fb22b-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "load_timeseries_db",
+          "operation": null,
+          "chartType": null,
+          "start_time": "",
+          "end_time": ""
+        },
+        "status": "idle",
+        "error": null,
+        "description": "连接时序数据库查询历史数据，支持InfluxDB、TDengine、TimescaleDB等工业常用时序库。"
+      }
+    },
+    {
+      "id": "node-1c513861",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 230.0
+      },
+      "data": {
+        "label": "缺失值处理",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-1c513861-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-1c513861-in-method",
+            "name": "method",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-1c513861-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "handle_missing",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": "处理时序数据中的缺失值，支持插值、前向填充、后向填充等方法。"
+      }
+    },
+    {
+      "id": "node-d3ee6859",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 230.0
+      },
+      "data": {
+        "label": "卡尔曼滤波",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-d3ee6859-in-measurements",
+            "name": "measurements",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-d3ee6859-in-process_noise",
+            "name": "process_noise",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-d3ee6859-in-measurement_noise",
+            "name": "measurement_noise",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-d3ee6859-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "kalman_filter",
+          "operation": null,
+          "chartType": null,
+          "process_noise": "0.01",
+          "measurement_noise": "0.1"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用卡尔曼滤波对含噪声的时序数据进行状态估计和平滑。"
+      }
+    },
+    {
+      "id": "node-7f3fed7d",
+      "type": "enhanced",
+      "position": {
+        "x": 600.0,
+        "y": 230.0
+      },
+      "data": {
+        "label": "Z-Score标准化",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-7f3fed7d-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-7f3fed7d-in-columns",
+            "name": "columns",
+            "type": "input",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-7f3fed7d-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "z_score_scale",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用Z-Score方法将数据标准化为均值0、标准差1的分布。"
+      }
+    },
+    {
+      "id": "node-bd555731",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 380.0
+      },
+      "data": {
+        "label": "LSTM时序预测",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-bd555731-in-train_data",
+            "name": "train_data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-bd555731-in-sequence_length",
+            "name": "sequence_length",
+            "type": "input",
+            "dataType": "number",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-bd555731-in-forecast_horizon",
+            "name": "forecast_horizon",
+            "type": "input",
+            "dataType": "number",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-bd555731-in-hidden_units",
+            "name": "hidden_units",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-bd555731-in-auto_tune",
+            "name": "auto_tune",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-bd555731-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "lstm_forecast",
+          "operation": null,
+          "chartType": null,
+          "hidden_units": 64,
+          "auto_tune": "false"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用长短期记忆网络（LSTM）进行时序预测，适用于负荷预测等场景。"
+      }
+    },
+    {
+      "id": "node-8a98e604",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 380.0
+      },
+      "data": {
+        "label": "扩展卡尔曼滤波估计",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-8a98e604-in-measurements",
+            "name": "measurements",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-8a98e604-in-state_model",
+            "name": "state_model",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-8a98e604-in-initial_state",
+            "name": "initial_state",
+            "type": "input",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-8a98e604-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "object",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "ekf_estimator",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用扩展卡尔曼滤波进行非线性系统状态估计，如电池SOC估计。"
+      }
+    },
+    {
+      "id": "node-ac379e43",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 530.0
+      },
+      "data": {
+        "label": "均方根误差(RMSE)",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-ac379e43-in-y_true",
+            "name": "y_true",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-ac379e43-in-y_pred",
+            "name": "y_pred",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-ac379e43-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "rmse_metric",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": "计算预测值与真实值之间的均方根误差，对大误差更敏感。"
+      }
+    },
+    {
+      "id": "node-5249cc10",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 530.0
+      },
+      "data": {
+        "label": "平均绝对误差(MAE)",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-5249cc10-in-y_true",
+            "name": "y_true",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-5249cc10-in-y_pred",
+            "name": "y_pred",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-5249cc10-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "mae_metric",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": "计算预测值与真实值之间的平均绝对误差，用于评估回归模型。"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-27dc00f5",
+      "source": "node-421d1fc4",
+      "target": "node-1c513861",
+      "sourceHandle": "node-421d1fc4-out-result",
+      "targetHandle": "node-1c513861-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-316e2be0",
+      "source": "node-421d1fc4",
+      "target": "node-d3ee6859",
+      "sourceHandle": "node-421d1fc4-out-result",
+      "targetHandle": "node-d3ee6859-in-measurements",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-d56af3e6",
+      "source": "node-421d1fc4",
+      "target": "node-7f3fed7d",
+      "sourceHandle": "node-421d1fc4-out-result",
+      "targetHandle": "node-7f3fed7d-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-56c638fd",
+      "source": "node-04f4a34f",
+      "target": "node-1c513861",
+      "sourceHandle": "node-04f4a34f-out-result",
+      "targetHandle": "node-1c513861-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-048a169f",
+      "source": "node-04f4a34f",
+      "target": "node-d3ee6859",
+      "sourceHandle": "node-04f4a34f-out-result",
+      "targetHandle": "node-d3ee6859-in-measurements",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-d67af205",
+      "source": "node-04f4a34f",
+      "target": "node-7f3fed7d",
+      "sourceHandle": "node-04f4a34f-out-result",
+      "targetHandle": "node-7f3fed7d-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-de156c45",
+      "source": "node-0a2fb22b",
+      "target": "node-1c513861",
+      "sourceHandle": "node-0a2fb22b-out-result",
+      "targetHandle": "node-1c513861-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-c27289a7",
+      "source": "node-0a2fb22b",
+      "target": "node-d3ee6859",
+      "sourceHandle": "node-0a2fb22b-out-result",
+      "targetHandle": "node-d3ee6859-in-measurements",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-9b9fe93a",
+      "source": "node-0a2fb22b",
+      "target": "node-7f3fed7d",
+      "sourceHandle": "node-0a2fb22b-out-result",
+      "targetHandle": "node-7f3fed7d-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-e3074c01",
+      "source": "node-1c513861",
+      "target": "node-bd555731",
+      "sourceHandle": "node-1c513861-out-result",
+      "targetHandle": "node-bd555731-in-train_data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-349cbed8",
+      "source": "node-1c513861",
+      "target": "node-8a98e604",
+      "sourceHandle": "node-1c513861-out-result",
+      "targetHandle": "node-8a98e604-in-measurements",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-4fad04d5",
+      "source": "node-d3ee6859",
+      "target": "node-bd555731",
+      "sourceHandle": "node-d3ee6859-out-result",
+      "targetHandle": "node-bd555731-in-train_data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-258eff3a",
+      "source": "node-d3ee6859",
+      "target": "node-8a98e604",
+      "sourceHandle": "node-d3ee6859-out-result",
+      "targetHandle": "node-8a98e604-in-measurements",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-628c31c5",
+      "source": "node-7f3fed7d",
+      "target": "node-bd555731",
+      "sourceHandle": "node-7f3fed7d-out-result",
+      "targetHandle": "node-bd555731-in-train_data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-821b62c6",
+      "source": "node-7f3fed7d",
+      "target": "node-8a98e604",
+      "sourceHandle": "node-7f3fed7d-out-result",
+      "targetHandle": "node-8a98e604-in-measurements",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-efa9897d",
+      "source": "node-bd555731",
+      "target": "node-ac379e43",
+      "sourceHandle": "node-bd555731-out-result",
+      "targetHandle": "node-ac379e43-in-y_true",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-e2cec945",
+      "source": "node-bd555731",
+      "target": "node-5249cc10",
+      "sourceHandle": "node-bd555731-out-result",
+      "targetHandle": "node-5249cc10-in-y_true",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-8663fab0",
+      "source": "node-8a98e604",
+      "target": "node-ac379e43",
+      "sourceHandle": "node-8a98e604-out-result",
+      "targetHandle": "node-ac379e43-in-y_true",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-d76be044",
+      "source": "node-8a98e604",
+      "target": "node-5249cc10",
+      "sourceHandle": "node-8a98e604-out-result",
+      "targetHandle": "node-5249cc10-in-y_true",
+      "type": "smoothstep",
+      "data": null
+    }
+  ],
+  "createdAt": "2026-03-30T09:54:54.693173",
+  "updatedAt": "2026-03-30T09:54:54.693173"
+}

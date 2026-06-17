@@ -1,0 +1,25 @@
+{
+  "claim": "因为近期漂移极强，所以在 90 天长窗口基础上，对 xgboost_forecast 启用较强的近期样本权重（sample_weight_decay），应该能在保留长期基线的同时提升对近期分布的拟合。（第12轮，实际=-0.05609999999999982）",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "446627b43e27",
+    "target_param": "anti_pattern_text"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "granularity": "intraday",
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-12821a0b3926"
+  ],
+  "knowledge_type": "anti_pattern",
+  "last_validated_at": "2026-05-22T08:41:01.967332",
+  "layer": "L3",
+  "scenario_condition_hash": "bcda466f47f336be",
+  "status": "active"
+}

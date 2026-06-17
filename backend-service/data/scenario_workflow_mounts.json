@@ -1,0 +1,99 @@
+{
+  "pv_power_forecast_centralized_pv": [],
+  "hvac_control_standard": [
+    {
+      "id": "workflow-20260306172434927500",
+      "name": "test2",
+      "node_count": 6,
+      "edge_count": 5,
+      "mounted_at": "2026-04-08T17:04:24.379660"
+    }
+  ],
+  "load_forecast_industrial_load": [
+    {
+      "id": "workflow-load-forecast-backtest-v2",
+      "name": "负荷预测回测流水线（通用算子版）",
+      "node_count": 24,
+      "edge_count": 26,
+      "mounted_at": "2026-04-25T15:54:51.134218"
+    }
+  ],
+  "load_forecast_commercial_load": [
+    {
+      "id": "workflow-load-forecast-training-v2",
+      "name": "111",
+      "node_count": 17,
+      "edge_count": 16,
+      "mounted_at": "2026-04-17T17:20:23.481600"
+    }
+  ],
+  "energy_load_forecast_node_load": [
+    {
+      "id": "workflow-load-forecast-training-v2",
+      "name": "22",
+      "node_count": 17,
+      "edge_count": 16,
+      "mounted_at": "2026-04-17T18:04:02.157549"
+    }
+  ],
+  "energy_load_forecast_busbar_load": [
+    {
+      "id": "workflow-load-forecast-training-v2",
+      "name": "22",
+      "node_count": 17,
+      "edge_count": 16,
+      "mounted_at": "2026-04-17T18:04:02.157549"
+    },
+    {
+      "id": "workflow-load-forecast-prediction-v2",
+      "name": "负荷预测推理流水线（通用算子版）",
+      "node_count": 12,
+      "edge_count": 11,
+      "mounted_at": "2026-04-17T18:04:02.157549"
+    },
+    {
+      "id": "workflow-load-forecast-backtest-v2",
+      "name": "负荷预测回测流水线（通用算子版）",
+      "node_count": 17,
+      "edge_count": 16,
+      "mounted_at": "2026-04-17T18:04:02.157549"
+    },
+    {
+      "id": "workflow-load-forecast-tuning-v1",
+      "name": "负荷预测调优流水线（通用算子版）",
+      "node_count": 17,
+      "edge_count": 16,
+      "mounted_at": "2026-04-23T00:00:00"
+    }
+  ],
+  "energy_load_forecast_regional_load": [
+    {
+      "id": "workflow-load-forecast-training-v2",
+      "name": "22",
+      "node_count": 17,
+      "edge_count": 16,
+      "mounted_at": "2026-04-17T18:04:02.157549"
+    },
+    {
+      "id": "workflow-load-forecast-prediction-v2",
+      "name": "负荷预测推理流水线（通用算子版）",
+      "node_count": 12,
+      "edge_count": 11,
+      "mounted_at": "2026-04-17T18:04:02.157549"
+    },
+    {
+      "id": "workflow-load-forecast-backtest-v2",
+      "name": "负荷预测回测流水线（通用算子版）",
+      "node_count": 17,
+      "edge_count": 16,
+      "mounted_at": "2026-04-17T18:04:02.157549"
+    },
+    {
+      "id": "workflow-load-forecast-tuning-v1",
+      "name": "负荷预测调优流水线（通用算子版）",
+      "node_count": 17,
+      "edge_count": 16,
+      "mounted_at": "2026-04-23T00:00:00"
+    }
+  ]
+}

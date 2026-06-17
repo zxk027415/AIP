@@ -1,0 +1,50 @@
+{
+  "run_id": "ares-c954b16dc1c4",
+  "created_at": "2026-05-07T18:12:11.322220",
+  "baseline_workflow_id": "workflow-load-forecast-backtest-v2",
+  "registry_id": "load_forecast_v1",
+  "scenario_fingerprint": {
+    "granularity": "intraday",
+    "span_days": null,
+    "load_type": null,
+    "seasonality": null,
+    "weekend_sensitivity": "normal",
+    "anomaly_ratio": null,
+    "backtest_mode": "rolling_retrain",
+    "train_days": 30
+  },
+  "total_iterations": 4,
+  "best_mape_improvement": 0.2378,
+  "best_candidate_config": {
+    "override": {
+      "train_days": 14
+    },
+    "global_config_patch": {}
+  },
+  "data_profile": {
+    "granularity_minutes": null,
+    "span_days": null,
+    "weekend_weekday_gap": null,
+    "outlier_ratio": null
+  },
+  "exploration_summary": {
+    "phases": [
+      "parameter_exploration"
+    ],
+    "hypotheses_tested": 3,
+    "hypotheses_verified": 0,
+    "hypotheses_disproved": 3,
+    "total_iterations": 4,
+    "success_iterations": 3
+  },
+  "learned_rules": [],
+  "ineffective_attempts": [
+    "因为当前数据充分性不足且模型受噪声干扰，所以调整训练窗口 train_days 为 60 并禁用节假日特征应该能改善 mape_improvement。（第2轮，实际=0.2378）",
+    "因为极短训练窗口(14天)容易导致树模型对近期局部噪声过拟合，所以通过加强 XGBoost 的正则化约束并缩小学习率上限，应该能进一步改善泛化能力和 mape_improvement。（第3轮，实际=0.2378）",
+    "因为当前参数空间已饱和且历史记忆表明特征工程有显著增益，所以引入并增强不同的时序特征（如滚动统计或工作日特征）应该能打破目前的性能瓶颈并改善 mape_improvement。（第4轮，实际=-2.3712）"
+  ],
+  "open_questions": [],
+  "recommended_starting_config_for_similar": {
+    "train_days": 14
+  }
+}

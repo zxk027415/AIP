@@ -1,0 +1,336 @@
+{
+  "registry_id": "load_forecast_v2",
+  "description": "负荷预测搜索空间 V2：扩展模型超参 + 天气特征 + 全模型调参",
+  "layers": {
+    "training": {
+      "activation_order": 1,
+      "description": "训练策略层：最先激活，风险最低",
+      "params": {
+        "train_days": {
+          "type": "categorical",
+          "options": [
+            14,
+            21,
+            30,
+            45,
+            60,
+            75,
+            90
+          ],
+          "patch_target": "global_config",
+          "description": "训练窗口天数"
+        },
+        "auto_tune_n_trials": {
+          "type": "categorical",
+          "options": [
+            5,
+            10,
+            20,
+            30,
+            50
+          ],
+          "patch_target": "node_param",
+          "node_function_id": "auto_tune_xgboost",
+          "param_key": "n_trials",
+          "description": "贝叶斯调参轮数"
+        },
+        "cv_folds": {
+          "type": "categorical",
+          "options": [
+            3,
+            5
+          ],
+          "patch_target": "node_param",
+          "node_function_id": "auto_tune_xgboost",
+          "param_key": "cv_folds",
+          "condition": "auto_tune_n_trials > 0",
+          "description": "交叉验证折数（仅在启用贝叶斯调参时生效）"
+        }
+      }
+    },
+    "feature": {
+      "activation_order": 2,
+      "description": "特征工程层：训练层饱和后激活，含特征参数和开关",
+      "params": {
+        "create_lag_features.lags": {
+          "type": "categorical",
+          "options": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              1,
+              2,
+              3,
+              7,
+              14
+            ],
+            [
+              1,
+              2,
+              3,
+              7,
+              14,
+              21,
+              28
+            ],
+            [
+              1,
+              2,
+              3,
+              7,
+              14,
+              21,
+              28,
+              56
+            ]
+          ],
+          "patch_target": "node_param",
+          "node_function_id": "create_lag_features",
+          "param_key": "lags",
+          "description": "滞后特征步数组合"
+        },
+        "rolling_statistics.window_sizes": {
+          "type": "categorical",
+          "options": [
+            [
+              4,
+              8,
+              24
+            ],
+            [
+              4,
+              8,
+              24,
+              96
+            ],
+            [
+              8,
+              24,
+              48,
+              96
+            ],
+            [
+              4,
+              12,
+              24,
+              48,
+              96
+            ]
+          ],
+          "patch_target": "node_param",
+          "node_function_id": "rolling_statistics",
+          "param_key": "window_sizes",
+          "description": "滚动统计窗口大小列表"
+        },
+        "sliding_window.window_size": {
+          "type": "categorical",
+          "options": [
+            48,
+            96,
+            144,
+            192
+          ],
+          "patch_target": "node_param",
+          "node_function_id": "sliding_window",
+          "param_key": "window_size",
+          "description": "滑动窗口大小（影响样本数量）"
+        },
+        "holiday_features.enabled": {
+          "type": "boolean",
+          "patch_target": "structure_switch",
+          "node_function_id": "holiday_features",
+          "description": "是否启用节假日特征"
+        },
+        "workday_features.enabled": {
+          "type": "boolean",
+          "patch_target": "structure_switch",
+          "node_function_id": "workday_features",
+          "description": "是否启用工作日特征"
+        },
+        "diff_features.enabled": {
+          "type": "boolean",
+          "patch_target": "structure_switch",
+          "node_function_id": "diff_features",
+          "description": "是否启用差分特征"
+        },
+        "extract_statistical_features.enabled": {
+          "type": "boolean",
+          "patch_target": "structure_switch",
+          "node_function_id": "extract_statistical_features",
+          "description": "是否启用统计特征"
+        },
+        "weather_features.load_columns": {
+          "type": "categorical",
+          "options": [
+            [],
+            [
+              "temperature"
+            ],
+            [
+              "temperature",
+              "wind_speed"
+            ],
+            [
+              "temperature",
+              "wind_speed",
+              "pressure",
+              "rainfall"
+            ]
+          ],
+          "patch_target": "node_param",
+          "node_function_id": "load_csv",
+          "param_key": "value_columns_extra",
+          "description": "额外加载的天气列（空=不用天气）"
+        }
+      }
+    },
+    "model": {
+      "activation_order": 3,
+      "description": "模型组合层：特征层饱和后激活，探索集成模式和模型子集",
+      "params": {
+        "ensemble_weight_mode": {
+          "type": "categorical",
+          "options": [
+            "upstream_oof_rmse",
+            "auto_rmse",
+            "equal"
+          ],
+          "patch_target": "node_param",
+          "node_function_id": "ensemble_forecast",
+          "param_key": "weight_mode",
+          "description": "集成权重策略：OOF逆RMSE/测试集逆RMSE/等权"
+        },
+        "ensemble_mode": {
+          "type": "categorical",
+          "options": [
+            "single_best",
+            "all_adaptive",
+            "subset_adaptive"
+          ],
+          "patch_target": "global_config",
+          "description": "模型集成模式：单模型/全模型自适应权重/子集自适应权重"
+        },
+        "active_models": {
+          "type": "subset",
+          "universe": [
+            "xgboost_forecast",
+            "lightgbm_forecast",
+            "catboost_forecast",
+            "ridge_forecast"
+          ],
+          "min_size": 1,
+          "patch_target": "model_focus",
+          "condition": "ensemble_mode != single_best",
+          "description": "参与预测的模型子集（model_focus 列表，仅集成模式下生效）"
+        },
+        "xgb_eta_high": {
+          "type": "categorical",
+          "options": [
+            0.05,
+            0.1,
+            0.15,
+            0.2,
+            0.3
+          ],
+          "patch_target": "global_config",
+          "description": "XGBoost 学习率上限"
+        },
+        "xgb_max_depth_high": {
+          "type": "categorical",
+          "options": [
+            6,
+            8,
+            10,
+            12
+          ],
+          "patch_target": "global_config",
+          "description": "XGBoost 最大深度上限"
+        },
+        "xgb_subsample_high": {
+          "type": "categorical",
+          "options": [
+            0.6,
+            0.8,
+            1.0
+          ],
+          "patch_target": "global_config",
+          "description": "XGBoost 子采样率上限"
+        },
+        "lgb_num_leaves_high": {
+          "type": "categorical",
+          "options": [
+            31,
+            63,
+            127,
+            255
+          ],
+          "patch_target": "global_config",
+          "description": "LightGBM 叶节点数上限"
+        },
+        "lgb_learning_rate_high": {
+          "type": "categorical",
+          "options": [
+            0.05,
+            0.1,
+            0.2,
+            0.3
+          ],
+          "patch_target": "global_config",
+          "description": "LightGBM 学习率上限"
+        },
+        "cb_depth_high": {
+          "type": "categorical",
+          "options": [
+            6,
+            8,
+            10
+          ],
+          "patch_target": "global_config",
+          "description": "CatBoost 深度上限"
+        },
+        "cb_learning_rate_high": {
+          "type": "categorical",
+          "options": [
+            0.05,
+            0.1,
+            0.2,
+            0.3
+          ],
+          "patch_target": "global_config",
+          "description": "CatBoost 学习率上限"
+        }
+      }
+    },
+    "data": {
+      "activation_order": 4,
+      "description": "数据策略层：最后激活，影响面最广，风险最高",
+      "params": {
+        "daily_horizon": {
+          "type": "categorical",
+          "options": [
+            48,
+            96
+          ],
+          "patch_target": "global_config",
+          "description": "每日预测步数（影响预测粒度）"
+        },
+        "sliding_window.step": {
+          "type": "categorical",
+          "options": [
+            1,
+            12,
+            24,
+            48
+          ],
+          "patch_target": "node_param",
+          "node_function_id": "sliding_window",
+          "param_key": "step",
+          "description": "滑动步长（影响训练样本密度）"
+        }
+      }
+    }
+  }
+}

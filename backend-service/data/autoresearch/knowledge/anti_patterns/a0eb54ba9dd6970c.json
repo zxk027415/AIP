@@ -1,0 +1,27 @@
+{
+  "claim": "因为数据漂移较强，进一步缩短训练窗口至 14 天应该能改善模型对最新趋势的泛化能力。（第2轮，实际=-1.2788000000000004）",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "91f75b124c4c",
+    "target_param": "anti_pattern_text"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "granularity": "intraday",
+    "registry_id": "load_forecast_v2",
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 0.2,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-fec6cb7b1265"
+  ],
+  "knowledge_type": "anti_pattern",
+  "last_validated_at": "2026-06-09T04:49:26.026925",
+  "layer": "L3",
+  "scenario_condition_hash": "33c0ee539cd247cc",
+  "status": "candidate"
+}

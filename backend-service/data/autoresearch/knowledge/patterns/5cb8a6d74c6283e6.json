@@ -1,0 +1,25 @@
+{
+  "claim": "参数层已接近饱和，扩展搜索范围或引入结构变更（第6轮验证，改善53.11%）",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "6322bd6a53da",
+    "target_param": "correlational_text"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "granularity": "intraday",
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-45bc4d1e50aa"
+  ],
+  "knowledge_type": "correlational",
+  "last_validated_at": "2026-05-21T07:55:58.313617",
+  "layer": "L2",
+  "scenario_condition_hash": "bcda466f47f336be",
+  "status": "active"
+}

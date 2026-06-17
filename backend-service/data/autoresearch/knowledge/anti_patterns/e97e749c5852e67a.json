@@ -1,0 +1,25 @@
+{
+  "claim": "因为midday误差主要来源于跨日的周期性波动未被充分学习，所以为rolling_statistics引入更长的窗口应该能有效捕获长周期特征，降低midday误差。（第3轮，实际=0.0）",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "11793b45ef63",
+    "target_param": "anti_pattern_text"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "granularity": "intraday",
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-24a9506ebb51"
+  ],
+  "knowledge_type": "anti_pattern",
+  "last_validated_at": "2026-05-24T18:10:13.155370",
+  "layer": "L3",
+  "scenario_condition_hash": "bcda466f47f336be",
+  "status": "candidate"
+}

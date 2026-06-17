@@ -1,0 +1,56 @@
+{
+  "run_id": "ares-24a9506ebb51",
+  "created_at": "2026-05-25T02:10:13.152666",
+  "baseline_workflow_id": "workflow-20260511-optimal-505",
+  "registry_id": "load_forecast_v1",
+  "scenario_fingerprint": {
+    "granularity": "intraday",
+    "span_days": null,
+    "load_type": null,
+    "seasonality": null,
+    "weekend_sensitivity": "normal",
+    "anomaly_ratio": null,
+    "backtest_mode": "rolling_retrain",
+    "train_days": 30
+  },
+  "total_iterations": 4,
+  "best_mape_improvement": 1.1273,
+  "best_candidate_config": {
+    "override": {
+      "train_days": 90
+    },
+    "global_config_patch": {}
+  },
+  "data_profile": {
+    "granularity_minutes": null,
+    "span_days": null,
+    "weekend_weekday_gap": null,
+    "outlier_ratio": null
+  },
+  "exploration_summary": {
+    "phases": [
+      "parameter_exploration"
+    ],
+    "hypotheses_tested": 3,
+    "hypotheses_verified": 0,
+    "hypotheses_disproved": 3,
+    "total_iterations": 4,
+    "completed_iterations": 4,
+    "success_iterations": 4,
+    "improved_iterations": 1,
+    "failed_iterations": 0,
+    "cancelled_iterations": 0,
+    "success_iterations_legacy_note": "success_iterations counts completed successful executions; use improved_iterations for positive MAPE gains"
+  },
+  "error_diagnostics": [],
+  "learned_rules": [],
+  "ineffective_attempts": [
+    "因为模型未能有效区分工作日与周末的midday模式，所以启用workday_features应该能捕获时段特异性，改善预测精度。（第2轮，实际=0.0）",
+    "因为midday误差主要来源于跨日的周期性波动未被充分学习，所以为rolling_statistics引入更长的窗口应该能有效捕获长周期特征，降低midday误差。（第3轮，实际=0.0）",
+    "因为midday误差持续极端(>14%)且跨日波动大，所以为rolling_statistics引入极短窗口应该能捕获midday的急剧变化，改善波谷预测。（第4轮，实际=-1.2788000000000004）"
+  ],
+  "open_questions": [],
+  "recommended_starting_config_for_similar": {
+    "train_days": 90
+  }
+}

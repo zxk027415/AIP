@@ -1,0 +1,25 @@
+{
+  "claim": "训练窗口偏长导致过拟合，缩短后 MAPE 应有改善（诊断：parameter_saturation）（第45轮，实际=-4.0244）",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "4bdeee4c9a2e",
+    "target_param": "anti_pattern_text"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "granularity": "intraday",
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-9c429d5ed43c"
+  ],
+  "knowledge_type": "anti_pattern",
+  "last_validated_at": "2026-05-26T00:23:57.047312",
+  "layer": "L3",
+  "scenario_condition_hash": "bcda466f47f336be",
+  "status": "candidate"
+}

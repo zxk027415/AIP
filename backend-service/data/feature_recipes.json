@@ -1,0 +1,29 @@
+{
+  "notes": [
+    "recipe 按 functionId 匹配模板节点生成 node_switches，不写死 node_id。",
+    "Phase B：与 AutoResearch search_space_patch.feature_recipe_id 枚举配合。"
+  ],
+  "recipes": [
+    {
+      "recipe_id": "features_full_default_v1",
+      "title": "特征分支默认（占位）",
+      "description": "不施加额外开关；用于 search_space 对照组。",
+      "node_switches_by_function": []
+    },
+    {
+      "recipe_id": "features_trim_calendar_v1",
+      "title": "弱化日历类特征",
+      "description": "关闭节假日 / 工作日特征节点（若模板中存在）。",
+      "node_switches_by_function": [
+        { "functionId": "holiday_features", "enabled": false },
+        { "functionId": "workday_features", "enabled": false }
+      ]
+    },
+    {
+      "recipe_id": "features_trim_diff_v1",
+      "title": "关闭差分特征",
+      "description": "关闭 diff_features（若模板中存在）。",
+      "node_switches_by_function": [{ "functionId": "diff_features", "enabled": false }]
+    }
+  ]
+}

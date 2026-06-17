@@ -1,0 +1,99 @@
+{
+  "run_id": "ares-53dd6cf78b82",
+  "created_at": "2026-05-28T17:29:09.381891",
+  "baseline_workflow_id": "workflow-20260511-optimal-505",
+  "registry_id": "load_forecast_v2",
+  "scenario_fingerprint": {
+    "granularity": "intraday",
+    "weekend_sensitivity": "normal",
+    "backtest_mode": "rolling_retrain",
+    "train_days": 30,
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v2"
+  },
+  "scenario_fingerprint_inputs": {
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v2",
+    "evaluation_contract": {
+      "auto_tune_n_trials": 15,
+      "backtest_apply_window_filter": true,
+      "backtest_mask_target_values": true,
+      "backtest_mode": "rolling_retrain",
+      "daily_horizon": 96,
+      "train_days": 30
+    },
+    "scenario_tags": [
+      "general"
+    ],
+    "windows": [
+      {
+        "end_date": "2026-03-08",
+        "start_date": "2026-03-01"
+      },
+      {
+        "end_date": "2026-03-22",
+        "start_date": "2026-03-15"
+      },
+      {
+        "end_date": "2026-04-05",
+        "start_date": "2026-03-29"
+      }
+    ]
+  },
+  "scenario_condition_hash_fields": [
+    "granularity",
+    "weekend_sensitivity",
+    "backtest_mode",
+    "train_days",
+    "baseline_workflow_id",
+    "registry_id"
+  ],
+  "total_iterations": 1,
+  "best_mape_improvement": null,
+  "best_candidate_config": {
+    "override": {},
+    "global_config_patch": {}
+  },
+  "data_profile": {
+    "granularity_minutes": null,
+    "span_days": null,
+    "weekend_weekday_gap": null,
+    "outlier_ratio": null,
+    "profile_quality": {},
+    "periodicity_strength": {}
+  },
+  "exploration_summary": {
+    "phases": [
+      "feature_exploration",
+      "model_exploration"
+    ],
+    "hypotheses_tested": 0,
+    "hypotheses_verified": 0,
+    "hypotheses_disproved": 0,
+    "total_iterations": 1,
+    "completed_iterations": 1,
+    "success_iterations": 0,
+    "improved_iterations": 0,
+    "failed_iterations": 1,
+    "cancelled_iterations": 0,
+    "success_iterations_legacy_note": "success_iterations counts completed successful executions; use improved_iterations for positive MAPE gains"
+  },
+  "error_diagnostics": [
+    {
+      "iteration": 1,
+      "status": "failed",
+      "error": "all_batch_groups_failed: 3/3 groups failed_or_cancelled",
+      "sampled_layers": [
+        "training",
+        "feature",
+        "model",
+        "data",
+        "risk"
+      ]
+    }
+  ],
+  "learned_rules": [],
+  "ineffective_attempts": [],
+  "open_questions": [],
+  "recommended_starting_config_for_similar": {}
+}

@@ -1,0 +1,55 @@
+{
+  "run_id": "ares-a6f3700deed1",
+  "created_at": "2026-05-14T18:47:23.756689",
+  "baseline_workflow_id": "workflow-20260511-optimal-505",
+  "registry_id": "load_forecast_v1",
+  "scenario_fingerprint": {
+    "granularity": "intraday",
+    "span_days": null,
+    "load_type": null,
+    "seasonality": null,
+    "weekend_sensitivity": "normal",
+    "anomaly_ratio": null,
+    "backtest_mode": "rolling_retrain",
+    "train_days": 30
+  },
+  "total_iterations": 10,
+  "best_mape_improvement": 1.1273,
+  "best_candidate_config": {
+    "override": {
+      "train_days": 90
+    },
+    "global_config_patch": {}
+  },
+  "data_profile": {
+    "granularity_minutes": null,
+    "span_days": null,
+    "weekend_weekday_gap": null,
+    "outlier_ratio": null
+  },
+  "exploration_summary": {
+    "phases": [
+      "feature_exploration"
+    ],
+    "hypotheses_tested": 8,
+    "hypotheses_verified": 0,
+    "hypotheses_disproved": 8,
+    "total_iterations": 10,
+    "success_iterations": 10
+  },
+  "learned_rules": [],
+  "ineffective_attempts": [
+    "因为midday误差持续偏高（高达21.30%）且较长训练窗口（60天）表现更好，所以调整 rolling_statistics 的窗口大小以捕捉更完整的日周期特征应该能改善 midday 时段的预测。（第3轮，实际=4.5343）",
+    "因为midday误差持续偏高（高达21.30%）且较长训练窗口（60天）表现更好，所以调整 rolling_statistics 的窗口大小以捕捉更完整的日周期特征应该能改善 midday 时段的预测。（第4轮，实际=5.7177）",
+    "因为工作日和周末在midday时段的负荷模式差异极大（工作日误差高达25.4%，而周末仅5.81%），所以启用工作日/周末的独立建模（separate_modeling）应该能大幅消除工作日的系统性低估并改善全局MAPE。（第5轮，实际=0.0）",
+    "因为工作日和周末在midday时段的负荷模式差异极大（工作日误差高达25.4%，而周末仅5.81%），所以启用工作日/周末的独立建模（separate_modeling）应该能大幅消除工作日的系统性低估并改善全局MAPE。（第6轮，实际=-1.2788000000000004）",
+    "因为工作日和周末在midday时段的负荷模式差异极大（工作日误差高达25.4%，而周末仅5.81%），所以启用工作日/周末的独立建模（separate_modeling）应该能大幅消除工作日的系统性低估并改善全局MAPE。（第7轮，实际=-1.2788000000000004）",
+    "因为模型未能适应近期的数据漂移且对工作日 midday 时段的预测严重滞后（系统性低估），所以通过增加近期样本权重（sample_weight_decay）或引入 LightGBM 应该能增强对近期负荷模式的响应并改善全局 MAPE。（第8轮，实际=-7.912000000000001）",
+    "因为模型未能适应近期的数据漂移且对工作日 midday 时段的预测严重滞后（系统性低估），所以通过增加近期样本权重（sample_weight_decay）或引入 LightGBM 应该能增强对近期负荷模式的响应并改善全局 MAPE。（第9轮，实际=-6.716799999999999）",
+    "因为原始时间序列存在强烈的非平稳水平漂移(drift_signal=12.29)，使得基于绝对数值的树模型严重过拟合，所以引入差分特征(diff_features)进行平稳化处理应该能显著提升模型对趋势的泛化能力并改善全局MAPE。（第10轮，实际=-6.9069）"
+  ],
+  "open_questions": [],
+  "recommended_starting_config_for_similar": {
+    "train_days": 90
+  }
+}

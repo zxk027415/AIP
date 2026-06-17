@@ -1,0 +1,46 @@
+image: ${DOCKER_REPO_URL}/builder/python3-builder
+before_script:
+   - export PROJECT_NAME="fault-diag-algo"
+   - export DATASET_ENDPOINT=eap-dataset.apaas-alpha1.eniot.io
+   - pip install coverage~=5.1 nose==1.3.7 nose-exclude pytest MarkupSafe==2.0.1 -i https://pypi.mirrors.ustc.edu.cn/simple/
+
+stages:
+   - precommit
+   - postcommit
+
+precommit:
+ stage: precommit
+ script:
+   - set -e
+   - pip3 install -r enos_fault_diag/requirements_fault_main.txt -i https://pypi.mirrors.ustc.edu.cn/simple/ --extra-index-url=http://eap-pip.apaas-alpha1.eniot.io --trusted-host=eap-pip.apaas-alpha1.eniot.io
+   - cd enos_fault_diag
+   - nosetests -s -x --with-coverage --cover-erase --cover-package=. --cover-xml --cover-branches --with-xunit --xunit-file=nosetests.xml --nologcapture
+ tags:
+   - alpha
+
+postcommit:
+  stage: postcommit
+  script:
+    - set -e
+    - pip3 install -r enos_fault_diag/requirements_fault_main.txt -i https://pypi.mirrors.ustc.edu.cn/simple/ --extra-index-url=http://eap-pip.apaas-alpha1.eniot.io --trusted-host=eap-pip.apaas-alpha1.eniot.io
+    - cd enos_fault_diag
+    - nosetests -s -x --with-coverage --cover-erase --cover-package=. --cover-xml --cover-branches --with-xunit --xunit-file=nosetests.xml --nologcapture
+    - sonar-scanner -Dsonar.language=py -Dsonar.python.coverage.reportPaths=*coverage*.xml -Dsonar.projectKey=${PROJECT_NAME}  -Dsonar.sources=. -Dsonar.host.url=${SONAR_URL_HOST} -Dsonar.login=02ede4ba8a8f5cfd36a40e03e5716497c95f2d99 -Dsonar.python.xunit.reportPath=nosetests.xml -Dsonar.projectVersion=${CI_COMMIT_SHA}
+    - bash /usr/local/bin/update_tag.sh --project $PROJECT_NAME --branch ${CI_COMMIT_REF_NAME:0:11} --commit ${CI_COMMIT_SHA:0:8}
+  only:
+    - master
+    - /^release-\d\.\d$/
+  tags:
+    - alpha
+
+security-scan:
+  image: ${DOCKER_REPO_URL}/builder/dind-ubuntu
+  stage: postcommit
+  script:
+    - set -e
+    - security_scan.sh --project $PROJECT_NAME --branch $CI_COMMIT_REF_NAME --git $CI_PROJECT_URL --commitId ${CI_COMMIT_SHA}
+  only:
+    - master
+    - /^release-\d\.\d$/
+  tags:
+    - alpha

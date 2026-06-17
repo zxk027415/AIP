@@ -1,0 +1,43 @@
+{
+  "claim": "ensemble_mode=single_best 在当前场景的 AutoResearch 候选中产生可验证结果",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "single_best",
+    "target_param": "ensemble_mode"
+  },
+  "condition": {
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1"
+  },
+  "confidence": 0.75,
+  "counter_evidence": [
+    "ares-9c429d5ed43c:iter13",
+    "ares-9c429d5ed43c:iter22",
+    "ares-9c429d5ed43c:iter27",
+    "ares-dcc56d3068fc:iter1",
+    "ares-aa02bea5f158:iter1"
+  ],
+  "evidence": [
+    "ares-971d01e49b92:iter3",
+    "ares-971d01e49b92:iter13",
+    "ares-165cc9625236:iter3",
+    "ares-165cc9625236:iter16",
+    "ares-165cc9625236:iter21",
+    "ares-165cc9625236:iter28",
+    "ares-706df8669361:iter12",
+    "ares-706df8669361:iter18",
+    "ares-706df8669361:iter33",
+    "ares-706df8669361:iter37",
+    "ares-706df8669361:iter38",
+    "ares-706df8669361:iter42",
+    "ares-9c429d5ed43c:iter7",
+    "ares-9c429d5ed43c:iter14",
+    "ares-6fd54813f76b:iter1"
+  ],
+  "knowledge_type": "causal_candidate",
+  "last_validated_at": "2026-06-01T07:51:36.678410",
+  "layer": "L2",
+  "scenario_condition_hash": "38706211494ad399",
+  "status": "active"
+}

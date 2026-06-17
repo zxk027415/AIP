@@ -1,0 +1,48 @@
+{
+  "run_id": "ares-8ea2ea98a85f",
+  "created_at": "2026-05-13T11:08:54.349153",
+  "baseline_workflow_id": "workflow-load-forecast-backtest-v2",
+  "registry_id": "load_forecast_v1",
+  "scenario_fingerprint": {
+    "granularity": "intraday",
+    "span_days": null,
+    "load_type": null,
+    "seasonality": null,
+    "weekend_sensitivity": "normal",
+    "anomaly_ratio": null,
+    "backtest_mode": "rolling_retrain",
+    "train_days": 30
+  },
+  "total_iterations": 4,
+  "best_mape_improvement": 3.7088000000000036,
+  "best_candidate_config": {
+    "override": {
+      "train_days": 90
+    },
+    "global_config_patch": {}
+  },
+  "data_profile": {
+    "granularity_minutes": null,
+    "span_days": null,
+    "weekend_weekday_gap": null,
+    "outlier_ratio": null
+  },
+  "exploration_summary": {
+    "phases": [
+      "parameter_exploration"
+    ],
+    "hypotheses_tested": 1,
+    "hypotheses_verified": 0,
+    "hypotheses_disproved": 1,
+    "total_iterations": 4,
+    "success_iterations": 3
+  },
+  "learned_rules": [],
+  "ineffective_attempts": [
+    "因为当前仅依赖参数网格搜索遭遇了性能饱和且缺乏周期性特征捕获，所以引入基于更长周期（如 96 步）的滚动统计特征应该能显著降低 MAPE。（第4轮，实际=31.0377）"
+  ],
+  "open_questions": [],
+  "recommended_starting_config_for_similar": {
+    "train_days": 90
+  }
+}

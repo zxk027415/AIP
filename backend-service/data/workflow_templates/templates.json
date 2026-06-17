@@ -1,0 +1,142 @@
+[
+  {
+    "id": "tpl-pv-power-001",
+    "name": "光伏发电功率预测模板",
+    "description": "基于LSTM和气象数据的光伏发电功率预测算法模板，适用于分布式光伏电站",
+    "scenario_id": "renewable-energy",
+    "scenario_name": "新能源发电",
+    "category": "能源预测",
+    "status": "published",
+    "version": "v2.1.0",
+    "author": "算法团队",
+    "created_at": "2025-12-01T10:00:00Z",
+    "updated_at": "2026-02-15T14:30:00Z",
+    "published_at": "2026-02-15T14:30:00Z",
+    "node_count": 12,
+    "edge_count": 15,
+    "usage_count": 156,
+    "star_count": 42,
+    "tags": [
+      "LSTM",
+      "时序预测",
+      "气象数据"
+    ],
+    "is_starred": true
+  },
+  {
+    "id": "tpl-load-forecast-001",
+    "name": "电网负荷预测模板",
+    "description": "基于XGBoost和Transformer的电网负荷预测模板，支持短期和中期预测",
+    "scenario_id": "power-grid",
+    "scenario_name": "电网调度",
+    "category": "能源预测",
+    "status": "published",
+    "version": "v1.5.0",
+    "author": "算法团队",
+    "created_at": "2025-11-15T09:00:00Z",
+    "updated_at": "2026-01-20T11:00:00Z",
+    "published_at": "2026-01-20T11:00:00Z",
+    "node_count": 15,
+    "edge_count": 18,
+    "usage_count": 89,
+    "star_count": 28,
+    "tags": [
+      "XGBoost",
+      "Transformer",
+      "负荷预测"
+    ],
+    "is_starred": false
+  },
+  {
+    "id": "tpl-battery-soc-001",
+    "name": "锂电池SOC估计模板",
+    "description": "基于卡尔曼滤波和神经网络的锂电池荷电状态估计模板",
+    "scenario_id": "energy-storage",
+    "scenario_name": "储能系统",
+    "category": "状态估计",
+    "status": "testing",
+    "version": "v0.9.0",
+    "author": "储能算法组",
+    "created_at": "2026-01-10T08:00:00Z",
+    "updated_at": "2026-03-10T16:00:00Z",
+    "node_count": 10,
+    "edge_count": 12,
+    "usage_count": 12,
+    "star_count": 8,
+    "tags": [
+      "卡尔曼滤波",
+      "SOC",
+      "锂电池"
+    ],
+    "is_starred": false
+  },
+  {
+    "id": "tpl-defect-detect-001",
+    "name": "产品表面缺陷检测模板",
+    "description": "基于YOLOv8的工业产品表面缺陷检测模板，支持多类缺陷识别",
+    "scenario_id": "quality-control",
+    "scenario_name": "质量控制",
+    "category": "视觉检测",
+    "status": "developing",
+    "version": "v0.5.0",
+    "author": "视觉算法组",
+    "created_at": "2026-02-20T10:00:00Z",
+    "updated_at": "2026-03-18T09:00:00Z",
+    "node_count": 8,
+    "edge_count": 9,
+    "usage_count": 3,
+    "star_count": 5,
+    "tags": [
+      "YOLOv8",
+      "缺陷检测",
+      "视觉"
+    ],
+    "is_starred": false
+  },
+  {
+    "id": "tpl-vibration-001",
+    "name": "设备振动故障诊断模板",
+    "description": "基于频谱分析和随机森林的旋转设备振动故障诊断模板",
+    "scenario_id": "equipment-maintenance",
+    "scenario_name": "设备维护",
+    "category": "故障诊断",
+    "status": "published",
+    "version": "v1.2.0",
+    "author": "算法团队",
+    "created_at": "2025-10-05T14:00:00Z",
+    "updated_at": "2026-01-08T10:00:00Z",
+    "published_at": "2026-01-08T10:00:00Z",
+    "node_count": 11,
+    "edge_count": 13,
+    "usage_count": 67,
+    "star_count": 19,
+    "tags": [
+      "频谱分析",
+      "随机森林",
+      "振动诊断"
+    ],
+    "is_starred": false
+  },
+  {
+    "id": "tpl-carbon-track-001",
+    "name": "碳排放核算模板",
+    "description": "企业碳排放核算与碳足迹追踪算法模板",
+    "scenario_id": "carbon-management",
+    "scenario_name": "碳管理",
+    "category": "碳核算",
+    "status": "draft",
+    "version": "v0.1.0",
+    "author": "碳管理组",
+    "created_at": "2026-03-01T11:00:00Z",
+    "updated_at": "2026-03-15T15:00:00Z",
+    "node_count": 6,
+    "edge_count": 7,
+    "usage_count": 0,
+    "star_count": 2,
+    "tags": [
+      "碳核算",
+      "碳足迹"
+    ],
+    "is_starred": false
+  }
+]

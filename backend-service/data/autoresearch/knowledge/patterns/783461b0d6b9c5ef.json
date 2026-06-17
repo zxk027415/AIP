@@ -1,0 +1,25 @@
+{
+  "claim": "因为存在数据漂移且短窗口失效，所以对xgboost_forecast增加近期样本权重（sample_weight_decay）应该能在保留长窗口历史信息的同时提升对近期分布的适应性。（第8轮验证，改善109.31%）",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "56589acfe173",
+    "target_param": "correlational_text"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "granularity": "intraday",
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-12821a0b3926"
+  ],
+  "knowledge_type": "correlational",
+  "last_validated_at": "2026-05-22T08:41:01.967235",
+  "layer": "L2",
+  "scenario_condition_hash": "bcda466f47f336be",
+  "status": "active"
+}

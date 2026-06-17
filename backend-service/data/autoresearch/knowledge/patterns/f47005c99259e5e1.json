@@ -1,0 +1,25 @@
+{
+  "claim": "因为train_days=90过长导致失败且45表现平庸，所以将train_days设定为75天，应该能在避免数据溢出的同时最大化历史分布的利用率。（第13轮验证，改善53.11%）",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "16311eeffae1",
+    "target_param": "correlational_text"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "granularity": "intraday",
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-12821a0b3926"
+  ],
+  "knowledge_type": "correlational",
+  "last_validated_at": "2026-05-22T08:41:01.967261",
+  "layer": "L2",
+  "scenario_condition_hash": "bcda466f47f336be",
+  "status": "active"
+}

@@ -1,0 +1,28 @@
+{
+  "claim": "backtest_train_days evidence=single_window_positive mape_improvement=0.18789999999999996",
+  "claim_key": {
+    "direction": "positive",
+    "metric": "mape",
+    "recommended_value": "{\"global_config_patch\": {\"daily_horizon\": 48}, \"node_param_patches\": [{\"functionId\": \"sliding_window\", \"node_id\": \"tpl-sliding_window-10\", \"param_patch\": {\"step\": 24}}], \"override\": {\"backtest_train_days\": 23, \"daily_horizon\": 48, \"train_days\": 23}, \"structure_patch\": {}}",
+    "target_param": "backtest_train_days"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "granularity": "intraday",
+    "registry_id": "load_forecast_v1",
+    "span_days": 8,
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-dcc56d3068fc:iter7:group2:{\"global_config_patch\": {\"daily_horizon\": 48}, \"node_param_patches\": [{\"functionId\": \"sliding_window\", \"node_id\": \"tpl-sliding_window-10\", \"param_patch\": {\"step\": 24}}], \"override\": {\"backtest_train_days\": 23, \"daily_horizon\": 48, \"train_days\": 23}, \"structure_patch\": {}}"
+  ],
+  "knowledge_type": "correlational",
+  "last_validated_at": "2026-05-28T02:55:38.022438",
+  "layer": "L2",
+  "scenario_condition_hash": "919437ca9755891b",
+  "status": "candidate"
+}

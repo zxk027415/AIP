@@ -1,0 +1,27 @@
+{
+  "claim": "train_days=45 在当前场景的 AutoResearch 候选中产生可验证结果",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": 45,
+    "target_param": "train_days"
+  },
+  "condition": {
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1"
+  },
+  "confidence": 0.0,
+  "counter_evidence": [
+    "ares-ccc13a63469d:iter1",
+    "ares-0c3fca65d7c8:iter1",
+    "ares-a6f3700deed1:iter4",
+    "ares-b6bc77e93276:iter2",
+    "ares-b6bc77e93276:iter7"
+  ],
+  "evidence": [],
+  "knowledge_type": "causal_candidate",
+  "last_validated_at": "2026-05-14T08:42:23.557909",
+  "layer": "L2",
+  "scenario_condition_hash": "38706211494ad399",
+  "status": "active"
+}

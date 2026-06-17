@@ -1,0 +1,12 @@
+[
+  {"id":"acc-001","template_id":"pv_power_forecast","dataset_id":"ds-001","dataset_name":"光伏电站A 2025年数据","test_date":"2026-02-15","metrics":{"rmse":0.032,"mae":0.025,"r2":0.956,"mape":3.2},"status":"good","tester":"engineer_01","notes":"使用2025年全年数据"},
+  {"id":"acc-002","template_id":"pv_power_forecast","dataset_id":"ds-001","dataset_name":"光伏电站A 2025年数据","test_date":"2026-03-10","metrics":{"rmse":0.028,"mae":0.021,"r2":0.968,"mape":2.8},"status":"excellent","tester":"engineer_01","notes":"优化特征后重测"},
+  {"id":"acc-003","template_id":"wind_power_forecast","dataset_id":"ds-002","dataset_name":"风电场B 2025年数据","test_date":"2026-02-20","metrics":{"rmse":0.045,"mae":0.038,"r2":0.932,"mape":4.5},"status":"good","tester":"engineer_02","notes":""},
+  {"id":"acc-004","template_id":"wind_power_forecast","dataset_id":"ds-002","dataset_name":"风电场B 2025年数据","test_date":"2026-03-12","metrics":{"rmse":0.041,"mae":0.034,"r2":0.941,"mape":4.1},"status":"good","tester":"engineer_02","notes":"增加气象特征"},
+  {"id":"acc-005","template_id":"soc_estimation","dataset_id":"ds-003","dataset_name":"电池包C循环数据","test_date":"2026-03-01","metrics":{"rmse":0.022,"mae":0.018,"r2":0.978,"mape":2.2},"status":"excellent","tester":"engineer_03","notes":""},
+  {"id":"acc-006","template_id":"soh_estimation","dataset_id":"ds-004","dataset_name":"电池老化数据集","test_date":"2026-03-05","metrics":{"rmse":0.055,"mae":0.042,"r2":0.912,"mape":5.5},"status":"good","tester":"engineer_03","notes":""},
+  {"id":"acc-007","template_id":"power_flow_analysis","dataset_id":"ds-005","dataset_name":"IEEE 118节点测试","test_date":"2026-02-28","metrics":{"rmse":0.008,"mae":0.006,"r2":0.995,"mape":0.8},"status":"excellent","tester":"engineer_04","notes":"标准测试集"},
+  {"id":"acc-008","template_id":"steel_quality_predict","dataset_id":"ds-006","dataset_name":"钢铁质量数据集","test_date":"2026-03-08","metrics":{"rmse":0.072,"mae":0.058,"r2":0.891,"mape":7.2},"status":"fair","tester":"engineer_05","notes":"需要更多特征"},
+  {"id":"acc-009","template_id":"pv_defect_detect","dataset_id":"ds-007","dataset_name":"光伏组件缺陷图像","test_date":"2026-03-15","metrics":{"f1":0.92,"precision":0.94,"recall":0.90,"accuracy":0.93},"status":"excellent","tester":"engineer_06","notes":""},
+  {"id":"acc-010","template_id":"equipment_rul_predict","dataset_id":"ds-008","dataset_name":"设备寿命数据","test_date":"2026-03-10","metrics":{"rmse":0.088,"mae":0.072,"r2":0.865,"mape":8.8},"status":"fair","tester":"engineer_07","notes":"数据量不足"}
+]

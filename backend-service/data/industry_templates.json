@@ -1,0 +1,7300 @@
+{
+  "_comment": "行业算法模板数据（重构后）。13个行业场景，纯行业维度分类。",
+  "total_templates": 198,
+  "templates": [
+    {
+      "id": "pv_power_forecast",
+      "name": "光伏发电功率预测",
+      "scenario_id": "renewable-energy",
+      "display_category": "能源预测",
+      "description": "基于气象数据和历史发电数据预测光伏电站输出功率",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "wavelet_denoise",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "transformer_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric",
+              "forecast_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric"
+            ]
+          }
+        },
+        {
+          "profile": "low-latency",
+          "name": "统计模型方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "arima_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wind_power_forecast",
+      "name": "风电功率预测",
+      "scenario_id": "renewable-energy",
+      "display_category": "能源预测",
+      "description": "基于风速风向等气象数据预测风电场输出功率",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "wavelet_denoise",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "transformer_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric",
+              "forecast_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric"
+            ]
+          }
+        },
+        {
+          "profile": "low-latency",
+          "name": "统计模型方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "arima_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "load_demand_forecast",
+      "name": "电力负荷预测",
+      "scenario_id": "renewable-energy",
+      "display_category": "能源预测",
+      "description": "预测区域电力负荷需求",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "wavelet_denoise",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "transformer_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric",
+              "forecast_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric"
+            ]
+          }
+        },
+        {
+          "profile": "low-latency",
+          "name": "统计模型方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "arima_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "electricity_price_forecast",
+      "name": "电价预测",
+      "scenario_id": "renewable-energy",
+      "display_category": "能源预测",
+      "description": "预测电力市场现货/期货价格",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "wavelet_denoise",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "transformer_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric",
+              "forecast_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric"
+            ]
+          }
+        },
+        {
+          "profile": "low-latency",
+          "name": "统计模型方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "arima_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "inverter_fault_classifier",
+      "name": "逆变器故障诊断",
+      "scenario_id": "renewable-energy",
+      "display_category": "故障诊断",
+      "description": "基于运行数据诊断逆变器故障类型",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "confusion_matrix"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "pv_module_fault_classifier",
+      "name": "光伏组件故障分类",
+      "scenario_id": "renewable-energy",
+      "display_category": "故障诊断",
+      "description": "光伏组件故障类型识别",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "confusion_matrix"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wind_turbine_fault_classifier",
+      "name": "风机故障诊断",
+      "scenario_id": "renewable-energy",
+      "display_category": "故障诊断",
+      "description": "风力发电机组故障诊断",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "confusion_matrix"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "transformer_fault_classifier",
+      "name": "变压器故障诊断",
+      "scenario_id": "renewable-energy",
+      "display_category": "故障诊断",
+      "description": "变压器故障类型诊断",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "confusion_matrix"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "generation_pattern_cluster",
+      "name": "发电模式聚类",
+      "scenario_id": "renewable-energy",
+      "display_category": "工业聚类",
+      "description": "发电模式聚类分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度聚类方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "pca_reduction"
+            ],
+            "算法模型层": [
+              "kmeans_cluster",
+              "dbscan_cluster"
+            ],
+            "评估输出层": [
+              "silhouette_metric",
+              "scatter_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典聚类方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "kmeans_cluster"
+            ],
+            "评估输出层": [
+              "silhouette_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "weather_pattern_cluster",
+      "name": "气象模式聚类",
+      "scenario_id": "renewable-energy",
+      "display_category": "工业聚类",
+      "description": "气象模式聚类分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度聚类方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "pca_reduction"
+            ],
+            "算法模型层": [
+              "kmeans_cluster",
+              "dbscan_cluster"
+            ],
+            "评估输出层": [
+              "silhouette_metric",
+              "scatter_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典聚类方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "kmeans_cluster"
+            ],
+            "评估输出层": [
+              "silhouette_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "islanding_detect",
+      "name": "孤岛检测",
+      "scenario_id": "renewable-energy",
+      "display_category": "电力信号分析",
+      "description": "分布式电源孤岛检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多方法融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "fft_transform"
+            ],
+            "算法模型层": [
+              "wavelet_analysis",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "spectrogram_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典信号处理方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter"
+            ],
+            "算法模型层": [
+              "fft_analysis"
+            ],
+            "评估输出层": [
+              "spectrogram_plot"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "power_quality_analyze",
+      "name": "电能质量分析",
+      "scenario_id": "renewable-energy",
+      "display_category": "电力信号分析",
+      "description": "电能质量综合分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多方法融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "fft_transform"
+            ],
+            "算法模型层": [
+              "wavelet_analysis",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "spectrogram_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典信号处理方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter"
+            ],
+            "算法模型层": [
+              "fft_analysis"
+            ],
+            "评估输出层": [
+              "spectrogram_plot"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "resource_assessment",
+      "name": "资源评估",
+      "scenario_id": "renewable-energy",
+      "display_category": "发电侧管理",
+      "description": "风光资源评估",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "综合监控方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_mqtt",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "dashboard_render"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计监控方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries"
+            ],
+            "算法模型层": [
+              "arima_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wake_effect_model",
+      "name": "尾流效应模型",
+      "scenario_id": "renewable-energy",
+      "display_category": "发电侧管理",
+      "description": "风机尾流效应建模",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "综合监控方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_mqtt",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "dashboard_render"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计监控方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries"
+            ],
+            "算法模型层": [
+              "arima_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "inverter_clipping",
+      "name": "逆变器限幅分析",
+      "scenario_id": "renewable-energy",
+      "display_category": "发电侧管理",
+      "description": "逆变器限幅损失分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "综合监控方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_mqtt",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "dashboard_render"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计监控方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries"
+            ],
+            "算法模型层": [
+              "arima_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "string_mismatch",
+      "name": "组串失配分析",
+      "scenario_id": "renewable-energy",
+      "display_category": "发电侧管理",
+      "description": "光伏组串失配分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "综合监控方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_mqtt",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "dashboard_render"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计监控方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries"
+            ],
+            "算法模型层": [
+              "arima_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "degradation_rate",
+      "name": "衰减率分析",
+      "scenario_id": "renewable-energy",
+      "display_category": "发电侧管理",
+      "description": "光伏组件衰减率分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "综合监控方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_mqtt",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "dashboard_render"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计监控方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries"
+            ],
+            "算法模型层": [
+              "arima_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "battery_soc_forecast",
+      "name": "储能SOC预测",
+      "scenario_id": "energy-storage",
+      "display_category": "能源预测",
+      "description": "储能系统SOC状态预测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "wavelet_denoise",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "transformer_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric",
+              "forecast_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric"
+            ]
+          }
+        },
+        {
+          "profile": "low-latency",
+          "name": "统计模型方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "arima_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "battery_anomaly_detect",
+      "name": "电池异常检测",
+      "scenario_id": "energy-storage",
+      "display_category": "异常检测",
+      "description": "电池运行异常检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "isolation_forest",
+              "autoencoder_anomaly"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "precision_metric",
+              "anomaly_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "isolation_forest"
+            ],
+            "评估输出层": [
+              "f1_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "thermal_anomaly_detect",
+      "name": "热异常检测",
+      "scenario_id": "energy-storage",
+      "display_category": "异常检测",
+      "description": "设备热异常检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "isolation_forest",
+              "autoencoder_anomaly"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "precision_metric",
+              "anomaly_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "isolation_forest"
+            ],
+            "评估输出层": [
+              "f1_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "battery_fault_classifier",
+      "name": "电池故障分类",
+      "scenario_id": "energy-storage",
+      "display_category": "故障诊断",
+      "description": "电池故障类型分类",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "confusion_matrix"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "fault_severity_classifier",
+      "name": "故障严重度分级",
+      "scenario_id": "energy-storage",
+      "display_category": "故障诊断",
+      "description": "故障严重程度分级",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "confusion_matrix"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "battery_schedule",
+      "name": "储能调度优化",
+      "scenario_id": "energy-storage",
+      "display_category": "调度优化",
+      "description": "储能系统充放电调度优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "ev_charging_schedule",
+      "name": "电动车充电调度",
+      "scenario_id": "energy-storage",
+      "display_category": "调度优化",
+      "description": "电动车充电策略优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "soc_estimate",
+      "name": "SOC估计",
+      "scenario_id": "energy-storage",
+      "display_category": "储能管理",
+      "description": "电池荷电状态估计",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_canbus",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "mae_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典估计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter"
+            ],
+            "算法模型层": [
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "soh_estimate",
+      "name": "SOH估计",
+      "scenario_id": "energy-storage",
+      "display_category": "储能管理",
+      "description": "电池健康状态估计",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_canbus",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "mae_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典估计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter"
+            ],
+            "算法模型层": [
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "rul_battery",
+      "name": "电池寿命预测",
+      "scenario_id": "energy-storage",
+      "display_category": "储能管理",
+      "description": "电池剩余使用寿命预测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_canbus",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "mae_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典估计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter"
+            ],
+            "算法模型层": [
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "thermal_management",
+      "name": "热管理优化",
+      "scenario_id": "energy-storage",
+      "display_category": "储能管理",
+      "description": "电池热管理策略优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_canbus",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "mae_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典估计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter"
+            ],
+            "算法模型层": [
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "charge_strategy",
+      "name": "充电策略优化",
+      "scenario_id": "energy-storage",
+      "display_category": "储能管理",
+      "description": "充电策略优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_canbus",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "mae_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典估计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter"
+            ],
+            "算法模型层": [
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "capacity_fade_model",
+      "name": "容量衰减模型",
+      "scenario_id": "energy-storage",
+      "display_category": "储能管理",
+      "description": "电池容量衰减建模",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_canbus",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "mae_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典估计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter"
+            ],
+            "算法模型层": [
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "impedance_estimate",
+      "name": "阻抗估计",
+      "scenario_id": "energy-storage",
+      "display_category": "储能管理",
+      "description": "电池内阻估计",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_canbus",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "mae_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典估计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter"
+            ],
+            "算法模型层": [
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "safety_warning",
+      "name": "安全预警",
+      "scenario_id": "energy-storage",
+      "display_category": "储能管理",
+      "description": "电池安全预警",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_canbus",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "mae_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典估计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter"
+            ],
+            "算法模型层": [
+              "ekf_estimator"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "transient_analyze",
+      "name": "暂态分析",
+      "scenario_id": "power-grid",
+      "display_category": "电力信号分析",
+      "description": "电力暂态过程分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多方法融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "fft_transform"
+            ],
+            "算法模型层": [
+              "wavelet_analysis",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "spectrogram_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典信号处理方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter"
+            ],
+            "算法模型层": [
+              "fft_analysis"
+            ],
+            "评估输出层": [
+              "spectrogram_plot"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "impedance_analyze",
+      "name": "阻抗分析",
+      "scenario_id": "power-grid",
+      "display_category": "电力信号分析",
+      "description": "电力系统阻抗分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多方法融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "fft_transform"
+            ],
+            "算法模型层": [
+              "wavelet_analysis",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "spectrogram_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典信号处理方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter"
+            ],
+            "算法模型层": [
+              "fft_analysis"
+            ],
+            "评估输出层": [
+              "spectrogram_plot"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "partial_discharge_analyze",
+      "name": "局部放电分析",
+      "scenario_id": "power-grid",
+      "display_category": "电力信号分析",
+      "description": "局部放电检测分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多方法融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "fft_transform"
+            ],
+            "算法模型层": [
+              "wavelet_analysis",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "spectrogram_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典信号处理方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter"
+            ],
+            "算法模型层": [
+              "fft_analysis"
+            ],
+            "评估输出层": [
+              "spectrogram_plot"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "traveling_wave_analyze",
+      "name": "行波分析",
+      "scenario_id": "power-grid",
+      "display_category": "电力信号分析",
+      "description": "行波故障定位分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多方法融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "fft_transform"
+            ],
+            "算法模型层": [
+              "wavelet_analysis",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "spectrogram_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典信号处理方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter"
+            ],
+            "算法模型层": [
+              "fft_analysis"
+            ],
+            "评估输出层": [
+              "spectrogram_plot"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "pmu_data_analyze",
+      "name": "PMU数据分析",
+      "scenario_id": "power-grid",
+      "display_category": "电力信号分析",
+      "description": "相量测量单元数据分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多方法融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "fft_transform"
+            ],
+            "算法模型层": [
+              "wavelet_analysis",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "spectrogram_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典信号处理方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter"
+            ],
+            "算法模型层": [
+              "fft_analysis"
+            ],
+            "评估输出层": [
+              "spectrogram_plot"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "power_oscillation_detect",
+      "name": "功率振荡检测",
+      "scenario_id": "power-grid",
+      "display_category": "电力信号分析",
+      "description": "电力系统功率振荡检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多方法融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "fft_transform"
+            ],
+            "算法模型层": [
+              "wavelet_analysis",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "spectrogram_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典信号处理方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter"
+            ],
+            "算法模型层": [
+              "fft_analysis"
+            ],
+            "评估输出层": [
+              "spectrogram_plot"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit_commitment",
+      "name": "机组组合优化",
+      "scenario_id": "power-grid",
+      "display_category": "能源调度优化",
+      "description": "发电机组启停组合优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "economic_dispatch",
+      "name": "经济调度",
+      "scenario_id": "power-grid",
+      "display_category": "能源调度优化",
+      "description": "发电经济调度优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "optimal_power_flow",
+      "name": "最优潮流",
+      "scenario_id": "power-grid",
+      "display_category": "能源调度优化",
+      "description": "最优潮流计算",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "microgrid_dispatch",
+      "name": "微网调度优化",
+      "scenario_id": "power-grid",
+      "display_category": "能源调度优化",
+      "description": "微电网调度优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "vpp_dispatch",
+      "name": "虚拟电厂调度",
+      "scenario_id": "power-grid",
+      "display_category": "能源调度优化",
+      "description": "虚拟电厂聚合调度",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "voltage_stability",
+      "name": "电压稳定分析",
+      "scenario_id": "power-grid",
+      "display_category": "电网与微网管理",
+      "description": "电压稳定性分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "power_flow_solver",
+              "genetic_algorithm"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "single_line_diagram"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典计算方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "power_flow_solver"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "frequency_regulation",
+      "name": "频率调节",
+      "scenario_id": "power-grid",
+      "display_category": "电网与微网管理",
+      "description": "电网频率调节",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "power_flow_solver",
+              "genetic_algorithm"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "single_line_diagram"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典计算方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "power_flow_solver"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "reactive_power_optimize",
+      "name": "无功优化",
+      "scenario_id": "power-grid",
+      "display_category": "电网与微网管理",
+      "description": "无功功率优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "power_flow_solver",
+              "genetic_algorithm"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "single_line_diagram"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典计算方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "power_flow_solver"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "network_reconfiguration",
+      "name": "网络重构",
+      "scenario_id": "power-grid",
+      "display_category": "电网与微网管理",
+      "description": "配电网络重构",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "power_flow_solver",
+              "genetic_algorithm"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "single_line_diagram"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典计算方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "power_flow_solver"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "fault_location",
+      "name": "故障定位",
+      "scenario_id": "power-grid",
+      "display_category": "电网与微网管理",
+      "description": "电网故障定位",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "power_flow_solver",
+              "genetic_algorithm"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "single_line_diagram"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典计算方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "power_flow_solver"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "grid_resilience",
+      "name": "电网韧性评估",
+      "scenario_id": "power-grid",
+      "display_category": "电网与微网管理",
+      "description": "电网韧性评估",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "power_flow_solver",
+              "genetic_algorithm"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "single_line_diagram"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典计算方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "power_flow_solver"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "contingency_analysis",
+      "name": "预想事故分析",
+      "scenario_id": "power-grid",
+      "display_category": "电网与微网管理",
+      "description": "N-1/N-2预想事故分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_iec61850",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "bandpass_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "power_flow_solver",
+              "genetic_algorithm"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "single_line_diagram"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典计算方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "power_flow_solver"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "power_quality_anomaly",
+      "name": "电能质量异常检测",
+      "scenario_id": "power-grid",
+      "display_category": "异常检测",
+      "description": "电能质量异常检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "isolation_forest",
+              "autoencoder_anomaly"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "precision_metric",
+              "anomaly_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "isolation_forest"
+            ],
+            "评估输出层": [
+              "f1_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "grid_anomaly_detect",
+      "name": "电网异常检测",
+      "scenario_id": "power-grid",
+      "display_category": "异常检测",
+      "description": "电网运行异常检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "isolation_forest",
+              "autoencoder_anomaly"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "precision_metric",
+              "anomaly_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "isolation_forest"
+            ],
+            "评估输出层": [
+              "f1_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "process_parameter_optimize",
+      "name": "工艺参数优化",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "工业过程优化",
+      "description": "工艺参数多目标优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "production_schedule",
+      "name": "生产排程优化",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "工业过程优化",
+      "description": "生产排程优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cutting_stock_optimize",
+      "name": "下料优化",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "工业过程优化",
+      "description": "钢材下料方案优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "blend_optimize",
+      "name": "配料优化",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "工业过程优化",
+      "description": "原料配比优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "job_shop_schedule",
+      "name": "作业车间调度",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "工业过程优化",
+      "description": "车间作业调度优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "steel_quality_predict",
+      "name": "钢材质量预测",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "钢铁行业专用",
+      "description": "钢材质量预测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "pca_reduction"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "random_forest_classifier",
+              "cnn_classifier"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "steel_defect_classify",
+      "name": "钢材缺陷分类",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "钢铁行业专用",
+      "description": "钢材缺陷类型分类",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "pca_reduction"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "random_forest_classifier",
+              "cnn_classifier"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "rolling_force_predict",
+      "name": "轧制力预测",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "钢铁行业专用",
+      "description": "轧制力预测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "pca_reduction"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "random_forest_classifier",
+              "cnn_classifier"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "temperature_model",
+      "name": "温度场模型",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "钢铁行业专用",
+      "description": "温度场建模",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "pca_reduction"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "random_forest_classifier",
+              "cnn_classifier"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "composition_optimize",
+      "name": "成分优化",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "钢铁行业专用",
+      "description": "钢材成分优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "pca_reduction"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "random_forest_classifier",
+              "cnn_classifier"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "yield_optimize",
+      "name": "成材率优化",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "钢铁行业专用",
+      "description": "成材率优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "pca_reduction"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "random_forest_classifier",
+              "cnn_classifier"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "furnace_optimize",
+      "name": "加热炉优化",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "钢铁行业专用",
+      "description": "加热炉优化控制",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "pca_reduction"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "random_forest_classifier",
+              "cnn_classifier"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cooling_control",
+      "name": "冷却控制",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "钢铁行业专用",
+      "description": "冷却过程控制",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "pca_reduction"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "random_forest_classifier",
+              "cnn_classifier"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "product_quality_classifier",
+      "name": "产品质量分级",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "故障诊断",
+      "description": "产品质量等级分类",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "confusion_matrix"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "bearing_fault_classifier",
+      "name": "轴承故障诊断",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "故障诊断",
+      "description": "轴承故障诊断",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "confusion_matrix"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "steel_surface_defect",
+      "name": "钢材表面缺陷检测",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "工业视觉",
+      "description": "钢材表面缺陷视觉检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度视觉方案",
+          "layers": {
+            "数据管理层": [
+              "load_image",
+              "load_video"
+            ],
+            "数据处理层": [
+              "image_resize",
+              "image_augment",
+              "image_normalize"
+            ],
+            "算法模型层": [
+              "yolo_detector",
+              "resnet_classifier"
+            ],
+            "评估输出层": [
+              "map_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "轻量视觉方案",
+          "layers": {
+            "数据管理层": [
+              "load_image"
+            ],
+            "数据处理层": [
+              "image_resize",
+              "image_normalize"
+            ],
+            "算法模型层": [
+              "cnn_classifier"
+            ],
+            "评估输出层": [
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "hot_rolled_defect",
+      "name": "热轧缺陷检测",
+      "scenario_id": "steel-manufacturing",
+      "display_category": "工业视觉",
+      "description": "热轧产品缺陷检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度视觉方案",
+          "layers": {
+            "数据管理层": [
+              "load_image",
+              "load_video"
+            ],
+            "数据处理层": [
+              "image_resize",
+              "image_augment",
+              "image_normalize"
+            ],
+            "算法模型层": [
+              "yolo_detector",
+              "resnet_classifier"
+            ],
+            "评估输出层": [
+              "map_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "轻量视觉方案",
+          "layers": {
+            "数据管理层": [
+              "load_image"
+            ],
+            "数据处理层": [
+              "image_resize",
+              "image_normalize"
+            ],
+            "算法模型层": [
+              "cnn_classifier"
+            ],
+            "评估输出层": [
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cell_efficiency_predict",
+      "name": "电池片效率预测",
+      "scenario_id": "pv-manufacturing",
+      "display_category": "光伏制造专用",
+      "description": "光伏电池片转换效率预测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "视觉+数据融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_image",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "image_resize",
+              "image_normalize",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "wafer_defect_detect",
+      "name": "硅片缺陷检测",
+      "scenario_id": "pv-manufacturing",
+      "display_category": "光伏制造专用",
+      "description": "硅片缺陷检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "视觉+数据融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_image",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "image_resize",
+              "image_normalize",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "el_image_analyze",
+      "name": "EL图像分析",
+      "scenario_id": "pv-manufacturing",
+      "display_category": "光伏制造专用",
+      "description": "电致发光图像分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "视觉+数据融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_image",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "image_resize",
+              "image_normalize",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "color_sorting",
+      "name": "色选分级",
+      "scenario_id": "pv-manufacturing",
+      "display_category": "光伏制造专用",
+      "description": "电池片色选分级",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "视觉+数据融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_image",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "image_resize",
+              "image_normalize",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "string_welding_inspect",
+      "name": "串焊检测",
+      "scenario_id": "pv-manufacturing",
+      "display_category": "光伏制造专用",
+      "description": "串焊质量检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "视觉+数据融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_image",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "image_resize",
+              "image_normalize",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "lamination_quality",
+      "name": "层压质量检测",
+      "scenario_id": "pv-manufacturing",
+      "display_category": "光伏制造专用",
+      "description": "层压质量检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "视觉+数据融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_image",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "image_resize",
+              "image_normalize",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "iv_curve_analyze",
+      "name": "IV曲线分析",
+      "scenario_id": "pv-manufacturing",
+      "display_category": "光伏制造专用",
+      "description": "IV特性曲线分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "视觉+数据融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_image",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "image_resize",
+              "image_normalize",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "module_power_predict",
+      "name": "组件功率预测",
+      "scenario_id": "pv-manufacturing",
+      "display_category": "光伏制造专用",
+      "description": "光伏组件功率预测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "视觉+数据融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_image",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "image_resize",
+              "image_normalize",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "pv_cell_defect",
+      "name": "光伏电池缺陷检测",
+      "scenario_id": "pv-manufacturing",
+      "display_category": "工业视觉",
+      "description": "光伏电池缺陷视觉检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度视觉方案",
+          "layers": {
+            "数据管理层": [
+              "load_image",
+              "load_video"
+            ],
+            "数据处理层": [
+              "image_resize",
+              "image_augment",
+              "image_normalize"
+            ],
+            "算法模型层": [
+              "yolo_detector",
+              "resnet_classifier"
+            ],
+            "评估输出层": [
+              "map_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "轻量视觉方案",
+          "layers": {
+            "数据管理层": [
+              "load_image"
+            ],
+            "数据处理层": [
+              "image_resize",
+              "image_normalize"
+            ],
+            "算法模型层": [
+              "cnn_classifier"
+            ],
+            "评估输出层": [
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "micro_crack_detect",
+      "name": "隐裂检测",
+      "scenario_id": "pv-manufacturing",
+      "display_category": "工业视觉",
+      "description": "光伏电池隐裂检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度视觉方案",
+          "layers": {
+            "数据管理层": [
+              "load_image",
+              "load_video"
+            ],
+            "数据处理层": [
+              "image_resize",
+              "image_augment",
+              "image_normalize"
+            ],
+            "算法模型层": [
+              "yolo_detector",
+              "resnet_classifier"
+            ],
+            "评估输出层": [
+              "map_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "轻量视觉方案",
+          "layers": {
+            "数据管理层": [
+              "load_image"
+            ],
+            "数据处理层": [
+              "image_resize",
+              "image_normalize"
+            ],
+            "算法模型层": [
+              "cnn_classifier"
+            ],
+            "评估输出层": [
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "hotspot_detect",
+      "name": "热斑检测",
+      "scenario_id": "pv-manufacturing",
+      "display_category": "工业视觉",
+      "description": "光伏组件热斑检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度视觉方案",
+          "layers": {
+            "数据管理层": [
+              "load_image",
+              "load_video"
+            ],
+            "数据处理层": [
+              "image_resize",
+              "image_augment",
+              "image_normalize"
+            ],
+            "算法模型层": [
+              "yolo_detector",
+              "resnet_classifier"
+            ],
+            "评估输出层": [
+              "map_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "轻量视觉方案",
+          "layers": {
+            "数据管理层": [
+              "load_image"
+            ],
+            "数据处理层": [
+              "image_resize",
+              "image_normalize"
+            ],
+            "算法模型层": [
+              "cnn_classifier"
+            ],
+            "评估输出层": [
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "degradation_stage_classifier",
+      "name": "退化阶段分类",
+      "scenario_id": "pv-manufacturing",
+      "display_category": "故障诊断",
+      "description": "设备退化阶段分类",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "confusion_matrix"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "energy_efficiency_optimize",
+      "name": "能效优化",
+      "scenario_id": "pv-manufacturing",
+      "display_category": "工艺优化",
+      "description": "能效优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cell_consistency",
+      "name": "电芯一致性分析",
+      "scenario_id": "battery-manufacturing",
+      "display_category": "动力电池制造专用",
+      "description": "电芯一致性分析",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db",
+              "load_canbus"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "isolation_forest"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "formation_optimize",
+      "name": "化成工艺优化",
+      "scenario_id": "battery-manufacturing",
+      "display_category": "动力电池制造专用",
+      "description": "化成工艺优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db",
+              "load_canbus"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "isolation_forest"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "electrode_quality",
+      "name": "极片质量检测",
+      "scenario_id": "battery-manufacturing",
+      "display_category": "动力电池制造专用",
+      "description": "极片质量检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db",
+              "load_canbus"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "isolation_forest"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "electrolyte_optimize",
+      "name": "电解液配方优化",
+      "scenario_id": "battery-manufacturing",
+      "display_category": "动力电池制造专用",
+      "description": "电解液配方优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db",
+              "load_canbus"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "isolation_forest"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "capacity_grading",
+      "name": "容量分选",
+      "scenario_id": "battery-manufacturing",
+      "display_category": "动力电池制造专用",
+      "description": "电池容量分选",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db",
+              "load_canbus"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "isolation_forest"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "self_discharge_test",
+      "name": "自放电测试",
+      "scenario_id": "battery-manufacturing",
+      "display_category": "动力电池制造专用",
+      "description": "电池自放电测试",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db",
+              "load_canbus"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "isolation_forest"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "nail_penetration_sim",
+      "name": "针刺仿真",
+      "scenario_id": "battery-manufacturing",
+      "display_category": "动力电池制造专用",
+      "description": "电池针刺安全仿真",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db",
+              "load_canbus"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "isolation_forest"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cycle_life_predict",
+      "name": "循环寿命预测",
+      "scenario_id": "battery-manufacturing",
+      "display_category": "动力电池制造专用",
+      "description": "电池循环寿命预测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "多模型融合方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db",
+              "load_canbus"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "kalman_filter",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "isolation_forest"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "f1_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "thermal_fault_classifier",
+      "name": "热故障分类",
+      "scenario_id": "battery-manufacturing",
+      "display_category": "故障诊断",
+      "description": "热故障分类",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_opcua"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "cnn_classifier",
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "confusion_matrix"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "random_forest_classifier"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "accuracy_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "process_anomaly",
+      "name": "工艺过程异常",
+      "scenario_id": "battery-manufacturing",
+      "display_category": "异常检测",
+      "description": "工艺过程异常检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "isolation_forest",
+              "autoencoder_anomaly"
+            ],
+            "评估输出层": [
+              "f1_metric",
+              "precision_metric",
+              "anomaly_plot"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "isolation_forest"
+            ],
+            "评估输出层": [
+              "f1_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "berth_allocation",
+      "name": "泊位分配优化",
+      "scenario_id": "port-logistics",
+      "display_category": "港口与运输专用",
+      "description": "港口泊位分配优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database",
+              "load_mqtt"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast",
+              "a_star_pathfinding"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "agv_path_plan",
+      "name": "AGV路径规划",
+      "scenario_id": "port-logistics",
+      "display_category": "港口与运输专用",
+      "description": "自动导引车路径规划",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database",
+              "load_mqtt"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast",
+              "a_star_pathfinding"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "crane_schedule",
+      "name": "岸桥调度",
+      "scenario_id": "port-logistics",
+      "display_category": "港口与运输专用",
+      "description": "岸桥作业调度优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database",
+              "load_mqtt"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast",
+              "a_star_pathfinding"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "yard_management",
+      "name": "堆场管理",
+      "scenario_id": "port-logistics",
+      "display_category": "港口与运输专用",
+      "description": "集装箱堆场管理优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database",
+              "load_mqtt"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast",
+              "a_star_pathfinding"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "vessel_schedule",
+      "name": "船舶调度",
+      "scenario_id": "port-logistics",
+      "display_category": "港口与运输专用",
+      "description": "船舶进出港调度",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database",
+              "load_mqtt"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast",
+              "a_star_pathfinding"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "container_tracking",
+      "name": "集装箱追踪",
+      "scenario_id": "port-logistics",
+      "display_category": "港口与运输专用",
+      "description": "集装箱全程追踪",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database",
+              "load_mqtt"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast",
+              "a_star_pathfinding"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "throughput_forecast",
+      "name": "吞吐量预测",
+      "scenario_id": "port-logistics",
+      "display_category": "港口与运输专用",
+      "description": "港口吞吐量预测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database",
+              "load_mqtt"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast",
+              "a_star_pathfinding"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "port_energy_manage",
+      "name": "港口能耗管理",
+      "scenario_id": "port-logistics",
+      "display_category": "港口与运输专用",
+      "description": "港口能耗管理优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database",
+              "load_mqtt"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast",
+              "a_star_pathfinding"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "logistics_route_optimize",
+      "name": "物流路径优化",
+      "scenario_id": "port-logistics",
+      "display_category": "工业过程优化",
+      "description": "物流路径优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "bin_packing_optimize",
+      "name": "装箱优化",
+      "scenario_id": "port-logistics",
+      "display_category": "工业过程优化",
+      "description": "集装箱装箱优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "hvac_control",
+      "name": "暖通空调控制",
+      "scenario_id": "building-campus",
+      "display_category": "楼宇园区专用",
+      "description": "暖通空调控制",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能控制方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_bacnet",
+              "load_mqtt"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "pid_controller",
+              "genetic_algorithm"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "energy_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则控制方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_bacnet"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "pid_controller"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "lighting_optimize",
+      "name": "照明优化",
+      "scenario_id": "building-campus",
+      "display_category": "楼宇园区专用",
+      "description": "照明优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能控制方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_bacnet",
+              "load_mqtt"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "pid_controller",
+              "genetic_algorithm"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "energy_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则控制方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_bacnet"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "pid_controller"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "energy_audit",
+      "name": "能源审计",
+      "scenario_id": "building-campus",
+      "display_category": "楼宇园区专用",
+      "description": "能源审计",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能控制方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_bacnet",
+              "load_mqtt"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "pid_controller",
+              "genetic_algorithm"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "energy_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则控制方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_bacnet"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "pid_controller"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "comfort_index",
+      "name": "舒适度指数",
+      "scenario_id": "building-campus",
+      "display_category": "楼宇园区专用",
+      "description": "舒适度指数计算",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能控制方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_bacnet",
+              "load_mqtt"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "pid_controller",
+              "genetic_algorithm"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "energy_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则控制方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_bacnet"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "pid_controller"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "occupancy_detect",
+      "name": "人员检测",
+      "scenario_id": "building-campus",
+      "display_category": "楼宇园区专用",
+      "description": "人员检测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能控制方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_bacnet",
+              "load_mqtt"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "pid_controller",
+              "genetic_algorithm"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "energy_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则控制方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_bacnet"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "pid_controller"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "elevator_optimize",
+      "name": "电梯调度优化",
+      "scenario_id": "building-campus",
+      "display_category": "楼宇园区专用",
+      "description": "电梯调度优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能控制方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_bacnet",
+              "load_mqtt"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "pid_controller",
+              "genetic_algorithm"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "energy_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "规则控制方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_bacnet"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "pid_controller"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "hvac_optimize",
+      "name": "暖通空调优化",
+      "scenario_id": "building-campus",
+      "display_category": "工业过程优化",
+      "description": "暖通空调优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale",
+              "feature_select"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典优化方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "load_forecast",
+      "name": "负荷预测",
+      "scenario_id": "building-campus",
+      "display_category": "负荷与需求侧管理",
+      "description": "负荷预测",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "arima_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "demand_response",
+      "name": "需求响应",
+      "scenario_id": "building-campus",
+      "display_category": "负荷与需求侧管理",
+      "description": "需求响应",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "arima_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "peak_shaving",
+      "name": "削峰填谷",
+      "scenario_id": "building-campus",
+      "display_category": "负荷与需求侧管理",
+      "description": "削峰填谷",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "arima_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "energy_baseline",
+      "name": "能耗基线",
+      "scenario_id": "building-campus",
+      "display_category": "负荷与需求侧管理",
+      "description": "能耗基线",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "arima_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "carbon_accounting",
+      "name": "碳核算",
+      "scenario_id": "carbon-management",
+      "display_category": "碳管理与综合能源",
+      "description": "碳核算",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "综合分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "r2_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "r2_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "carbon_footprint",
+      "name": "碳足迹追踪",
+      "scenario_id": "carbon-management",
+      "display_category": "碳管理与综合能源",
+      "description": "碳足迹追踪",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "综合分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "r2_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "r2_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "carbon_trading_strategy",
+      "name": "碳交易策略",
+      "scenario_id": "carbon-management",
+      "display_category": "碳管理与综合能源",
+      "description": "碳交易策略",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "综合分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "r2_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "r2_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "carbon_quota_manage",
+      "name": "碳配额管理",
+      "scenario_id": "carbon-management",
+      "display_category": "碳管理与综合能源",
+      "description": "碳配额管理",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "综合分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "r2_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "r2_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "emission_factor",
+      "name": "排放因子计算",
+      "scenario_id": "carbon-management",
+      "display_category": "碳管理与综合能源",
+      "description": "排放因子计算",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "综合分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "r2_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "r2_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "carbon_sink_estimate",
+      "name": "碳汇估算",
+      "scenario_id": "carbon-management",
+      "display_category": "碳管理与综合能源",
+      "description": "碳汇估算",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "综合分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "r2_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "r2_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "green_certificate",
+      "name": "绿证管理",
+      "scenario_id": "carbon-management",
+      "display_category": "碳管理与综合能源",
+      "description": "绿证管理",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "综合分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "r2_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "r2_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "reduction_path",
+      "name": "减排路径规划",
+      "scenario_id": "carbon-management",
+      "display_category": "碳管理与综合能源",
+      "description": "减排路径规划",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "综合分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "r2_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "r2_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "carbon_neutral_plan",
+      "name": "碳中和方案",
+      "scenario_id": "carbon-management",
+      "display_category": "碳管理与综合能源",
+      "description": "碳中和方案",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "综合分析方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_database"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "r2_metric"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "统计方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_regression"
+            ],
+            "评估输出层": [
+              "r2_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "carbon_emission_optimize",
+      "name": "碳排放优化",
+      "scenario_id": "carbon-management",
+      "display_category": "能源调度优化",
+      "description": "碳排放优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "energy_trading_optimize",
+      "name": "电力交易优化",
+      "scenario_id": "carbon-management",
+      "display_category": "能源调度优化",
+      "description": "电力交易优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "demand_response_optimize",
+      "name": "需求响应优化",
+      "scenario_id": "carbon-management",
+      "display_category": "能源调度优化",
+      "description": "需求响应优化",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "智能调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "z_score_scale"
+            ],
+            "算法模型层": [
+              "genetic_algorithm",
+              "lstm_forecast"
+            ],
+            "评估输出层": [
+              "rmse_metric",
+              "optimization_report"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "经典调度方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "linear_programming"
+            ],
+            "评估输出层": [
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "thermal_power_forecast",
+      "name": "火力发电功率预测",
+      "scenario_id": "thermal-power",
+      "display_category": "发电预测",
+      "description": "基于负荷、煤质、机组状态预测发电功率",
+      "default_workflows": []
+    },
+    {
+      "id": "unit_output_forecast",
+      "name": "机组出力预测",
+      "scenario_id": "thermal-power",
+      "display_category": "发电预测",
+      "description": "预测单台机组的出力曲线",
+      "default_workflows": []
+    },
+    {
+      "id": "peak_shaving_capacity",
+      "name": "调峰能力预测",
+      "scenario_id": "thermal-power",
+      "display_category": "发电预测",
+      "description": "评估机组调峰能力和响应速度",
+      "default_workflows": []
+    },
+    {
+      "id": "startup_time_predict",
+      "name": "启停时间预测",
+      "scenario_id": "thermal-power",
+      "display_category": "发电预测",
+      "description": "预测机组冷态/热态启动时间",
+      "default_workflows": []
+    },
+    {
+      "id": "combustion_optimize",
+      "name": "锅炉燃烧优化",
+      "scenario_id": "thermal-power",
+      "display_category": "燃烧优化",
+      "description": "优化风煤配比、燃烧器摆角等参数",
+      "default_workflows": []
+    },
+    {
+      "id": "coal_blending_optimize",
+      "name": "配煤掺烧优化",
+      "scenario_id": "thermal-power",
+      "display_category": "燃烧优化",
+      "description": "多煤种掺烧比例优化",
+      "default_workflows": []
+    },
+    {
+      "id": "air_fuel_ratio_optimize",
+      "name": "风煤比优化",
+      "scenario_id": "thermal-power",
+      "display_category": "燃烧优化",
+      "description": "优化一二次风配比",
+      "default_workflows": []
+    },
+    {
+      "id": "oxygen_content_optimize",
+      "name": "氧量优化",
+      "scenario_id": "thermal-power",
+      "display_category": "燃烧优化",
+      "description": "烟气含氧量优化控制",
+      "default_workflows": []
+    },
+    {
+      "id": "coal_price_forecast",
+      "name": "煤价预测",
+      "scenario_id": "thermal-power",
+      "display_category": "燃料供应链",
+      "description": "基于市场数据预测煤炭价格走势",
+      "default_workflows": []
+    },
+    {
+      "id": "coal_inventory_forecast",
+      "name": "煤炭库存预测",
+      "scenario_id": "thermal-power",
+      "display_category": "燃料供应链",
+      "description": "预测煤炭库存消耗和补充需求",
+      "default_workflows": []
+    },
+    {
+      "id": "coal_transport_optimize",
+      "name": "煤炭运输路径优化",
+      "scenario_id": "thermal-power",
+      "display_category": "燃料供应链",
+      "description": "优化煤炭运输路线和方式",
+      "default_workflows": []
+    },
+    {
+      "id": "supplier_selection",
+      "name": "供应商优选",
+      "scenario_id": "thermal-power",
+      "display_category": "燃料供应链",
+      "description": "基于质量、价格、信誉的供应商评估",
+      "default_workflows": []
+    },
+    {
+      "id": "coal_procurement_optimize",
+      "name": "煤炭采购优化",
+      "scenario_id": "thermal-power",
+      "display_category": "燃料供应链",
+      "description": "采购时机和数量优化",
+      "default_workflows": []
+    },
+    {
+      "id": "turbine_vibration_diagnose",
+      "name": "汽轮机振动诊断",
+      "scenario_id": "thermal-power",
+      "display_category": "设备健康",
+      "description": "基于振动信号的故障诊断",
+      "default_workflows": []
+    },
+    {
+      "id": "boiler_tube_leak_predict",
+      "name": "四管泄漏预警",
+      "scenario_id": "thermal-power",
+      "display_category": "设备健康",
+      "description": "锅炉四管泄漏早期预警",
+      "default_workflows": []
+    },
+    {
+      "id": "generator_fault_diagnose",
+      "name": "发电机故障诊断",
+      "scenario_id": "thermal-power",
+      "display_category": "设备健康",
+      "description": "发电机电气和机械故障诊断",
+      "default_workflows": []
+    },
+    {
+      "id": "bearing_temp_predict",
+      "name": "轴承温度预测",
+      "scenario_id": "thermal-power",
+      "display_category": "设备健康",
+      "description": "关键轴承温度趋势预测",
+      "default_workflows": []
+    },
+    {
+      "id": "coal_consumption_optimize",
+      "name": "供电煤耗优化",
+      "scenario_id": "thermal-power",
+      "display_category": "能效优化",
+      "description": "降低供电标准煤耗",
+      "default_workflows": []
+    },
+    {
+      "id": "auxiliary_power_optimize",
+      "name": "厂用电率优化",
+      "scenario_id": "thermal-power",
+      "display_category": "能效优化",
+      "description": "降低厂用电消耗",
+      "default_workflows": []
+    },
+    {
+      "id": "thermal_efficiency_optimize",
+      "name": "热效率优化",
+      "scenario_id": "thermal-power",
+      "display_category": "能效优化",
+      "description": "提高锅炉热效率",
+      "default_workflows": []
+    },
+    {
+      "id": "condenser_vacuum_optimize",
+      "name": "凝汽器真空优化",
+      "scenario_id": "thermal-power",
+      "display_category": "能效优化",
+      "description": "优化凝汽器真空度",
+      "default_workflows": []
+    },
+    {
+      "id": "desulfur_efficiency_predict",
+      "name": "脱硫效率预测",
+      "scenario_id": "thermal-power",
+      "display_category": "环保监测",
+      "description": "预测脱硫系统效率",
+      "default_workflows": []
+    },
+    {
+      "id": "denox_efficiency_predict",
+      "name": "脱硝效率预测",
+      "scenario_id": "thermal-power",
+      "display_category": "环保监测",
+      "description": "预测脱硝系统效率",
+      "default_workflows": []
+    },
+    {
+      "id": "emission_predict",
+      "name": "烟气排放预测",
+      "scenario_id": "thermal-power",
+      "display_category": "环保监测",
+      "description": "预测SO2、NOx、粉尘排放",
+      "default_workflows": []
+    },
+    {
+      "id": "boiler_flameout_warn",
+      "name": "锅炉灭火预警",
+      "scenario_id": "thermal-power",
+      "display_category": "安全预警",
+      "description": "锅炉灭火早期预警",
+      "default_workflows": []
+    },
+    {
+      "id": "wafer_yield_predict",
+      "name": "晶圆良率预测",
+      "scenario_id": "semiconductor",
+      "display_category": "良率预测",
+      "description": "基于工艺参数预测晶圆良率",
+      "default_workflows": []
+    },
+    {
+      "id": "die_yield_predict",
+      "name": "芯片良率预测",
+      "scenario_id": "semiconductor",
+      "display_category": "良率预测",
+      "description": "预测单个芯片的良率",
+      "default_workflows": []
+    },
+    {
+      "id": "wafer_defect_detect",
+      "name": "晶圆缺陷检测",
+      "scenario_id": "semiconductor",
+      "display_category": "缺陷检测",
+      "description": "基于图像的晶圆缺陷检测",
+      "default_workflows": []
+    },
+    {
+      "id": "pattern_defect_classify",
+      "name": "图案缺陷分类",
+      "scenario_id": "semiconductor",
+      "display_category": "缺陷检测",
+      "description": "光刻图案缺陷分类",
+      "default_workflows": []
+    },
+    {
+      "id": "particle_contamination_detect",
+      "name": "颗粒污染检测",
+      "scenario_id": "semiconductor",
+      "display_category": "缺陷检测",
+      "description": "检测晶圆表面颗粒污染",
+      "default_workflows": []
+    },
+    {
+      "id": "etch_process_optimize",
+      "name": "刻蚀工艺优化",
+      "scenario_id": "semiconductor",
+      "display_category": "工艺优化",
+      "description": "优化刻蚀工艺参数",
+      "default_workflows": []
+    },
+    {
+      "id": "cvd_process_optimize",
+      "name": "CVD工艺优化",
+      "scenario_id": "semiconductor",
+      "display_category": "工艺优化",
+      "description": "化学气相沉积工艺优化",
+      "default_workflows": []
+    },
+    {
+      "id": "cmp_process_optimize",
+      "name": "CMP工艺优化",
+      "scenario_id": "semiconductor",
+      "display_category": "工艺优化",
+      "description": "化学机械抛光工艺优化",
+      "default_workflows": []
+    },
+    {
+      "id": "lithography_optimize",
+      "name": "光刻工艺优化",
+      "scenario_id": "semiconductor",
+      "display_category": "工艺优化",
+      "description": "光刻曝光参数优化",
+      "default_workflows": []
+    },
+    {
+      "id": "equipment_pm_predict",
+      "name": "设备PM预测",
+      "scenario_id": "semiconductor",
+      "display_category": "设备健康",
+      "description": "预测设备预防性维护时间",
+      "default_workflows": []
+    },
+    {
+      "id": "chamber_clean_predict",
+      "name": "腔室清洗预测",
+      "scenario_id": "semiconductor",
+      "display_category": "设备健康",
+      "description": "预测反应腔室清洗时机",
+      "default_workflows": []
+    },
+    {
+      "id": "consumable_life_predict",
+      "name": "耗材寿命预测",
+      "scenario_id": "semiconductor",
+      "display_category": "设备健康",
+      "description": "预测关键耗材剩余寿命",
+      "default_workflows": []
+    },
+    {
+      "id": "virtual_metrology",
+      "name": "虚拟量测",
+      "scenario_id": "semiconductor",
+      "display_category": "质量预测",
+      "description": "基于工艺数据预测量测结果",
+      "default_workflows": []
+    },
+    {
+      "id": "run_to_run_control",
+      "name": "批次间控制",
+      "scenario_id": "semiconductor",
+      "display_category": "工艺优化",
+      "description": "批次间工艺参数自动调整",
+      "default_workflows": []
+    },
+    {
+      "id": "fault_detection_classify",
+      "name": "故障检测分类",
+      "scenario_id": "semiconductor",
+      "display_category": "设备健康",
+      "description": "设备故障检测与分类",
+      "default_workflows": []
+    },
+    {
+      "id": "reactor_optimize",
+      "name": "反应器优化",
+      "scenario_id": "chemical-process",
+      "display_category": "工艺优化",
+      "description": "化学反应器参数优化",
+      "default_workflows": []
+    },
+    {
+      "id": "distillation_optimize",
+      "name": "精馏塔优化",
+      "scenario_id": "chemical-process",
+      "display_category": "工艺优化",
+      "description": "精馏塔操作参数优化",
+      "default_workflows": []
+    },
+    {
+      "id": "heat_exchanger_optimize",
+      "name": "换热器优化",
+      "scenario_id": "chemical-process",
+      "display_category": "工艺优化",
+      "description": "换热网络优化",
+      "default_workflows": []
+    },
+    {
+      "id": "yield_predict",
+      "name": "产品收率预测",
+      "scenario_id": "chemical-process",
+      "display_category": "质量预测",
+      "description": "预测化工产品收率",
+      "default_workflows": []
+    },
+    {
+      "id": "quality_predict",
+      "name": "产品质量预测",
+      "scenario_id": "chemical-process",
+      "display_category": "质量预测",
+      "description": "预测产品质量指标",
+      "default_workflows": []
+    },
+    {
+      "id": "energy_consumption_optimize",
+      "name": "能耗优化",
+      "scenario_id": "chemical-process",
+      "display_category": "能效优化",
+      "description": "化工过程能耗优化",
+      "default_workflows": []
+    },
+    {
+      "id": "steam_system_optimize",
+      "name": "蒸汽系统优化",
+      "scenario_id": "chemical-process",
+      "display_category": "能效优化",
+      "description": "蒸汽管网优化",
+      "default_workflows": []
+    },
+    {
+      "id": "leak_detection",
+      "name": "泄漏检测",
+      "scenario_id": "chemical-process",
+      "display_category": "安全预警",
+      "description": "管道和设备泄漏检测",
+      "default_workflows": []
+    },
+    {
+      "id": "corrosion_predict",
+      "name": "腐蚀预测",
+      "scenario_id": "chemical-process",
+      "display_category": "安全预警",
+      "description": "设备腐蚀速率预测",
+      "default_workflows": []
+    },
+    {
+      "id": "runaway_reaction_warn",
+      "name": "失控反应预警",
+      "scenario_id": "chemical-process",
+      "display_category": "安全预警",
+      "description": "化学反应失控早期预警",
+      "default_workflows": []
+    },
+    {
+      "id": "emission_control",
+      "name": "排放控制优化",
+      "scenario_id": "chemical-process",
+      "display_category": "环保监测",
+      "description": "VOCs等排放控制优化",
+      "default_workflows": []
+    },
+    {
+      "id": "catalyst_life_predict",
+      "name": "催化剂寿命预测",
+      "scenario_id": "chemical-process",
+      "display_category": "设备健康",
+      "description": "预测催化剂剩余寿命",
+      "default_workflows": []
+    },
+    {
+      "id": "pump_fault_diagnose",
+      "name": "泵故障诊断",
+      "scenario_id": "chemical-process",
+      "display_category": "设备健康",
+      "description": "化工泵故障诊断",
+      "default_workflows": []
+    },
+    {
+      "id": "compressor_fault_diagnose",
+      "name": "压缩机故障诊断",
+      "scenario_id": "chemical-process",
+      "display_category": "设备健康",
+      "description": "压缩机故障诊断",
+      "default_workflows": []
+    },
+    {
+      "id": "batch_process_optimize",
+      "name": "间歇过程优化",
+      "scenario_id": "chemical-process",
+      "display_category": "工艺优化",
+      "description": "间歇化工过程优化",
+      "default_workflows": []
+    },
+    {
+      "id": "water_quality_predict",
+      "name": "水质预测",
+      "scenario_id": "water-environment",
+      "display_category": "水质预测",
+      "description": "预测出水水质指标",
+      "default_workflows": []
+    },
+    {
+      "id": "cod_predict",
+      "name": "COD预测",
+      "scenario_id": "water-environment",
+      "display_category": "水质预测",
+      "description": "预测化学需氧量",
+      "default_workflows": []
+    },
+    {
+      "id": "ammonia_nitrogen_predict",
+      "name": "氨氮预测",
+      "scenario_id": "water-environment",
+      "display_category": "水质预测",
+      "description": "预测氨氮浓度",
+      "default_workflows": []
+    },
+    {
+      "id": "pipe_network_optimize",
+      "name": "管网优化",
+      "scenario_id": "water-environment",
+      "display_category": "管网优化",
+      "description": "供水管网压力优化",
+      "default_workflows": []
+    },
+    {
+      "id": "leak_location",
+      "name": "漏损定位",
+      "scenario_id": "water-environment",
+      "display_category": "管网优化",
+      "description": "管网漏损点定位",
+      "default_workflows": []
+    },
+    {
+      "id": "pump_schedule_optimize",
+      "name": "泵站调度优化",
+      "scenario_id": "water-environment",
+      "display_category": "管网优化",
+      "description": "供水泵站调度优化",
+      "default_workflows": []
+    },
+    {
+      "id": "dosing_optimize",
+      "name": "加药优化",
+      "scenario_id": "water-environment",
+      "display_category": "工艺优化",
+      "description": "污水处理加药量优化",
+      "default_workflows": []
+    },
+    {
+      "id": "aeration_optimize",
+      "name": "曝气优化",
+      "scenario_id": "water-environment",
+      "display_category": "工艺优化",
+      "description": "曝气量优化控制",
+      "default_workflows": []
+    },
+    {
+      "id": "sludge_predict",
+      "name": "污泥产量预测",
+      "scenario_id": "water-environment",
+      "display_category": "工艺优化",
+      "description": "预测污泥产生量",
+      "default_workflows": []
+    },
+    {
+      "id": "energy_consumption_optimize",
+      "name": "能耗优化",
+      "scenario_id": "water-environment",
+      "display_category": "能效优化",
+      "description": "污水处理能耗优化",
+      "default_workflows": []
+    },
+    {
+      "id": "odor_predict",
+      "name": "臭气预测",
+      "scenario_id": "water-environment",
+      "display_category": "环保监测",
+      "description": "预测臭气浓度",
+      "default_workflows": []
+    },
+    {
+      "id": "effluent_compliance_predict",
+      "name": "出水达标预测",
+      "scenario_id": "water-environment",
+      "display_category": "环保监测",
+      "description": "预测出水是否达标",
+      "default_workflows": []
+    },
+    {
+      "id": "energy_load_forecast",
+      "name": "负荷预测",
+      "scenario_id": "power-grid",
+      "display_category": "能源预测",
+      "description": "电力负荷预测，支持节点负荷、母线负荷和区域负荷等多种场景",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "通用算子方案（贝叶斯优化）",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "row_filter"
+            ],
+            "数据处理层": [
+              "resample_timeseries",
+              "detect_outliers",
+              "handle_missing"
+            ],
+            "特征工程层": [
+              "extract_time_features",
+              "holiday_features",
+              "workday_features",
+              "rolling_statistics",
+              "create_lag_features",
+              "sliding_window"
+            ],
+            "算法模型层": [
+              "train_test_split_ts",
+              "multi_step_forecast",
+              "auto_tune_xgboost",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "smape_score",
+              "mse_rmse_mae"
+            ]
+          }
+        },
+        {
+          "profile": "balanced",
+          "name": "快速训练方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "resample_timeseries",
+              "handle_missing"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "smape_score"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "energy_wind_forecast",
+      "name": "风力发电预测",
+      "scenario_id": "power-grid",
+      "display_category": "能源预测",
+      "description": "风力发电功率预测，支持陆上风电和海上风电场景",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "min_max_scale"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "energy_pv_forecast",
+      "name": "光伏发电预测",
+      "scenario_id": "power-grid",
+      "display_category": "能源预测",
+      "description": "光伏发电功率预测，支持集中式和分布式光伏场景",
+      "default_workflows": [
+        {
+          "profile": "high-accuracy",
+          "name": "深度学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv",
+              "load_timeseries_db"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries",
+              "wavelet_denoise"
+            ],
+            "算法模型层": [
+              "lstm_forecast",
+              "transformer_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "energy_hydro_forecast",
+      "name": "水电预测",
+      "scenario_id": "power-grid",
+      "display_category": "能源预测",
+      "description": "水力发电功率预测，支持水库式和径流式水电场景",
+      "default_workflows": [
+        {
+          "profile": "balanced",
+          "name": "统计学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries"
+            ],
+            "算法模型层": [
+              "xgboost_forecast",
+              "random_forest_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "energy_thermal_forecast",
+      "name": "火电预测",
+      "scenario_id": "power-grid",
+      "display_category": "能源预测",
+      "description": "火力发电出力预测，支持燃煤和燃气火电场景",
+      "default_workflows": [
+        {
+          "profile": "balanced",
+          "name": "机器学习方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries"
+            ],
+            "算法模型层": [
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "energy_price_forecast",
+      "name": "价格预测",
+      "scenario_id": "power-grid",
+      "display_category": "能源预测",
+      "description": "电力市场价格预测，支持现货和期货价格场景",
+      "default_workflows": [
+        {
+          "profile": "balanced",
+          "name": "时序预测方案",
+          "layers": {
+            "数据管理层": [
+              "load_csv"
+            ],
+            "数据处理层": [
+              "handle_missing",
+              "resample_timeseries"
+            ],
+            "算法模型层": [
+              "arima_forecast",
+              "xgboost_forecast"
+            ],
+            "评估输出层": [
+              "mape_metric",
+              "rmse_metric"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

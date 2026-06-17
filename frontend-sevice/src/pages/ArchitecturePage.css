@@ -1,0 +1,204 @@
+/* 架构页面Tab优化样式 */
+
+/* 强制禁用所有Ant Design motion动画 */
+.architecture-tabs .ant-motion-collapse,
+.architecture-tabs .ant-motion-collapse-legacy,
+.architecture-tabs [class*="ant-motion"],
+.architecture-tabs [class*="ant-zoom"],
+.architecture-tabs [class*="ant-slide"],
+.architecture-tabs [class*="ant-fade"] {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+/* 禁用Tab内容区域的所有动画 */
+.architecture-tabs .ant-tabs-tabpane,
+.architecture-tabs .ant-tabs-content,
+.architecture-tabs .ant-tabs-content-holder {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+/* Tab标签样式优化 - Ant Design默认line风格 */
+.architecture-tabs .ant-tabs-tab {
+  padding: 12px 0 !important;
+  margin: 0 16px 0 0 !important;
+  font-weight: 500;
+  transition: color 0.2s ease !important;
+  animation: none !important;
+  transform: none !important;
+}
+
+.architecture-tabs .ant-tabs-tab:hover {
+  color: #1890ff;
+}
+
+.architecture-tabs .ant-tabs-tab-active {
+  color: #1890ff !important;
+  font-weight: 600;
+}
+
+.architecture-tabs .ant-tabs-tab-active .anticon {
+  color: #1890ff !important;
+}
+
+.architecture-tabs .ant-tabs-ink-bar {
+  background: #1890ff;
+  height: 3px;
+  /* 恢复ink-bar的平滑移动动画 */
+  transition: left 0.3s ease, width 0.3s ease !important;
+}
+
+/* Tab导航栏 */
+.architecture-tabs .ant-tabs-nav {
+  animation: none !important;
+  transform: none !important;
+}
+
+.architecture-tabs .ant-tabs-nav-wrap {
+  animation: none !important;
+  transform: none !important;
+}
+
+.architecture-tabs .ant-tabs-nav-list {
+  animation: none !important;
+  transform: none !important;
+}
+
+/* Tab内容区域 */
+.architecture-tabs .ant-tabs-content-holder {
+  flex: 1;
+  overflow: hidden;
+}
+
+.architecture-tabs .ant-tabs-content {
+  height: 100%;
+}
+
+.architecture-tabs .ant-tabs-tabpane {
+  height: 100%;
+  overflow: auto;
+}
+
+/* Tab内容区域 */
+.architecture-tab-content {
+  height: 100%;
+  overflow: auto;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 8px;
+  min-height: 500px; /* 设置最小高度防止抖动 */
+}
+
+/* 技术栈卡片优化 */
+.tech-stack-card .ant-descriptions-item-label {
+  font-weight: 600;
+  background: #f0f5ff;
+}
+
+.tech-stack-card .ant-tag {
+  margin: 2px 4px;
+  font-size: 13px;
+  padding: 2px 10px;
+  border-radius: 4px;
+}
+
+/* 功能模块状态卡片 */
+.module-item {
+  padding: 12px 16px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+.module-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.module-item-completed {
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+}
+
+.module-item-processing {
+  background: #e6f7ff;
+  border: 1px solid #91d5ff;
+}
+
+.module-item-planned {
+  background: #fafafa;
+  border: 1px solid #d9d9d9;
+}
+
+/* 架构说明卡片 */
+.architecture-layer-card {
+  padding: 16px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.architecture-layer-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.architecture-layer-frontend {
+  background: #e6f7ff;
+  border: 1px solid #91d5ff;
+}
+
+.architecture-layer-communication {
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+}
+
+.architecture-layer-backend {
+  background: #f9f0ff;
+  border: 1px solid #d3adf7;
+}
+
+.architecture-layer-data {
+  background: #fff0f6;
+  border: 1px solid #ffadd2;
+}
+
+/* 数据流向卡片 */
+.data-flow-card {
+  padding: 20px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Alert优化 */
+.architecture-alert {
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+  .architecture-tabs .ant-tabs-tab {
+    padding: 8px 12px !important;
+    font-size: 12px;
+  }
+
+  .architecture-tab-content {
+    padding: 12px;
+  }
+
+  .module-item {
+    padding: 10px 12px;
+  }
+
+  .architecture-layer-card {
+    padding: 12px;
+  }
+
+  .data-flow-card {
+    padding: 16px;
+  }
+}

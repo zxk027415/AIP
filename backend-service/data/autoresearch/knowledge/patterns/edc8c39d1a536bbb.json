@@ -1,0 +1,23 @@
+{
+  "claim": "xgb_subsample_high=0.6 在当前场景的 AutoResearch 候选中产生可验证结果",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": 0.6,
+    "target_param": "xgb_subsample_high"
+  },
+  "condition": {
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v2"
+  },
+  "confidence": 0.0,
+  "counter_evidence": [
+    "ares-aa02bea5f158:iter4"
+  ],
+  "evidence": [],
+  "knowledge_type": "causal_candidate",
+  "last_validated_at": "2026-05-29T08:24:24.637129",
+  "layer": "L2",
+  "scenario_condition_hash": "e2c726ad4af61e47",
+  "status": "rejected"
+}

@@ -1,0 +1,16 @@
+*.pyc
+*.csv
+*.hdf
+.~lock.*
+*.log
+*.rpt
+.coverage
+__pycache__/
+.ipynb_checkpoints/
+logs/
+wlogs/
+~$*
+saved_models/
+model_checkpoints/
+*.egg-info/
+.idea

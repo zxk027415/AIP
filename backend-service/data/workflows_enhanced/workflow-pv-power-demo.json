@@ -1,0 +1,366 @@
+{
+  "id": "workflow-pv-power-demo",
+  "name": "光伏发电功率预测 - 通用模块版",
+  "description": "基于宁夏银川光伏电站数据的功率预测工作流，使用基础算法库通用函数，可真实执行",
+  "createdAt": "2026-03-21T10:00:00.000Z",
+  "updatedAt": "2026-03-21T16:00:00.000Z",
+  "nodes": [
+    {
+      "id": "node-1",
+      "type": "enhanced",
+      "position": { "x": 100, "y": 50 },
+      "data": {
+        "label": "加载光伏数据集",
+        "type": "function",
+        "icon": "database",
+        "inputs": [],
+        "outputs": [
+          {
+            "id": "node-1-out-data",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix"
+          }
+        ],
+        "config": {
+          "functionId": "load_dataset",
+          "dataset_id": "pv-power-yinchuan",
+          "time_column": "timestamp",
+          "target_column": "power_actual",
+          "sample_rows": 0
+        },
+        "status": "idle",
+        "description": "加载宁夏银川光伏电站数据（15分钟间隔）"
+      }
+    },
+    {
+      "id": "node-2",
+      "type": "enhanced",
+      "position": { "x": 100, "y": 180 },
+      "data": {
+        "label": "缺失值处理",
+        "type": "function",
+        "icon": "tool",
+        "inputs": [
+          {
+            "id": "node-2-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-2-out-data",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix"
+          }
+        ],
+        "config": {
+          "functionId": "handle_missing",
+          "method": "interpolate"
+        },
+        "status": "idle",
+        "description": "使用插值法处理缺失值"
+      }
+    },
+    {
+      "id": "node-3",
+      "type": "enhanced",
+      "position": { "x": 100, "y": 310 },
+      "data": {
+        "label": "数据标准化",
+        "type": "function",
+        "icon": "function",
+        "inputs": [
+          {
+            "id": "node-3-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-3-out-data",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix"
+          }
+        ],
+        "config": {
+          "functionId": "min_max_scale",
+          "feature_range": [0, 1]
+        },
+        "status": "idle",
+        "description": "Min-Max归一化到[0,1]区间"
+      }
+    },
+    {
+      "id": "node-4",
+      "type": "enhanced",
+      "position": { "x": 100, "y": 440 },
+      "data": {
+        "label": "数据集划分",
+        "type": "function",
+        "icon": "split-cells",
+        "inputs": [
+          {
+            "id": "node-4-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-4-out-split",
+            "name": "split_data",
+            "type": "output",
+            "dataType": "object"
+          }
+        ],
+        "config": {
+          "functionId": "train_test_split",
+          "test_ratio": 0.2
+        },
+        "status": "idle",
+        "description": "按80/20比例划分训练集和测试集"
+      }
+    },
+    {
+      "id": "node-5",
+      "type": "enhanced",
+      "position": { "x": 100, "y": 570 },
+      "data": {
+        "label": "线性回归预测",
+        "type": "function",
+        "icon": "experiment",
+        "inputs": [
+          {
+            "id": "node-5-in-data",
+            "name": "train_data",
+            "type": "input",
+            "dataType": "object",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-5-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "object"
+          }
+        ],
+        "config": {
+          "functionId": "linear_regression",
+          "fit_intercept": true,
+          "forecast_horizon": 4
+        },
+        "status": "idle",
+        "description": "使用线性回归进行功率预测"
+      }
+    },
+    {
+      "id": "node-6",
+      "type": "enhanced",
+      "position": { "x": -100, "y": 700 },
+      "data": {
+        "label": "MAPE评估",
+        "type": "function",
+        "icon": "pie-chart",
+        "inputs": [
+          {
+            "id": "node-6-in-data",
+            "name": "y_true",
+            "type": "input",
+            "dataType": "object",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-6-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "number"
+          }
+        ],
+        "config": {
+          "functionId": "mape_metric",
+          "ignore_zero": true
+        },
+        "status": "idle",
+        "description": "计算平均绝对百分比误差"
+      }
+    },
+    {
+      "id": "node-7",
+      "type": "enhanced",
+      "position": { "x": 100, "y": 700 },
+      "data": {
+        "label": "RMSE评估",
+        "type": "function",
+        "icon": "bar-chart",
+        "inputs": [
+          {
+            "id": "node-7-in-data",
+            "name": "y_true",
+            "type": "input",
+            "dataType": "object",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-7-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "number"
+          }
+        ],
+        "config": {
+          "functionId": "rmse_metric"
+        },
+        "status": "idle",
+        "description": "计算均方根误差"
+      }
+    },
+    {
+      "id": "node-8",
+      "type": "enhanced",
+      "position": { "x": 300, "y": 700 },
+      "data": {
+        "label": "R²评估",
+        "type": "function",
+        "icon": "line-chart",
+        "inputs": [
+          {
+            "id": "node-8-in-data",
+            "name": "y_true",
+            "type": "input",
+            "dataType": "object",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-8-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "number"
+          }
+        ],
+        "config": {
+          "functionId": "r2_metric"
+        },
+        "status": "idle",
+        "description": "计算决定系数R²"
+      }
+    },
+    {
+      "id": "node-9",
+      "type": "enhanced",
+      "position": { "x": 100, "y": 830 },
+      "data": {
+        "label": "预测结果可视化",
+        "type": "visualization",
+        "icon": "area-chart",
+        "inputs": [
+          {
+            "id": "node-9-in-data",
+            "name": "actual",
+            "type": "input",
+            "dataType": "object",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-9-out-chart",
+            "name": "chart",
+            "type": "output",
+            "dataType": "chart"
+          }
+        ],
+        "config": {
+          "functionId": "forecast_plot",
+          "title": "光伏发电功率预测结果"
+        },
+        "status": "idle",
+        "description": "绘制实际值与预测值对比图"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1-2",
+      "source": "node-1",
+      "target": "node-2",
+      "sourceHandle": "node-1-out-data",
+      "targetHandle": "node-2-in-data",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-2-3",
+      "source": "node-2",
+      "target": "node-3",
+      "sourceHandle": "node-2-out-data",
+      "targetHandle": "node-3-in-data",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-3-4",
+      "source": "node-3",
+      "target": "node-4",
+      "sourceHandle": "node-3-out-data",
+      "targetHandle": "node-4-in-data",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-4-5",
+      "source": "node-4",
+      "target": "node-5",
+      "sourceHandle": "node-4-out-split",
+      "targetHandle": "node-5-in-data",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-5-6",
+      "source": "node-5",
+      "target": "node-6",
+      "sourceHandle": "node-5-out-result",
+      "targetHandle": "node-6-in-data",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-5-7",
+      "source": "node-5",
+      "target": "node-7",
+      "sourceHandle": "node-5-out-result",
+      "targetHandle": "node-7-in-data",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-5-8",
+      "source": "node-5",
+      "target": "node-8",
+      "sourceHandle": "node-5-out-result",
+      "targetHandle": "node-8-in-data",
+      "type": "smoothstep"
+    },
+    {
+      "id": "edge-5-9",
+      "source": "node-5",
+      "target": "node-9",
+      "sourceHandle": "node-5-out-result",
+      "targetHandle": "node-9-in-data",
+      "type": "smoothstep"
+    }
+  ]
+}

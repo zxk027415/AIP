@@ -1,0 +1,77 @@
+[
+  {
+    "id": "bt-run-bt-task-003-001",
+    "task_id": "bt-task-003",
+    "dataset_id": "ds-201",
+    "dataset_name": "电机振动数据集",
+    "algorithm_type": "template",
+    "algorithm_id": "fault_svm",
+    "algorithm_name": "SVM故障分类",
+    "status": "completed",
+    "started_at": "2026-03-23T15:07:54.297228",
+    "completed_at": "2026-03-23T15:14:46.297228",
+    "execution_time_ms": 412000,
+    "result": {
+      "f1": 0.9026,
+      "precision": 0.9491,
+      "recall": 0.9114,
+      "accuracy": 0.9197
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-003-002",
+    "task_id": "bt-task-003",
+    "dataset_id": "ds-201",
+    "dataset_name": "电机振动数据集",
+    "algorithm_type": "template",
+    "algorithm_id": "fault_rf",
+    "algorithm_name": "随机森林故障诊断",
+    "status": "completed",
+    "started_at": "2026-03-23T15:08:24.297228",
+    "completed_at": "2026-03-23T15:15:51.297228",
+    "execution_time_ms": 447000,
+    "result": {
+      "f1": 0.8134,
+      "precision": 0.8669,
+      "recall": 0.8932,
+      "accuracy": 0.9651
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-003-003",
+    "task_id": "bt-task-003",
+    "dataset_id": "ds-202",
+    "dataset_name": "轴承温度数据集",
+    "algorithm_type": "template",
+    "algorithm_id": "fault_svm",
+    "algorithm_name": "SVM故障分类",
+    "status": "completed",
+    "started_at": "2026-03-23T15:08:54.297228",
+    "completed_at": "2026-03-23T15:13:10.297228",
+    "execution_time_ms": 256000,
+    "result": {
+      "f1": 0.9198,
+      "precision": 0.8273,
+      "recall": 0.821,
+      "accuracy": 0.8876
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-003-004",
+    "task_id": "bt-task-003",
+    "dataset_id": "ds-202",
+    "dataset_name": "轴承温度数据集",
+    "algorithm_type": "template",
+    "algorithm_id": "fault_rf",
+    "algorithm_name": "随机森林故障诊断",
+    "status": "failed",
+    "started_at": "2026-03-23T15:09:24.297228",
+    "completed_at": "2026-03-23T15:09:29.297228",
+    "execution_time_ms": 5000,
+    "result": null,
+    "error_message": "Simulated execution error"
+  }
+]

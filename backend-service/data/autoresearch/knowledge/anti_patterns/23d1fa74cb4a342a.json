@@ -1,0 +1,28 @@
+{
+  "claim": "daily_horizon evidence=multi_window_rejected mape_improvement=0.0",
+  "claim_key": {
+    "direction": "negative",
+    "metric": "mape",
+    "recommended_value": "{\"global_config_patch\": {\"daily_horizon\": 96}, \"node_param_patches\": [{\"functionId\": \"sliding_window\", \"node_id\": \"tpl-sliding_window-10\", \"param_patch\": {\"step\": 24}}], \"override\": {\"daily_horizon\": 96}, \"structure_patch\": {}}",
+    "target_param": "daily_horizon"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "granularity": "intraday",
+    "registry_id": "load_forecast_v2",
+    "span_days": 36,
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 0.0,
+  "counter_evidence": [
+    "ares-6fd54813f76b:iter2:group2:{\"global_config_patch\": {\"daily_horizon\": 96}, \"node_param_patches\": [{\"functionId\": \"sliding_window\", \"node_id\": \"tpl-sliding_window-10\", \"param_patch\": {\"step\": 24}}], \"override\": {\"daily_horizon\": 96}, \"structure_patch\": {}}"
+  ],
+  "evidence": [],
+  "knowledge_type": "correlational",
+  "last_validated_at": "2026-06-01T08:38:39.417102",
+  "layer": "L3",
+  "scenario_condition_hash": "5f9e9cd2346d0d3c",
+  "status": "rejected"
+}

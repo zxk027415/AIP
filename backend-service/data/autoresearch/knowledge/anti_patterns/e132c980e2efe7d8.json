@@ -1,0 +1,28 @@
+{
+  "claim": "ensemble_forecast.weight_mode evidence=multi_window_rejected mape_improvement=0.0",
+  "claim_key": {
+    "direction": "negative",
+    "metric": "mape",
+    "recommended_value": "{\"global_config_patch\": {}, \"node_param_patches\": [{\"functionId\": \"ensemble_forecast\", \"node_id\": \"tpl-ensemble_forecast-20\", \"param_patch\": {\"weight_mode\": \"upstream_oof_rmse\"}}, {\"functionId\": \"ensemble_forecast\", \"node_id\": \"tpl-ensemble_forecast-20\", \"param_patch\": {\"weight_strategy\": \"oof_rmse_inverse\"}}], \"override\": {}, \"structure_patch\": {\"node_config_patches\": [], \"node_switches\": [{\"enabled\": true, \"functionId\": \"multi_step_forecast\", \"node_id\": \"tpl-multi_step_forecast-12\"}, {\"enabled\": true, \"functionId\": \"xgboost_forecast\", \"node_id\": \"tpl-xgboost_forecast-14\"}, {\"enabled\": true, \"functionId\": \"lightgbm_forecast\", \"node_id\": \"tpl-lightgbm_forecast-17\"}, {\"enabled\": true, \"functionId\": \"rolling_statistics\", \"node_id\": \"tpl-rolling_statistics-8\"}]}}",
+    "target_param": "ensemble_forecast.weight_mode"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "granularity": "intraday",
+    "registry_id": "load_forecast_v2",
+    "span_days": 36,
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 0.0,
+  "counter_evidence": [
+    "ares-6fd54813f76b:iter5:group0:{\"global_config_patch\": {}, \"node_param_patches\": [{\"functionId\": \"ensemble_forecast\", \"node_id\": \"tpl-ensemble_forecast-20\", \"param_patch\": {\"weight_mode\": \"upstream_oof_rmse\"}}, {\"functionId\": \"ensemble_forecast\", \"node_id\": \"tpl-ensemble_forecast-20\", \"param_patch\": {\"weight_strategy\": \"oof_rmse_inverse\"}}], \"override\": {}, \"structure_patch\": {\"node_config_patches\": [], \"node_switches\": [{\"enabled\": true, \"functionId\": \"multi_step_forecast\", \"node_id\": \"tpl-multi_step_forecast-12\"}, {\"enabled\": true, \"functionId\": \"xgboost_forecast\", \"node_id\": \"tpl-xgboost_forecast-14\"}, {\"enabled\": true, \"functionId\": \"lightgbm_forecast\", \"node_id\": \"tpl-lightgbm_forecast-17\"}, {\"enabled\": true, \"functionId\": \"rolling_statistics\", \"node_id\": \"tpl-rolling_statistics-8\"}]}}"
+  ],
+  "evidence": [],
+  "knowledge_type": "correlational",
+  "last_validated_at": "2026-06-01T11:59:58.520692",
+  "layer": "L3",
+  "scenario_condition_hash": "5f9e9cd2346d0d3c",
+  "status": "rejected"
+}

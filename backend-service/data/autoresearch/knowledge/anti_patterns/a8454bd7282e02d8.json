@@ -1,0 +1,25 @@
+{
+  "claim": "因为存在极强的近期数据漂移，所以直接将 train_days 锁定在 14 天应该能最大化改善 MAPE。（第6轮，实际=0.13290000000000024）",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "4614b5d99b51",
+    "target_param": "anti_pattern_text"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "granularity": "intraday",
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-12821a0b3926"
+  ],
+  "knowledge_type": "anti_pattern",
+  "last_validated_at": "2026-05-22T08:41:01.967318",
+  "layer": "L3",
+  "scenario_condition_hash": "bcda466f47f336be",
+  "status": "active"
+}

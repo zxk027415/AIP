@@ -1,0 +1,186 @@
+{
+  "id": "template-signal-processing",
+  "name": "信号处理基础",
+  "category": "信号处理",
+  "description": "演示信号生成、滤波和频谱分析的基本算法模板",
+  "workflow": {
+    "nodes": [
+      {
+        "id": "node-1",
+        "type": "function",
+        "position": { "x": 100, "y": 150 },
+        "data": {
+          "label": "生成时间序列",
+          "functionId": "linspace",
+          "parameters": {
+            "start": 0,
+            "stop": 1,
+            "num": 1000
+          },
+          "inputs": [],
+          "outputs": [
+            {
+              "id": "output",
+              "name": "时间",
+              "type": "array",
+              "required": false
+            }
+          ]
+        }
+      },
+      {
+        "id": "node-2",
+        "type": "function",
+        "position": { "x": 350, "y": 100 },
+        "data": {
+          "label": "生成信号",
+          "functionId": "sin",
+          "parameters": {
+            "frequency": 10
+          },
+          "inputs": [
+            {
+              "id": "x",
+              "name": "x",
+              "type": "array",
+              "required": true
+            }
+          ],
+          "outputs": [
+            {
+              "id": "y",
+              "name": "信号",
+              "type": "array",
+              "required": false
+            }
+          ]
+        }
+      },
+      {
+        "id": "node-3",
+        "type": "visualization",
+        "position": { "x": 600, "y": 100 },
+        "data": {
+          "label": "时域信号",
+          "chartType": "line",
+          "parameters": {
+            "title": "原始信号",
+            "xLabel": "时间 (s)",
+            "yLabel": "幅度"
+          },
+          "inputs": [
+            {
+              "id": "x",
+              "name": "X轴",
+              "type": "array",
+              "required": true
+            },
+            {
+              "id": "y",
+              "name": "Y轴",
+              "type": "array",
+              "required": true
+            }
+          ],
+          "outputs": []
+        }
+      },
+      {
+        "id": "node-4",
+        "type": "function",
+        "position": { "x": 350, "y": 250 },
+        "data": {
+          "label": "FFT分析",
+          "functionId": "fft",
+          "parameters": {},
+          "inputs": [
+            {
+              "id": "signal",
+              "name": "信号",
+              "type": "array",
+              "required": true
+            }
+          ],
+          "outputs": [
+            {
+              "id": "spectrum",
+              "name": "频谱",
+              "type": "array",
+              "required": false
+            }
+          ]
+        }
+      },
+      {
+        "id": "node-5",
+        "type": "visualization",
+        "position": { "x": 600, "y": 250 },
+        "data": {
+          "label": "频域信号",
+          "chartType": "line",
+          "parameters": {
+            "title": "频谱分析",
+            "xLabel": "频率 (Hz)",
+            "yLabel": "幅度"
+          },
+          "inputs": [
+            {
+              "id": "data",
+              "name": "数据",
+              "type": "array",
+              "required": true
+            }
+          ],
+          "outputs": []
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-1",
+        "source": "node-1",
+        "sourceHandle": "output",
+        "target": "node-2",
+        "targetHandle": "x"
+      },
+      {
+        "id": "edge-2",
+        "source": "node-1",
+        "sourceHandle": "output",
+        "target": "node-3",
+        "targetHandle": "x"
+      },
+      {
+        "id": "edge-3",
+        "source": "node-2",
+        "sourceHandle": "y",
+        "target": "node-3",
+        "targetHandle": "y"
+      },
+      {
+        "id": "edge-4",
+        "source": "node-2",
+        "sourceHandle": "y",
+        "target": "node-4",
+        "targetHandle": "signal"
+      },
+      {
+        "id": "edge-5",
+        "source": "node-4",
+        "sourceHandle": "spectrum",
+        "target": "node-5",
+        "targetHandle": "data"
+      }
+    ],
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    }
+  },
+  "documentation": "# 信号处理基础模板\n\n这个模板演示了基本的信号处理算法模板，包括信号生成、时域分析和频域分析。\n\n## 算法模板步骤\n\n1. **生成时间序列**: 创建1秒钟的时间轴，采样1000个点\n2. **生成信号**: 生成10Hz的正弦波信号\n3. **时域显示**: 在时域中显示原始信号\n4. **FFT分析**: 对信号进行快速傅里叶变换\n5. **频域显示**: 显示信号的频谱\n\n## 关键概念\n\n- **时域**: 信号随时间变化的表示\n- **频域**: 信号的频率成分表示\n- **FFT**: 快速傅里叶变换，用于频谱分析\n\n## 使用方法\n\n1. 加载此模板\n2. 修改信号参数（频率、采样率等）\n3. 执行算法模板\n4. 对比时域和频域的结果\n\n## 扩展建议\n\n- 添加噪声到信号中\n- 实现低通或高通滤波器\n- 分析复合信号（多个频率）\n- 添加窗函数",
+  "tags": ["信号处理", "FFT", "频谱分析", "教程"],
+  "author": "系统",
+  "version": "1.0.0",
+  "previewImage": null
+}

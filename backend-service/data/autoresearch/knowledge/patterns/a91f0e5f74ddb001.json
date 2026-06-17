@@ -1,0 +1,48 @@
+{
+  "claim": "train_days=14 在当前场景的 AutoResearch 候选中产生可验证结果",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": 14,
+    "target_param": "train_days"
+  },
+  "condition": {
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1"
+  },
+  "confidence": 0.04,
+  "counter_evidence": [
+    "ares-611a8b1c2a0d:iter2",
+    "ares-a6f3700deed1:iter2",
+    "ares-a6f3700deed1:iter6",
+    "ares-a6f3700deed1:iter7",
+    "ares-a6f3700deed1:iter8",
+    "ares-767401f53496:iter3",
+    "ares-b6bc77e93276:iter3",
+    "ares-b6bc77e93276:iter6",
+    "ares-b6bc77e93276:iter9",
+    "ares-1eccdf3bcec0:iter1",
+    "ares-154aec2a111a:iter2",
+    "ares-154aec2a111a:iter4",
+    "ares-45bc4d1e50aa:iter2",
+    "ares-45bc4d1e50aa:iter3",
+    "ares-3f74c7a3980a:iter1",
+    "ares-971d01e49b92:iter2",
+    "ares-971d01e49b92:iter7",
+    "ares-971d01e49b92:iter8",
+    "ares-165cc9625236:iter31",
+    "ares-165cc9625236:iter46",
+    "ares-24a9506ebb51:iter4",
+    "ares-aa02bea5f158:iter7",
+    "ares-fec6cb7b1265:iter2",
+    "ares-fec6cb7b1265:iter4"
+  ],
+  "evidence": [
+    "ares-dcc56d3068fc:iter2"
+  ],
+  "knowledge_type": "causal_candidate",
+  "last_validated_at": "2026-05-27T08:06:49.655192",
+  "layer": "L2",
+  "scenario_condition_hash": "38706211494ad399",
+  "status": "conflicted"
+}

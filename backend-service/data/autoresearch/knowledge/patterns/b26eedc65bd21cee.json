@@ -1,0 +1,28 @@
+{
+  "claim": "cb_depth_high evidence=multi_window_confirmed mape_improvement=0.2560000000000002",
+  "claim_key": {
+    "direction": "positive",
+    "metric": "mape",
+    "recommended_value": "{\"global_config_patch\": {\"cb_depth_high\": 10, \"cb_learning_rate_high\": 0.3, \"ensemble_mode\": \"all_adaptive\", \"lgb_learning_rate_high\": 0.1, \"lgb_num_leaves_high\": 127, \"xgb_eta_high\": 0.2, \"xgb_max_depth_high\": 12, \"xgb_subsample_high\": 1.0}, \"node_param_patches\": [{\"functionId\": \"ensemble_forecast\", \"node_id\": \"tpl-ensemble_forecast-20\", \"param_patch\": {\"weight_mode\": \"auto_rmse\"}}], \"override\": {\"cb_depth_high\": 10, \"cb_learning_rate_high\": 0.3, \"ensemble_mode\": \"all_adaptive\", \"lgb_learning_rate_high\": 0.1, \"lgb_num_leaves_high\": 127, \"xgb_eta_high\": 0.2, \"xgb_max_depth_high\": 12, \"xgb_subsample_high\": 1.0}, \"structure_patch\": {}}",
+    "target_param": "cb_depth_high"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "granularity": "intraday",
+    "registry_id": "load_forecast_v2",
+    "span_days": 36,
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-aa02bea5f158:iter3:group2:{\"global_config_patch\": {\"cb_depth_high\": 10, \"cb_learning_rate_high\": 0.3, \"ensemble_mode\": \"all_adaptive\", \"lgb_learning_rate_high\": 0.1, \"lgb_num_leaves_high\": 127, \"xgb_eta_high\": 0.2, \"xgb_max_depth_high\": 12, \"xgb_subsample_high\": 1.0}, \"node_param_patches\": [{\"functionId\": \"ensemble_forecast\", \"node_id\": \"tpl-ensemble_forecast-20\", \"param_patch\": {\"weight_mode\": \"auto_rmse\"}}], \"override\": {\"cb_depth_high\": 10, \"cb_learning_rate_high\": 0.3, \"ensemble_mode\": \"all_adaptive\", \"lgb_learning_rate_high\": 0.1, \"lgb_num_leaves_high\": 127, \"xgb_eta_high\": 0.2, \"xgb_max_depth_high\": 12, \"xgb_subsample_high\": 1.0}, \"structure_patch\": {}}"
+  ],
+  "knowledge_type": "causal_candidate",
+  "last_validated_at": "2026-05-29T11:40:46.154827",
+  "layer": "L2",
+  "scenario_condition_hash": "5f9e9cd2346d0d3c",
+  "status": "active"
+}

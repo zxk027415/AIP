@@ -1,0 +1,301 @@
+/* Dify Style Node - GPU 加速优化 */
+
+.dify-node-wrapper {
+  position: relative;
+  display: flex;
+  border-radius: 16px;
+}
+
+.dify-node {
+  position: relative;
+  width: 240px;
+  background: #fcfcfd;
+  border: 1px solid #e5e7eb;
+  border-radius: 15px;
+  padding-bottom: 1px;
+  box-shadow: 0px 4px 6px -2px rgba(16, 24, 40, 0.03), 0px 12px 16px -4px rgba(16, 24, 40, 0.08);
+  
+  /* GPU 加速 - 完整优化 */
+  transform: translateZ(0) !important;
+  will-change: transform !important;
+  backface-visibility: hidden !important;
+  
+  /* 3D 渲染上下文 - 强制像素对齐 */
+  transform-style: preserve-3d !important;
+  transform-origin: center center;
+  
+  /* 文本渲染优化 - 缩放时保持清晰 */
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: geometricPrecision !important;
+  
+  /* 图像渲染优化 - 避免模糊 */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  
+  /* SVG 渲染优化 */
+  shape-rendering: geometricPrecision;
+  
+  /* V4 增强：强制高质量渲染 */
+  -webkit-perspective: 1000 !important;
+  perspective: 1000 !important;
+  -webkit-transform-style: preserve-3d !important;
+  
+  /* 强制子像素渲染 */
+  -webkit-backface-visibility: hidden !important;
+  -moz-backface-visibility: hidden !important;
+  
+  /* V5 增强：分层渲染 */
+  isolation: isolate !important;
+  contain: layout style paint !important;
+  
+  /* 平滑过渡 - 无过渡避免破坏 GPU 层 */
+  transition: box-shadow 0s;
+}
+
+/* Hover 效果：增强 box-shadow */
+.dify-node-wrapper:hover .dify-node {
+  box-shadow: 0 0 0 2px #296dff,
+              0px 8px 16px -4px rgba(16, 24, 40, 0.12),
+              0px 20px 32px -8px rgba(16, 24, 40, 0.16);
+}
+
+.dify-node-wrapper.dify-node-selected .dify-node {
+  box-shadow: 0 0 0 2px #296dff,
+              0px 8px 16px -4px rgba(16, 24, 40, 0.12),
+              0px 20px 32px -8px rgba(16, 24, 40, 0.16);
+}
+
+/* 状态边框 - 使用 box-shadow */
+.dify-node.dify-node-running {
+  box-shadow: 0 0 0 2px #296dff,
+              0px 4px 6px -2px rgba(16, 24, 40, 0.03),
+              0px 12px 16px -4px rgba(16, 24, 40, 0.08);
+}
+
+.dify-node.dify-node-success {
+  box-shadow: 0 0 0 2px #17b26a,
+              0px 4px 6px -2px rgba(16, 24, 40, 0.03),
+              0px 12px 16px -4px rgba(16, 24, 40, 0.08);
+}
+
+.dify-node.dify-node-failed {
+  box-shadow: 0 0 0 2px #f04438,
+              0px 4px 6px -2px rgba(16, 24, 40, 0.03),
+              0px 12px 16px -4px rgba(16, 24, 40, 0.08);
+}
+
+/* 节点头部 */
+.dify-node-header {
+  display: flex;
+  align-items: center;
+  border-radius: 15px 15px 0 0;
+  padding: 12px 12px 8px 12px;
+}
+
+/* 图标容器 */
+.dify-node-icon-container {
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.dify-node-icon {
+  height: 14px;
+  width: 14px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 图标清晰度优化 */
+  transform: translateZ(0);
+  will-change: transform;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* 标题 */
+.dify-node-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  line-height: 16px;
+  color: #101828;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 4px;
+  display: flex;
+  align-items: center;
+  /* 文本清晰度优化 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  transform: translateZ(0);
+  will-change: transform;
+  /* V4 增强：强制高质量文本渲染 */
+  -webkit-text-stroke: 0.1px transparent;
+  text-shadow: 0 0 0.1px rgba(0, 0, 0, 0.01);
+  letter-spacing: 0.01em;
+  /* V5 增强：亚像素渲染 */
+  text-rendering: optimizeLegibility;
+  word-spacing: 0.01em;
+}
+
+/* 状态图标 */
+.dify-node-status-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.dify-node-status-running {
+  color: #155aef;
+  animation: spin 1s linear infinite;
+}
+
+.dify-node-status-success {
+  color: #17b26a;
+}
+
+.dify-node-status-error {
+  color: #f04438;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 描述 */
+.dify-node-description {
+  padding: 4px 12px 8px 12px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 16px;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* 文本清晰度优化 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  transform: translateZ(0);
+  will-change: transform;
+  /* V4 增强：强制高质量文本渲染 */
+  -webkit-text-stroke: 0.05px transparent;
+  letter-spacing: 0.005em;
+  /* V5 增强：亚像素渲染 */
+  text-rendering: optimizeLegibility;
+  text-shadow: 0 0 0.5px rgba(0, 0, 0, 0.01);
+}
+
+/* 错误信息 */
+.dify-node-error {
+  padding: 6px 12px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #d92d20;
+  background: #fef3f2;
+  border-top: 1px solid #fecaca;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Handle 样式 - 完全按照 Dify */
+.dify-handle {
+  position: absolute;
+  width: 16px !important;
+  height: 16px !important;
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer;
+  z-index: 1;
+  /* Handle 保持可交互，用于接收点击和拖拽事件 */
+  pointer-events: auto !important;
+}
+
+/* 端口连接点指示器 */
+.dify-handle::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 12px;
+  background: #296dff;
+  top: 50%;
+  transform: translateY(-50%);
+  /* 指示器不捕获鼠标事件 */
+  pointer-events: none;
+}
+
+.dify-handle-target {
+  left: -8px;
+}
+
+.dify-handle-target::after {
+  left: 7px;
+}
+
+.dify-handle-source {
+  right: -8px;
+}
+
+.dify-handle-source::after {
+  right: 7px;
+}
+
+/* 连接状态 */
+.dify-handle.connecting,
+.dify-handle.react-flow__handle-connecting {
+  background: #296dff !important;
+  border: 2px solid white !important;
+  border-radius: 50%;
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.dify-handle.connecting::after,
+.dify-handle.react-flow__handle-connecting::after {
+  display: none;
+}
+
+/* Handle 包装器 */
+.dify-handle-wrapper {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  /* 对齐到标题文字的垂直中心
+     header padding-top: 12px, padding-bottom: 8px
+     header 使用 align-items: center 垂直居中所有元素
+     title line-height: 18px
+     调整到 25px 以对齐文字中心 */
+  top: 28px;
+  z-index: 1;
+}
+
+.dify-handle-wrapper-target {
+  left: 0;
+}
+
+.dify-handle-wrapper-source {
+  right: 0;
+}
+
+/* AddNodeButton 容器 - 始终存在，用 opacity 控制可见性 */
+.add-node-button-container {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0s; /* 立即变化，不要动画 */
+}
+
+.add-node-button-container.visible {
+  opacity: 1;
+  pointer-events: auto;
+}

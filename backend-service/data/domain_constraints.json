@@ -1,0 +1,484 @@
+{
+  "_comment": "14个行业场景的业务约束定义",
+  "renewable-energy": {
+    "scenario_name": "新能源发电",
+    "parameter_constraints": {
+      "forecast_horizon": {
+        "type": "range",
+        "min": 1,
+        "max": 168,
+        "unit": "hours"
+      },
+      "data_resolution": {
+        "type": "enum",
+        "values": [
+          "1min",
+          "5min",
+          "15min",
+          "1h"
+        ]
+      },
+      "accuracy_target_mape": {
+        "type": "threshold",
+        "max": 15,
+        "unit": "%"
+      }
+    },
+    "evaluation_metrics": [
+      "MAPE",
+      "RMSE",
+      "R2",
+      "MAE"
+    ],
+    "business_rules": [
+      {
+        "rule": "prediction_scenario_must_end_with_prediction_model",
+        "severity": "error"
+      },
+      {
+        "rule": "data_input_must_precede_processing",
+        "severity": "error"
+      }
+    ]
+  },
+  "energy-storage": {
+    "scenario_name": "储能管理",
+    "parameter_constraints": {
+      "soc_range": {
+        "type": "range",
+        "min": 0,
+        "max": 100,
+        "unit": "%"
+      },
+      "temperature_range": {
+        "type": "range",
+        "min": -20,
+        "max": 60,
+        "unit": "°C"
+      },
+      "cycle_life": {
+        "type": "threshold",
+        "min": 500,
+        "unit": "cycles"
+      }
+    },
+    "evaluation_metrics": [
+      "SOC_Error",
+      "SOH_Accuracy",
+      "Cycle_Prediction_Error"
+    ],
+    "business_rules": [
+      {
+        "rule": "soc_estimation_requires_voltage_current_input",
+        "severity": "error"
+      }
+    ]
+  },
+  "power-grid": {
+    "scenario_name": "电网与微网",
+    "parameter_constraints": {
+      "voltage_range": {
+        "type": "range",
+        "min": 0.9,
+        "max": 1.1,
+        "unit": "pu"
+      },
+      "frequency_range": {
+        "type": "range",
+        "min": 49.5,
+        "max": 50.5,
+        "unit": "Hz"
+      },
+      "power_factor": {
+        "type": "range",
+        "min": 0.85,
+        "max": 1.0,
+        "unit": ""
+      }
+    },
+    "evaluation_metrics": [
+      "MAPE",
+      "RMSE",
+      "Voltage_Deviation",
+      "Frequency_Deviation"
+    ],
+    "business_rules": [
+      {
+        "rule": "power_flow_requires_network_topology",
+        "severity": "error"
+      },
+      {
+        "rule": "data_input_must_precede_processing",
+        "severity": "error"
+      }
+    ]
+  },
+  "steel-manufacturing": {
+    "scenario_name": "钢铁制造",
+    "parameter_constraints": {
+      "temperature_range": {
+        "type": "range",
+        "min": 200,
+        "max": 1600,
+        "unit": "°C"
+      },
+      "rolling_force": {
+        "type": "range",
+        "min": 0,
+        "max": 50000,
+        "unit": "kN"
+      },
+      "defect_rate_target": {
+        "type": "threshold",
+        "max": 2,
+        "unit": "%"
+      }
+    },
+    "evaluation_metrics": [
+      "RMSE",
+      "F1",
+      "Accuracy",
+      "Defect_Rate"
+    ],
+    "business_rules": [
+      {
+        "rule": "quality_prediction_requires_process_data",
+        "severity": "error"
+      }
+    ]
+  },
+  "pv-manufacturing": {
+    "scenario_name": "光伏制造",
+    "parameter_constraints": {
+      "cell_efficiency": {
+        "type": "range",
+        "min": 18,
+        "max": 28,
+        "unit": "%"
+      },
+      "defect_size_threshold": {
+        "type": "threshold",
+        "min": 0.1,
+        "unit": "mm"
+      }
+    },
+    "evaluation_metrics": [
+      "F1",
+      "Accuracy",
+      "Precision",
+      "Recall"
+    ],
+    "business_rules": [
+      {
+        "rule": "defect_detection_requires_image_input",
+        "severity": "warning"
+      }
+    ]
+  },
+  "battery-manufacturing": {
+    "scenario_name": "动力电池",
+    "parameter_constraints": {
+      "soc_range": {
+        "type": "range",
+        "min": 0,
+        "max": 100,
+        "unit": "%"
+      },
+      "temperature_range": {
+        "type": "range",
+        "min": -20,
+        "max": 60,
+        "unit": "°C"
+      },
+      "capacity_tolerance": {
+        "type": "threshold",
+        "max": 5,
+        "unit": "%"
+      }
+    },
+    "evaluation_metrics": [
+      "RMSE",
+      "MAE",
+      "Consistency_Score",
+      "Safety_Score"
+    ],
+    "business_rules": [
+      {
+        "rule": "safety_prediction_requires_thermal_data",
+        "severity": "error"
+      }
+    ]
+  },
+  "port-logistics": {
+    "scenario_name": "港口运输",
+    "parameter_constraints": {
+      "berth_utilization": {
+        "type": "range",
+        "min": 0,
+        "max": 100,
+        "unit": "%"
+      },
+      "agv_speed": {
+        "type": "range",
+        "min": 0,
+        "max": 30,
+        "unit": "km/h"
+      },
+      "throughput_target": {
+        "type": "threshold",
+        "min": 1000,
+        "unit": "TEU/day"
+      }
+    },
+    "evaluation_metrics": [
+      "RMSE",
+      "MAE",
+      "Throughput",
+      "Utilization"
+    ],
+    "business_rules": [
+      {
+        "rule": "path_planning_requires_map_data",
+        "severity": "warning"
+      }
+    ]
+  },
+  "building-campus": {
+    "scenario_name": "楼宇园区",
+    "parameter_constraints": {
+      "temperature_setpoint": {
+        "type": "range",
+        "min": 18,
+        "max": 28,
+        "unit": "°C"
+      },
+      "humidity_range": {
+        "type": "range",
+        "min": 30,
+        "max": 70,
+        "unit": "%"
+      },
+      "energy_saving_target": {
+        "type": "threshold",
+        "min": 10,
+        "unit": "%"
+      }
+    },
+    "evaluation_metrics": [
+      "RMSE",
+      "MAPE",
+      "Comfort_Index",
+      "Energy_Saving"
+    ],
+    "business_rules": [
+      {
+        "rule": "hvac_control_requires_sensor_data",
+        "severity": "warning"
+      }
+    ]
+  },
+  "carbon-management": {
+    "scenario_name": "碳管理",
+    "parameter_constraints": {
+      "emission_factor_range": {
+        "type": "range",
+        "min": 0,
+        "max": 2,
+        "unit": "tCO2/MWh"
+      },
+      "carbon_price": {
+        "type": "range",
+        "min": 0,
+        "max": 500,
+        "unit": "CNY/tCO2"
+      }
+    },
+    "evaluation_metrics": [
+      "RMSE",
+      "R2",
+      "Carbon_Reduction_Rate"
+    ],
+    "business_rules": [
+      {
+        "rule": "carbon_accounting_requires_energy_data",
+        "severity": "error"
+      }
+    ]
+  },
+  "thermal-power": {
+    "scenario_name": "火力发电",
+    "parameter_constraints": {
+      "coal_price_range": {
+        "type": "range",
+        "min": 300,
+        "max": 1500,
+        "unit": "CNY/t"
+      },
+      "generation_capacity": {
+        "type": "range",
+        "min": 100,
+        "max": 1000,
+        "unit": "MW"
+      },
+      "coal_inventory_days": {
+        "type": "range",
+        "min": 7,
+        "max": 30,
+        "unit": "days"
+      },
+      "efficiency_target": {
+        "type": "threshold",
+        "min": 38,
+        "unit": "%"
+      }
+    },
+    "evaluation_metrics": [
+      "MAPE",
+      "RMSE",
+      "R2",
+      "Cost_Saving"
+    ],
+    "business_rules": [
+      {
+        "rule": "coal_forecast_requires_market_data",
+        "severity": "warning"
+      },
+      {
+        "rule": "inventory_optimization_requires_demand_forecast",
+        "severity": "error"
+      }
+    ]
+  },
+  "semiconductor": {
+    "scenario_name": "半导体制造",
+    "parameter_constraints": {
+      "yield_target": {
+        "type": "threshold",
+        "min": 90,
+        "unit": "%"
+      },
+      "defect_density": {
+        "type": "threshold",
+        "max": 0.1,
+        "unit": "defects/cm²"
+      },
+      "process_temperature": {
+        "type": "range",
+        "min": 20,
+        "max": 1200,
+        "unit": "°C"
+      },
+      "cleanroom_class": {
+        "type": "enum",
+        "values": [
+          "ISO1",
+          "ISO2",
+          "ISO3",
+          "ISO4",
+          "ISO5"
+        ]
+      }
+    },
+    "evaluation_metrics": [
+      "Yield",
+      "F1",
+      "Accuracy",
+      "Defect_Rate"
+    ],
+    "business_rules": [
+      {
+        "rule": "yield_prediction_requires_process_data",
+        "severity": "error"
+      },
+      {
+        "rule": "defect_detection_requires_image_input",
+        "severity": "warning"
+      }
+    ]
+  },
+  "chemical-process": {
+    "scenario_name": "化工流程",
+    "parameter_constraints": {
+      "reaction_temperature": {
+        "type": "range",
+        "min": -50,
+        "max": 500,
+        "unit": "°C"
+      },
+      "pressure_range": {
+        "type": "range",
+        "min": 0.1,
+        "max": 100,
+        "unit": "MPa"
+      },
+      "conversion_rate": {
+        "type": "threshold",
+        "min": 85,
+        "unit": "%"
+      },
+      "safety_margin": {
+        "type": "threshold",
+        "min": 10,
+        "unit": "%"
+      }
+    },
+    "evaluation_metrics": [
+      "RMSE",
+      "MAPE",
+      "Conversion_Rate",
+      "Safety_Score"
+    ],
+    "business_rules": [
+      {
+        "rule": "safety_prediction_requires_sensor_data",
+        "severity": "error"
+      },
+      {
+        "rule": "process_optimization_requires_kinetic_model",
+        "severity": "warning"
+      }
+    ]
+  },
+  "water-environment": {
+    "scenario_name": "水务环保",
+    "parameter_constraints": {
+      "cod_limit": {
+        "type": "threshold",
+        "max": 50,
+        "unit": "mg/L"
+      },
+      "bod_limit": {
+        "type": "threshold",
+        "max": 20,
+        "unit": "mg/L"
+      },
+      "ph_range": {
+        "type": "range",
+        "min": 6,
+        "max": 9,
+        "unit": ""
+      },
+      "turbidity_limit": {
+        "type": "threshold",
+        "max": 1,
+        "unit": "NTU"
+      }
+    },
+    "evaluation_metrics": [
+      "RMSE",
+      "MAPE",
+      "Compliance_Rate",
+      "Energy_Efficiency"
+    ],
+    "business_rules": [
+      {
+        "rule": "water_quality_prediction_requires_sensor_data",
+        "severity": "error"
+      },
+      {
+        "rule": "treatment_optimization_requires_flow_data",
+        "severity": "warning"
+      }
+    ]
+  }
+}

@@ -1,0 +1,202 @@
+/* Add Node Button - 参考 Dify 实现 */
+
+/* 添加按钮 */
+.add-node-button {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: #296dff;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
+  /* 让点击穿透到下面的 Handle */
+  pointer-events: none;
+}
+
+.add-node-button:hover {
+  transform: scale(1.3);
+}
+
+.add-node-button-left {
+  /* 与左侧 Handle 位置完全一致 */
+  left: -8px;
+  top: -8px;
+}
+
+.add-node-button-right {
+  /* 与右侧 Handle 位置完全一致 */
+  right: -8px;
+  top: -8px;
+}
+
+.add-node-button svg {
+  color: white;
+  font-size: 10px;
+  /* 确保图标不会捕获鼠标事件 */
+  pointer-events: none;
+}
+
+/* 遮罩层 */
+.add-node-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: transparent;
+}
+
+/* 弹出菜单 */
+.add-node-menu {
+  position: fixed;
+  width: 280px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0px 4px 6px -2px rgba(16, 24, 40, 0.03), 0px 12px 16px -4px rgba(16, 24, 40, 0.08);
+  overflow: hidden;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  /* 移除 max-height，让内容区域自己控制 */
+}
+
+.add-node-menu-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.add-node-menu-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #667085;
+  line-height: 18px;
+}
+
+.add-node-menu-content {
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 350px; /* 设置内容区域的最大高度 */
+  /* 自定义滚动条样式 */
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db #f9fafb;
+}
+
+/* Webkit 浏览器滚动条样式 */
+.add-node-menu-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.add-node-menu-content::-webkit-scrollbar-track {
+  background: #f9fafb;
+  border-radius: 3px;
+}
+
+.add-node-menu-content::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.add-node-menu-content::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* 树形结构样式 */
+.add-node-tree-content {
+  padding: 4px 0;
+}
+
+.add-node-tree-category {
+  margin: 2px 0;
+}
+
+.add-node-tree-category-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  user-select: none;
+}
+
+.add-node-tree-category-header:hover {
+  background: #f9fafb;
+}
+
+.add-node-tree-arrow {
+  font-size: 10px;
+  color: #98a2b3;
+  margin-right: 6px;
+  transition: transform 0.2s ease;
+}
+
+.add-node-tree-arrow.expanded {
+  transform: rotate(90deg);
+}
+
+.add-node-tree-icon {
+  font-size: 13px;
+  color: #667085;
+  margin-right: 6px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 顶级分类图标颜色（函数节点、可视化节点等） - 保持默认灰色 */
+.add-node-tree-category > .add-node-tree-category-header > .add-node-tree-icon {
+  color: #667085;
+}
+
+/* 子分类文件夹图标颜色（数学函数、矩阵运算等） */
+.add-node-tree-category .add-node-tree-category .add-node-tree-category-header > .add-node-tree-icon {
+  color: #faad14;
+}
+
+/* 叶子节点文件图标颜色 */
+.add-node-tree-item > .add-node-tree-icon {
+  color: #1890ff;
+}
+
+.add-node-tree-category-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #344054;
+}
+
+.add-node-tree-children {
+  /* 子节点容器 */
+}
+
+.add-node-tree-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  user-select: none;
+}
+
+.add-node-tree-item:hover {
+  background: #f9fafb;
+}
+
+.add-node-tree-item-name {
+  font-size: 12px;
+  font-weight: 400;
+  color: #344054;
+}
+
+.add-node-empty {
+  padding: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: #98a2b3;
+}

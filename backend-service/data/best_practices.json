@@ -1,0 +1,115 @@
+{
+  "_comment": "行业最佳实践知识库（系统预置）",
+  "practices": [
+    {
+      "id": "bp-re-001",
+      "scenario_id": "renewable-energy",
+      "title": "光伏功率预测LSTM+XGBoost集成方案",
+      "description": "使用LSTM捕捉长期时序依赖，XGBoost处理非线性特征，集成后MAPE可降至8%以下",
+      "algorithm_combination": {"算法模型层": ["lstm_forecast", "xgboost_forecast"]},
+      "key_parameters": {"sequence_length": 96, "forecast_horizon": 24},
+      "achieved_metrics": {"MAPE": 7.8, "RMSE": 12.3},
+      "applicability_notes": "适用于有1年以上历史数据的光伏电站",
+      "is_system": true
+    },
+    {
+      "id": "bp-re-002",
+      "scenario_id": "renewable-energy",
+      "title": "风电功率预测小波去噪+ARIMA方案",
+      "description": "小波去噪消除高频噪声后使用ARIMA预测，适合短期预测场景",
+      "algorithm_combination": {"数据处理层": ["extract_frequency_features"], "算法模型层": ["arima_forecast"]},
+      "key_parameters": {"forecast_steps": 48, "order": [2, 1, 2]},
+      "achieved_metrics": {"MAPE": 12.5, "RMSE": 18.7},
+      "applicability_notes": "适用于短期（48小时内）风电预测",
+      "is_system": true
+    },
+    {
+      "id": "bp-es-001",
+      "scenario_id": "energy-storage",
+      "title": "储能SOC估计LSTM方案",
+      "description": "基于电压电流温度时序数据的LSTM模型，SOC估计误差可控制在2%以内",
+      "algorithm_combination": {"算法模型层": ["lstm_forecast"]},
+      "key_parameters": {"sequence_length": 60, "hidden_size": 128},
+      "achieved_metrics": {"SOC_Error": 1.8, "RMSE": 2.1},
+      "applicability_notes": "需要电压、电流、温度三路传感器数据",
+      "is_system": true
+    },
+    {
+      "id": "bp-es-002",
+      "scenario_id": "energy-storage",
+      "title": "电池异常检测孤立森林方案",
+      "description": "使用孤立森林检测电池充放电异常模式，F1可达0.92",
+      "algorithm_combination": {"算法模型层": ["isolation_forest_anomaly"]},
+      "key_parameters": {"contamination": 0.05, "n_estimators": 200},
+      "achieved_metrics": {"F1": 0.92, "Precision": 0.95},
+      "applicability_notes": "适用于电池组异常早期预警",
+      "is_system": true
+    },
+    {
+      "id": "bp-pg-001",
+      "scenario_id": "power-grid",
+      "title": "负荷预测LSTM+时间特征方案",
+      "description": "结合时间特征（小时、星期、节假日）的LSTM负荷预测",
+      "algorithm_combination": {"数据处理层": ["extract_time_features"], "算法模型层": ["lstm_forecast"]},
+      "key_parameters": {"sequence_length": 168, "forecast_horizon": 24},
+      "achieved_metrics": {"MAPE": 3.2, "RMSE": 45.6},
+      "applicability_notes": "适用于区域电网短期负荷预测",
+      "is_system": true
+    },
+    {
+      "id": "bp-pg-002",
+      "scenario_id": "power-grid",
+      "title": "电能质量异常检测频域分析方案",
+      "description": "FFT频域特征+孤立森林检测电能质量异常事件",
+      "algorithm_combination": {"数据处理层": ["extract_frequency_features"], "算法模型层": ["isolation_forest_anomaly"]},
+      "key_parameters": {"n_estimators": 150},
+      "achieved_metrics": {"F1": 0.89},
+      "applicability_notes": "需要高采样率电压电流数据",
+      "is_system": true
+    },
+    {
+      "id": "bp-sm-001",
+      "scenario_id": "steel-manufacturing",
+      "title": "钢材质量预测XGBoost方案",
+      "description": "基于工艺参数的XGBoost质量预测模型",
+      "algorithm_combination": {"算法模型层": ["xgboost_forecast"]},
+      "key_parameters": {"n_estimators": 300, "max_depth": 8},
+      "achieved_metrics": {"RMSE": 0.15, "R2": 0.94},
+      "applicability_notes": "需要完整的工艺参数记录",
+      "is_system": true
+    },
+    {
+      "id": "bp-sm-002",
+      "scenario_id": "steel-manufacturing",
+      "title": "钢材缺陷分类随机森林方案",
+      "description": "随机森林多分类模型识别钢材表面缺陷类型",
+      "algorithm_combination": {"算法模型层": ["random_forest_classifier"]},
+      "key_parameters": {"n_estimators": 200},
+      "achieved_metrics": {"F1": 0.91, "Accuracy": 0.93},
+      "applicability_notes": "需要标注好的缺陷样本数据",
+      "is_system": true
+    },
+    {
+      "id": "bp-tp-001",
+      "scenario_id": "thermal-power",
+      "title": "锅炉故障诊断频域特征+SVM方案",
+      "description": "提取振动信号频域特征后使用SVM分类故障类型",
+      "algorithm_combination": {"数据处理层": ["extract_frequency_features"], "算法模型层": ["svm_classifier"]},
+      "key_parameters": {"kernel": "rbf", "C": 10},
+      "achieved_metrics": {"F1": 0.94, "Accuracy": 0.96},
+      "applicability_notes": "适用于火电厂旋转设备振动监测",
+      "is_system": true
+    },
+    {
+      "id": "bp-tp-002",
+      "scenario_id": "thermal-power",
+      "title": "煤价预测LSTM+XGBoost方案",
+      "description": "基于市场数据和历史价格的LSTM+XGBoost集成预测",
+      "algorithm_combination": {"算法模型层": ["lstm_forecast", "xgboost_forecast"]},
+      "key_parameters": {"sequence_length": 30, "forecast_horizon": 7},
+      "achieved_metrics": {"MAPE": 5.2, "RMSE": 18.5},
+      "applicability_notes": "需要煤炭市场价格和供需数据",
+      "is_system": true
+    }
+  ]
+}

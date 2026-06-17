@@ -1,0 +1,128 @@
+/* 参考版算法模板页面样式 */
+
+.workflow-reference-page {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f9fafb;
+}
+
+.workflow-reference-header {
+  padding: 20px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.workflow-reference-header h1 {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: #111827;
+}
+
+.workflow-reference-header p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* 画布容器 - GPU 加速 */
+.workflow-reference-canvas {
+  flex: 1;
+  position: relative;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+#workflow-reference-container {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+#workflow-reference-container .react-flow__viewport {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+#workflow-reference-container .react-flow__node {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* ReactFlow 样式覆盖 */
+#workflow-reference-container .react-flow__nodesselection-rect,
+#workflow-reference-container .react-flow__selection {
+  border: 1px solid #528BFF;
+  background: rgba(21, 94, 239, 0.05);
+  cursor: move;
+}
+
+#workflow-reference-container .react-flow__attribution {
+  background: none !important;
+}
+
+/* Dify SimpleNode 样式 */
+.dify-node-wrapper {
+  display: flex;
+  border-radius: 16px;
+}
+
+.dify-node {
+  position: relative;
+  width: 240px;
+  background: #fcfcfd;
+  border: 1px solid #e5e7eb;
+  border-radius: 15px;
+  padding-bottom: 1px;
+  box-shadow: 0px 4px 6px -2px rgba(16, 24, 40, 0.03), 0px 12px 16px -4px rgba(16, 24, 40, 0.08);
+  /* GPU 加速 */
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+  /* 使用 outline 叠加，不破坏 GPU 层 */
+  outline: 1px solid transparent;
+  outline-offset: -2px;
+}
+
+.dify-node-wrapper:hover .dify-node {
+  outline-color: #296dff;
+}
+
+.dify-node-wrapper.selected .dify-node {
+  outline-color: #296dff;
+}
+
+.dify-node-header {
+  display: flex;
+  align-items: center;
+  border-radius: 15px 15px 0 0;
+  padding: 12px 12px 8px 12px;
+}
+
+.dify-node-icon {
+  margin-right: 8px;
+  flex-shrink: 0;
+  height: 14px;
+  width: 14px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dify-node-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  line-height: 16px;
+  color: #101828;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 4px;
+  display: flex;
+  align-items: center;
+}

@@ -1,0 +1,99 @@
+{
+  "run_id": "ares-971d01e49b92",
+  "created_at": "2026-05-23T19:15:56.833506",
+  "baseline_workflow_id": "workflow-20260511-optimal-505",
+  "registry_id": "load_forecast_v1",
+  "scenario_fingerprint": {
+    "granularity": "intraday",
+    "span_days": null,
+    "load_type": null,
+    "seasonality": null,
+    "weekend_sensitivity": "normal",
+    "anomaly_ratio": null,
+    "backtest_mode": "rolling_retrain",
+    "train_days": 30
+  },
+  "total_iterations": 18,
+  "best_mape_improvement": 1.1882000000000001,
+  "best_candidate_config": {
+    "override": {
+      "ensemble_mode": "single_best",
+      "train_days": 60
+    },
+    "global_config_patch": {
+      "ensemble_mode": "single_best"
+    }
+  },
+  "data_profile": {
+    "granularity_minutes": null,
+    "span_days": null,
+    "weekend_weekday_gap": null,
+    "outlier_ratio": null
+  },
+  "exploration_summary": {
+    "phases": [
+      "feature_exploration"
+    ],
+    "hypotheses_tested": 14,
+    "hypotheses_verified": 4,
+    "hypotheses_disproved": 10,
+    "total_iterations": 18,
+    "completed_iterations": 18,
+    "success_iterations": 15,
+    "improved_iterations": 5,
+    "failed_iterations": 3,
+    "cancelled_iterations": 0,
+    "success_iterations_legacy_note": "success_iterations counts completed successful executions; use improved_iterations for positive MAPE gains"
+  },
+  "error_diagnostics": [
+    {
+      "iteration": 6,
+      "status": "failed",
+      "error": "all_batch_groups_failed: 3/3 groups failed_or_cancelled",
+      "sampled_layers": [
+        "training"
+      ]
+    },
+    {
+      "iteration": 16,
+      "status": "failed",
+      "error": "all_batch_groups_failed: 3/3 groups failed_or_cancelled",
+      "sampled_layers": [
+        "training",
+        "feature"
+      ]
+    },
+    {
+      "iteration": 18,
+      "status": "failed",
+      "error": "all_batch_groups_failed: 3/3 groups failed_or_cancelled",
+      "sampled_layers": [
+        "training",
+        "feature"
+      ]
+    }
+  ],
+  "learned_rules": [
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第3轮验证，改善58.23%）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第11轮验证，改善53.11%）",
+    "训练窗口偏长导致过拟合，缩短后 MAPE 应有改善（诊断：parameter_saturation）（第13轮验证，改善118.82%）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第14轮验证，改善53.11%）"
+  ],
+  "ineffective_attempts": [
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第2轮，实际=-1.2788000000000004）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第4轮，实际=0.0）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第5轮，实际=-0.1253000000000002）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第7轮，实际=-7.2377）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第8轮，实际=-1.1851000000000003）",
+    "参数层已接近饱和，扩展搜索范围或引入结构变更（第9轮，实际=0.0）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第10轮，实际=-5.832000000000001）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第12轮，实际=0.0）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第15轮，实际=-9.0466）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第17轮，实际=None）"
+  ],
+  "open_questions": [],
+  "recommended_starting_config_for_similar": {
+    "train_days": 60,
+    "ensemble_mode": "single_best"
+  }
+}

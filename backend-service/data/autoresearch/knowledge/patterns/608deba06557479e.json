@@ -1,0 +1,28 @@
+{
+  "claim": "auto_tune_xgboost.cv_folds evidence=single_window_positive mape_improvement=1.1388999999999996",
+  "claim_key": {
+    "direction": "positive",
+    "metric": "mape",
+    "recommended_value": "{\"global_config_patch\": {}, \"node_param_patches\": [{\"functionId\": \"auto_tune_xgboost\", \"node_id\": \"tpl-auto_tune_xgboost-13\", \"param_patch\": {\"n_trials\": 3}}, {\"functionId\": \"auto_tune_xgboost\", \"node_id\": \"tpl-auto_tune_xgboost-13\", \"param_patch\": {\"cv_folds\": 5}}], \"override\": {\"train_days\": 90}, \"structure_patch\": {\"node_config_patches\": [], \"node_switches\": [{\"enabled\": false, \"functionId\": \"holiday_features\", \"node_id\": \"tpl-holiday_features-6\"}]}}",
+    "target_param": "auto_tune_xgboost.cv_folds"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "baseline_workflow_id": "workflow-load-forecast-backtest-v2",
+    "granularity": "intraday",
+    "registry_id": "load_forecast_v1",
+    "span_days": 1,
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-a933ad5c217a:iter8:group0:{\"global_config_patch\": {}, \"node_param_patches\": [{\"functionId\": \"auto_tune_xgboost\", \"node_id\": \"tpl-auto_tune_xgboost-13\", \"param_patch\": {\"n_trials\": 3}}, {\"functionId\": \"auto_tune_xgboost\", \"node_id\": \"tpl-auto_tune_xgboost-13\", \"param_patch\": {\"cv_folds\": 5}}], \"override\": {\"train_days\": 90}, \"structure_patch\": {\"node_config_patches\": [], \"node_switches\": [{\"enabled\": false, \"functionId\": \"holiday_features\", \"node_id\": \"tpl-holiday_features-6\"}]}}"
+  ],
+  "knowledge_type": "correlational",
+  "last_validated_at": "2026-05-28T08:20:10.650039",
+  "layer": "L2",
+  "scenario_condition_hash": "715ca540e2d180d4",
+  "status": "candidate"
+}

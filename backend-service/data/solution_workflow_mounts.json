@@ -1,0 +1,11 @@
+{
+  "pv_power_forecast": [
+    {
+      "id": "workflow-20260320155602168579",
+      "name": "光伏发电功率预测 - high-accuracy",
+      "node_count": 11,
+      "edge_count": 22,
+      "mounted_at": "2026-03-20T17:17:04.420704"
+    }
+  ]
+}

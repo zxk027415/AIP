@@ -1,0 +1,214 @@
+[
+  {
+    "id": "bt-run-bt-task-002-001",
+    "task_id": "bt-task-002",
+    "dataset_id": "ds-101",
+    "dataset_name": "华东电网-2025Q1",
+    "algorithm_type": "template",
+    "algorithm_id": "load_forecast_lstm",
+    "algorithm_name": "LSTM负荷预测",
+    "status": "completed",
+    "started_at": "2026-03-18T13:57:06.781251",
+    "completed_at": "2026-03-18T14:04:06.781251",
+    "execution_time_ms": 420000,
+    "result": {
+      "rmse": 0.0495,
+      "mae": 0.0267,
+      "r2": 0.9287
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-002-002",
+    "task_id": "bt-task-002",
+    "dataset_id": "ds-101",
+    "dataset_name": "华东电网-2025Q1",
+    "algorithm_type": "template",
+    "algorithm_id": "load_forecast_xgb",
+    "algorithm_name": "XGBoost负荷预测",
+    "status": "completed",
+    "started_at": "2026-03-18T14:00:06.781251",
+    "completed_at": "2026-03-18T14:08:06.781251",
+    "execution_time_ms": 480000,
+    "result": {
+      "rmse": 0.0363,
+      "mae": 0.0328,
+      "r2": 0.9305
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-002-003",
+    "task_id": "bt-task-002",
+    "dataset_id": "ds-101",
+    "dataset_name": "华东电网-2025Q1",
+    "algorithm_type": "template",
+    "algorithm_id": "load_forecast_transformer",
+    "algorithm_name": "Transformer负荷预测",
+    "status": "completed",
+    "started_at": "2026-03-18T14:03:06.781251",
+    "completed_at": "2026-03-18T14:10:06.781251",
+    "execution_time_ms": 420000,
+    "result": {
+      "rmse": 0.0267,
+      "mae": 0.0405,
+      "r2": 0.9695
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-002-004",
+    "task_id": "bt-task-002",
+    "dataset_id": "ds-101",
+    "dataset_name": "华东电网-2025Q1",
+    "algorithm_type": "workflow",
+    "algorithm_id": "wf-load-ensemble",
+    "algorithm_name": "集成负荷预测工作流",
+    "status": "completed",
+    "started_at": "2026-03-18T14:06:06.781251",
+    "completed_at": "2026-03-18T14:09:06.781251",
+    "execution_time_ms": 180000,
+    "result": {
+      "rmse": 0.0317,
+      "mae": 0.0367,
+      "r2": 0.9287
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-002-005",
+    "task_id": "bt-task-002",
+    "dataset_id": "ds-102",
+    "dataset_name": "华南电网-2025Q1",
+    "algorithm_type": "template",
+    "algorithm_id": "load_forecast_lstm",
+    "algorithm_name": "LSTM负荷预测",
+    "status": "completed",
+    "started_at": "2026-03-18T14:09:06.781251",
+    "completed_at": "2026-03-18T14:15:06.781251",
+    "execution_time_ms": 360000,
+    "result": {
+      "rmse": 0.0305,
+      "mae": 0.0177,
+      "r2": 0.9712
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-002-006",
+    "task_id": "bt-task-002",
+    "dataset_id": "ds-102",
+    "dataset_name": "华南电网-2025Q1",
+    "algorithm_type": "template",
+    "algorithm_id": "load_forecast_xgb",
+    "algorithm_name": "XGBoost负荷预测",
+    "status": "completed",
+    "started_at": "2026-03-18T14:12:06.781251",
+    "completed_at": "2026-03-18T14:16:06.781251",
+    "execution_time_ms": 240000,
+    "result": {
+      "rmse": 0.0567,
+      "mae": 0.0209,
+      "r2": 0.9391
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-002-007",
+    "task_id": "bt-task-002",
+    "dataset_id": "ds-102",
+    "dataset_name": "华南电网-2025Q1",
+    "algorithm_type": "template",
+    "algorithm_id": "load_forecast_transformer",
+    "algorithm_name": "Transformer负荷预测",
+    "status": "completed",
+    "started_at": "2026-03-18T14:15:06.781251",
+    "completed_at": "2026-03-18T14:20:06.781251",
+    "execution_time_ms": 300000,
+    "result": {
+      "rmse": 0.0386,
+      "mae": 0.0176,
+      "r2": 0.9743
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-002-008",
+    "task_id": "bt-task-002",
+    "dataset_id": "ds-102",
+    "dataset_name": "华南电网-2025Q1",
+    "algorithm_type": "workflow",
+    "algorithm_id": "wf-load-ensemble",
+    "algorithm_name": "集成负荷预测工作流",
+    "status": "completed",
+    "started_at": "2026-03-18T14:18:06.781251",
+    "completed_at": "2026-03-18T14:22:06.781251",
+    "execution_time_ms": 240000,
+    "result": {
+      "rmse": 0.0444,
+      "mae": 0.042,
+      "r2": 0.9363
+    },
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-002-009",
+    "task_id": "bt-task-002",
+    "dataset_id": "ds-103",
+    "dataset_name": "华北电网-2024Q4",
+    "algorithm_type": "template",
+    "algorithm_id": "load_forecast_lstm",
+    "algorithm_name": "LSTM负荷预测",
+    "status": "failed",
+    "started_at": "2026-03-18T14:21:06.781251",
+    "completed_at": "2026-03-18T14:22:06.781251",
+    "execution_time_ms": 60000,
+    "result": null,
+    "error_message": "Execution timeout: dataset too large"
+  },
+  {
+    "id": "bt-run-bt-task-002-010",
+    "task_id": "bt-task-002",
+    "dataset_id": "ds-103",
+    "dataset_name": "华北电网-2024Q4",
+    "algorithm_type": "template",
+    "algorithm_id": "load_forecast_xgb",
+    "algorithm_name": "XGBoost负荷预测",
+    "status": "running",
+    "started_at": "2026-03-18T14:24:06.781251",
+    "completed_at": null,
+    "execution_time_ms": null,
+    "result": null,
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-002-011",
+    "task_id": "bt-task-002",
+    "dataset_id": "ds-103",
+    "dataset_name": "华北电网-2024Q4",
+    "algorithm_type": "template",
+    "algorithm_id": "load_forecast_transformer",
+    "algorithm_name": "Transformer负荷预测",
+    "status": "pending",
+    "started_at": null,
+    "completed_at": null,
+    "execution_time_ms": null,
+    "result": null,
+    "error_message": null
+  },
+  {
+    "id": "bt-run-bt-task-002-012",
+    "task_id": "bt-task-002",
+    "dataset_id": "ds-103",
+    "dataset_name": "华北电网-2024Q4",
+    "algorithm_type": "workflow",
+    "algorithm_id": "wf-load-ensemble",
+    "algorithm_name": "集成负荷预测工作流",
+    "status": "pending",
+    "started_at": null,
+    "completed_at": null,
+    "execution_time_ms": null,
+    "result": null,
+    "error_message": null
+  }
+]

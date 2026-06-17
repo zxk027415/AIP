@@ -1,0 +1,28 @@
+{
+  "claim": "create_lag_features.lags evidence=multi_window_rejected mape_improvement=-7.7486999999999995",
+  "claim_key": {
+    "direction": "negative",
+    "metric": "mape",
+    "recommended_value": "{\"global_config_patch\": {}, \"node_param_patches\": [{\"functionId\": \"create_lag_features\", \"node_id\": \"tpl-create_lag_features-9\", \"param_patch\": {\"lags\": [1, 2, 3, 7, 14, 21, 28]}}, {\"functionId\": \"rolling_statistics\", \"node_id\": \"tpl-rolling_statistics-8\", \"param_patch\": {\"window_sizes\": [4, 8, 24]}}], \"override\": {}, \"structure_patch\": {\"node_switches\": [{\"enabled\": false, \"functionId\": \"holiday_features\", \"node_id\": \"tpl-holiday_features-6\"}, {\"enabled\": false, \"functionId\": \"workday_features\", \"node_id\": \"tpl-workday_features-7\"}, {\"enabled\": true, \"functionId\": \"diff_features\", \"node_id\": \"tpl-diff_features-9c\"}, {\"enabled\": false, \"functionId\": \"extract_statistical_features\", \"node_id\": \"tpl-extract_statistical_features-9b\"}]}}",
+    "target_param": "create_lag_features.lags"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "granularity": "intraday",
+    "registry_id": "load_forecast_v2",
+    "span_days": 36,
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 0.0,
+  "counter_evidence": [
+    "ares-6fd54813f76b:iter4:group1:{\"global_config_patch\": {}, \"node_param_patches\": [{\"functionId\": \"create_lag_features\", \"node_id\": \"tpl-create_lag_features-9\", \"param_patch\": {\"lags\": [1, 2, 3, 7, 14, 21, 28]}}, {\"functionId\": \"rolling_statistics\", \"node_id\": \"tpl-rolling_statistics-8\", \"param_patch\": {\"window_sizes\": [4, 8, 24]}}], \"override\": {}, \"structure_patch\": {\"node_switches\": [{\"enabled\": false, \"functionId\": \"holiday_features\", \"node_id\": \"tpl-holiday_features-6\"}, {\"enabled\": false, \"functionId\": \"workday_features\", \"node_id\": \"tpl-workday_features-7\"}, {\"enabled\": true, \"functionId\": \"diff_features\", \"node_id\": \"tpl-diff_features-9c\"}, {\"enabled\": false, \"functionId\": \"extract_statistical_features\", \"node_id\": \"tpl-extract_statistical_features-9b\"}]}}"
+  ],
+  "evidence": [],
+  "knowledge_type": "correlational",
+  "last_validated_at": "2026-06-01T11:02:48.226040",
+  "layer": "L3",
+  "scenario_condition_hash": "5f9e9cd2346d0d3c",
+  "status": "rejected"
+}

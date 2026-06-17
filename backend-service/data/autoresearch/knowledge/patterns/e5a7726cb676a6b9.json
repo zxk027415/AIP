@@ -1,0 +1,42 @@
+{
+  "claim": "train_days=90 在当前场景的 AutoResearch 候选中产生可验证结果",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": 90,
+    "target_param": "train_days"
+  },
+  "condition": {
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1"
+  },
+  "confidence": 0.85,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-a6f3700deed1:iter3",
+    "ares-767401f53496:iter2",
+    "ares-b6bc77e93276:iter4",
+    "ares-b6bc77e93276:iter8",
+    "ares-676bab8bd6a2:iter1",
+    "ares-676bab8bd6a2:iter2",
+    "ares-12821a0b3926:iter2",
+    "ares-12821a0b3926:iter11",
+    "ares-165cc9625236:iter1",
+    "ares-165cc9625236:iter12",
+    "ares-165cc9625236:iter49",
+    "ares-706df8669361:iter2",
+    "ares-706df8669361:iter7",
+    "ares-706df8669361:iter34",
+    "ares-706df8669361:iter48",
+    "ares-24a9506ebb51:iter1",
+    "ares-9c429d5ed43c:iter2",
+    "ares-a933ad5c217a:iter2",
+    "ares-a933ad5c217a:iter4",
+    "ares-a933ad5c217a:iter8"
+  ],
+  "knowledge_type": "causal_candidate",
+  "last_validated_at": "2026-05-26T08:30:26.614650",
+  "layer": "L2",
+  "scenario_condition_hash": "38706211494ad399",
+  "status": "active"
+}

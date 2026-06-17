@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>功率预测数据分析工具</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-wind"></i> 风速优化预测数据分析工具
+            </span>
+            <div class="d-flex align-items-center">
+                <label class="text-white me-2">场站选择:</label>
+                <select id="stationSelect" class="form-select" style="width: 200px;">
+                    <option value="">加载中...</option>
+                </select>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 控制面板 -->
+    <div class="container-fluid mt-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <!-- 日期范围选择器 - 美化版 -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-calendar-range text-primary"></i> 数据时间范围
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light">
+                                <i class="bi bi-calendar-event"></i>
+                            </span>
+                            <input type="date" id="startDate" class="form-control" placeholder="开始日期">
+                            <span class="input-group-text bg-light">
+                                <i class="bi bi-arrow-right"></i>
+                            </span>
+                            <input type="date" id="endDate" class="form-control" placeholder="结束日期">
+                        </div>
+                        <!-- 快捷日期选择 -->
+                        <div class="btn-group btn-group-sm mt-2" role="group">
+                            <button type="button" class="btn btn-outline-secondary" onclick="setQuickDateRange(7)">
+                                最近7天
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="setQuickDateRange(15)">
+                                最近15天
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="setQuickDateRange(30)">
+                                最近1个月
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="setQuickDateRange(60)">
+                                最近2个月
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 时间分辨率选择器 -->
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-clock-history text-info"></i> 时间分辨率
+                        </label>
+                        <select id="resolutionSelect" class="form-select">
+                            <option value="15T">15分钟</option>
+                            <option value="30T">30分钟</option>
+                            <option value="1H" selected>1小时</option>
+                            <option value="3H">3小时</option>
+                        </select>
+                    </div>
+                    
+                    <!-- 气象源多选框 - 美化版 -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-cloud-sun text-warning"></i> 气象源选择
+                        </label>
+                        <!-- 已选择的气象源标签显示区 -->
+                        <div id="selectedSourcesTags" class="selected-sources-container mb-2" style="min-height: 42px; border: 1px solid #ced4da; border-radius: 0.375rem; padding: 0.375rem; background-color: #fff; display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center;">
+                            <small class="text-muted px-2">加载数据后可选择</small>
+                        </div>
+                        <!-- 下拉选择按钮 -->
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100" type="button" 
+                                    id="sourcesDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                                <i class="bi bi-plus-circle"></i> 添加气象源
+                            </button>
+                            <ul class="dropdown-menu w-100 p-2 shadow" aria-labelledby="sourcesDropdown" id="sourcesMenu" style="max-height: 400px; overflow-y: auto;">
+                                <li><small class="text-muted px-2">加载数据后可选择</small></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-3">
+                    <div class="col-md-12 d-flex align-items-center">
+                        <button id="applySettings" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> 应用设置
+                        </button>
+                        <button id="refreshData" class="btn btn-outline-secondary ms-2">
+                            <i class="bi bi-arrow-clockwise"></i> 刷新
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 标签页导航 -->
+    <div class="container-fluid mt-3">
+        <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="data-tab" data-bs-toggle="tab" 
+                        data-bs-target="#data-panel" type="button" role="tab">
+                    <i class="bi bi-graph-up"></i> 数据展示
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="analysis-tab" data-bs-toggle="tab" 
+                        data-bs-target="#analysis-panel" type="button" role="tab">
+                    <i class="bi bi-bar-chart"></i> 统计分析
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="features-tab" data-bs-toggle="tab" 
+                        data-bs-target="#features-panel" type="button" role="tab">
+                    <i class="bi bi-gear"></i> 特征工程
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="model-tab" data-bs-toggle="tab" 
+                        data-bs-target="#model-panel" type="button" role="tab">
+                    <i class="bi bi-cpu"></i> 模型训练
+                </button>
+            </li>
+        </ul>
+
+        <!-- 标签页内容区域 -->
+        <div class="tab-content" id="mainTabsContent">
+
+            <!-- 数据展示标签页 -->
+            <div class="tab-pane fade show active" id="data-panel" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">时间序列数据</h5>
+                        <button id="exportDataChart" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-download"></i> 导出图表
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="timeseriesChart" style="width: 100%; height: 600px;"></div>
+                        <div id="dataLoadingSpinner" class="text-center py-5" style="display: none;">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <p class="mt-2">正在加载数据...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 统计分析标签页 -->
+            <div class="tab-pane fade" id="analysis-panel" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="bi bi-bar-chart"></i> 统计分析
+                            </h5>
+                            <div id="analysisDateRange" class="text-muted small">
+                                <i class="bi bi-calendar-range"></i> 
+                                <span id="analysisDateRangeText">请先加载数据</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- 相关性分析部分 -->
+                        <div class="mb-4">
+                            <h5 class="card-title">
+                                <i class="bi bi-diagram-3"></i> 相关性分析
+                            </h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>相关系数表格</h6>
+                                    <div id="correlationTable" class="table-responsive">
+                                        <p class="text-muted">请先加载数据</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>相关性热力图</h6>
+                                    <div id="correlationHeatmap" style="height: 400px;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- 误差指标部分 -->
+                        <div class="mb-4">
+                            <h5 class="card-title">
+                                <i class="bi bi-exclamation-triangle"></i> 误差指标
+                            </h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>误差指标表格</h6>
+                                    <div id="errorMetricsTable" class="table-responsive">
+                                        <p class="text-muted">请先加载数据</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>误差对比柱状图</h6>
+                                    <div id="errorMetricsChart" style="height: 400px;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- 数据分布部分 -->
+                        <div class="mb-4">
+                            <h5 class="card-title">
+                                <i class="bi bi-graph-up-arrow"></i> 风速数据分布
+                            </h5>
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <h6>统计量</h6>
+                                    <div id="distributionStats" class="row">
+                                        <div class="col-md-2">
+                                            <div class="card text-center">
+                                                <div class="card-body">
+                                                    <small class="text-muted">均值</small>
+                                                    <h5 id="statMean">-</h5>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <div class="card text-center">
+                                                <div class="card-body">
+                                                    <small class="text-muted">中位数</small>
+                                                    <h5 id="statMedian">-</h5>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <div class="card text-center">
+                                                <div class="card-body">
+                                                    <small class="text-muted">标准差</small>
+                                                    <h5 id="statStd">-</h5>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <div class="card text-center">
+                                                <div class="card-body">
+                                                    <small class="text-muted">最小值</small>
+                                                    <h5 id="statMin">-</h5>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <div class="card text-center">
+                                                <div class="card-body">
+                                                    <small class="text-muted">最大值</small>
+                                                    <h5 id="statMax">-</h5>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>直方图</h6>
+                                    <div id="distributionHistogram" style="height: 400px;"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>箱线图</h6>
+                                    <div id="distributionBoxplot" style="height: 400px;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- 风速区间分析部分 -->
+                        <div class="mb-4">
+                            <h5 class="card-title">
+                                <i class="bi bi-speedometer2"></i> 风速区间分析
+                            </h5>
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <p class="text-muted small">分析不同气象源在不同风速区间的预测表现</p>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>区间误差表格</h6>
+                                    <div id="windSpeedRangeTable" class="table-responsive">
+                                        <p class="text-muted">请先加载数据</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>区间误差对比图</h6>
+                                    <div id="windSpeedRangeChart" style="height: 400px;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- 偏差分布分析部分 -->
+                        <div class="mb-4">
+                            <h5 class="card-title">
+                                <i class="bi bi-bar-chart-line"></i> 偏差分布分析
+                            </h5>
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <p class="text-muted small">分析不同气象源与真实风速的单点偏差分布（偏差 = 预测值 - 真实值）</p>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12 mb-3">
+                                    <h6>偏差统计表格</h6>
+                                    <div id="biasStatsTable" class="table-responsive">
+                                        <p class="text-muted">请先加载数据</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>偏差分布直方图</h6>
+                                    <div id="biasDistributionHistogram" style="height: 400px;"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>偏差箱型图</h6>
+                                    <div id="biasBoxplot" style="height: 400px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- 特征工程标签页 -->
+            <div class="tab-pane fade" id="features-panel" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">特征工程</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <h6>特征组选择</h6>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <button id="selectAllFeatures" class="btn btn-sm btn-outline-primary me-2">
+                                                全选
+                                            </button>
+                                            <button id="deselectAllFeatures" class="btn btn-sm btn-outline-secondary">
+                                                取消全选
+                                            </button>
+                                        </div>
+                                        <div id="featureGroupsCheckboxes">
+                                            <div class="form-check">
+                                                <input class="form-check-input feature-group-check" type="checkbox" 
+                                                       value="raw_meteorological" id="fg_raw" checked>
+                                                <label class="form-check-label" for="fg_raw">
+                                                    原始气象要素
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input feature-group-check" type="checkbox" 
+                                                       value="time_features" id="fg_time" checked>
+                                                <label class="form-check-label" for="fg_time">
+                                                    时间特征
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input feature-group-check" type="checkbox" 
+                                                       value="business_features" id="fg_business" checked>
+                                                <label class="form-check-label" for="fg_business">
+                                                    业务特征
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input feature-group-check" type="checkbox" 
+                                                       value="statistical_features" id="fg_stat" checked>
+                                                <label class="form-check-label" for="fg_stat">
+                                                    统计特征
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input feature-group-check" type="checkbox" 
+                                                       value="difference_features" id="fg_diff">
+                                                <label class="form-check-label" for="fg_diff">
+                                                    差值特征
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input feature-group-check" type="checkbox" 
+                                                       value="interaction_features" id="fg_interact">
+                                                <label class="form-check-label" for="fg_interact">
+                                                    交互特征
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <button id="generateFeatures" class="btn btn-primary w-100 mt-3">
+                                            <i class="bi bi-gear"></i> 生成特征
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <h6>特征列表</h6>
+                                <div id="featuresList" class="card">
+                                    <div class="card-body">
+                                        <p class="text-muted">请先生成特征</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模型训练标签页 -->
+            <div class="tab-pane fade" id="model-panel" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">模型训练</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <h6>模型选择</h6>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="modelType" 
+                                                   id="modelLinear" value="linear_regression">
+                                            <label class="form-check-label" for="modelLinear">
+                                                线性回归
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="modelType" 
+                                                   id="modelTree" value="decision_tree">
+                                            <label class="form-check-label" for="modelTree">
+                                                决策树
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="modelType" 
+                                                   id="modelForest" value="random_forest" checked>
+                                            <label class="form-check-label" for="modelForest">
+                                                随机森林
+                                            </label>
+                                        </div>
+                                        
+                                        <hr>
+                                        
+                                        <h6 class="mt-3">预测时间范围</h6>
+                                        <div class="mb-2">
+                                            <label class="form-label small">预测开始日期</label>
+                                            <input type="date" id="predictStartDate" class="form-control form-control-sm">
+                                        </div>
+                                        <div class="mb-2">
+                                            <label class="form-label small">预测结束日期</label>
+                                            <input type="date" id="predictEndDate" class="form-control form-control-sm">
+                                        </div>
+                                        
+                                        <hr>
+                                        
+                                        <h6 class="mt-3">训练数据设置</h6>
+                                        <div class="mb-2">
+                                            <label class="form-label small">训练天数</label>
+                                            <input type="number" id="trainDays" class="form-control form-control-sm" 
+                                                   value="300" min="30" max="730" step="10">
+                                            <small class="text-muted">使用预测开始日期前N天的数据训练</small>
+                                        </div>
+                                        <div class="mb-2">
+                                            <label class="form-label small">验证集比例</label>
+                                            <input type="number" id="testSize" class="form-control form-control-sm" 
+                                                   value="0.2" min="0.1" max="0.5" step="0.05">
+                                            <small class="text-muted">从训练数据中划分验证集</small>
+                                        </div>
+                                        <div class="mb-2">
+                                            <button class="btn btn-sm btn-outline-info w-100" onclick="showTrainDateInfo()">
+                                                <i class="bi bi-info-circle"></i> 查看训练日期范围
+                                            </button>
+                                        </div>
+                                        
+                                        <h6 class="mt-3">模型参数</h6>
+                                        <div id="modelParams">
+                                            <div class="mb-2" id="paramNEstimators">
+                                                <label class="form-label small">树的数量</label>
+                                                <input type="number" id="nEstimators" class="form-control form-control-sm" 
+                                                       value="100" min="10" max="500" step="10">
+                                            </div>
+                                            <div class="mb-2" id="paramMaxDepth">
+                                                <label class="form-label small">最大深度</label>
+                                                <input type="number" id="maxDepth" class="form-control form-control-sm" 
+                                                       value="10" min="3" max="50" step="1">
+                                            </div>
+                                        </div>
+                                        
+                                        <button id="trainModel" class="btn btn-primary w-100 mt-3">
+                                            <i class="bi bi-play-circle"></i> 训练模型
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-9">
+                                <h6>训练结果</h6>
+                                
+                                <!-- 使用提示 -->
+                                <div class="alert alert-info" id="modelTrainingTip">
+                                    <h6><i class="bi bi-lightbulb"></i> 使用步骤</h6>
+                                    <ol class="mb-0 ps-3">
+                                        <li>设置预测时间范围和训练天数</li>
+                                        <li>在"数据展示"页面选择需要的气象源</li>
+                                        <li>在"特征工程"页面选择需要的特征组</li>
+                                        <li>选择模型类型和参数</li>
+                                        <li>点击"训练模型"开始训练（自动从数据库加载数据）</li>
+                                    </ol>
+                                    <hr class="my-2">
+                                    <small class="text-muted"><i class="bi bi-info-circle"></i> 训练时会自动从数据库加载指定时间范围的数据</small>
+                                </div>
+                                
+                                <!-- 评估指标卡片 -->
+                                <div class="row mb-3" id="modelMetrics">
+                                    <div class="col-md-4">
+                                        <div class="card text-center">
+                                            <div class="card-body">
+                                                <small class="text-muted">RMSE</small>
+                                                <h4 id="metricRMSE" class="text-primary">-</h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card text-center">
+                                            <div class="card-body">
+                                                <small class="text-muted">MAE</small>
+                                                <h4 id="metricMAE" class="text-success">-</h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card text-center">
+                                            <div class="card-body">
+                                                <small class="text-muted">Spearman_corr</small>
+                                                <h4 id="metricSpearman" class="text-info">-</h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 预测vs真实对比图 -->
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">预测 vs 真实值对比</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="predictionChart" style="height: 400px;"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 特征重要性柱状图 -->
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">特征重要性/权重 (Top 20)</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="featureImportanceChart" style="height: 500px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 错误提示模态框 -->
+    <div class="modal fade" id="errorModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle"></i> 错误
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="errorModalBody">
+                    错误信息
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载指示器覆盖层 -->
+    <div id="loadingOverlay" style="display: none;">
+        <div class="spinner-border text-light" role="status">
+            <span class="visually-hidden">加载中...</span>
+        </div>
+        <p class="text-light mt-2">处理中，请稍候...</p>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    
+    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

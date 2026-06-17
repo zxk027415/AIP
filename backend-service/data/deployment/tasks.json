@@ -1,0 +1,180 @@
+[
+  {
+    "id": "deploy-task-001",
+    "name": "负荷预测LSTM模型部署",
+    "description": "部署回测排名第一的LSTM预测模型到生产环境",
+    "scenario": "load-forecasting",
+    "source_type": "template",
+    "source_id": "lstm_forecast",
+    "source_name": "LSTM时序预测",
+    "backtest_task_id": "bt-task-001",
+    "backtest_rank": 1,
+    "deploy_config": {
+      "cpu": "2核",
+      "memory": "4GB",
+      "gpu": "无",
+      "replicas": 2,
+      "endpoint": "/api/predict/load-forecast",
+      "timeout_ms": 5000,
+      "env_vars": {
+        "MODEL_VERSION": "v1.2"
+      }
+    },
+    "release_strategy": {
+      "type": "canary",
+      "canary_percent": 20,
+      "auto_promote": true,
+      "promote_after_minutes": 30
+    },
+    "status": "running",
+    "created_at": "2026-03-13T18:34:33.146980",
+    "updated_at": "2026-03-17T18:34:33.146980"
+  },
+  {
+    "id": "deploy-task-002",
+    "name": "光伏发电预测集成模型",
+    "description": "部署集成预测算法模板用于光伏发电功率预测",
+    "scenario": "pv-power-forecast",
+    "source_type": "workflow",
+    "source_id": "wf-pv-ensemble",
+    "source_name": "光伏集成预测算法模板",
+    "backtest_task_id": "bt-task-002",
+    "backtest_rank": 1,
+    "deploy_config": {
+      "cpu": "4核",
+      "memory": "8GB",
+      "gpu": "1×T4",
+      "replicas": 3,
+      "endpoint": "/api/predict/pv-power",
+      "timeout_ms": 10000,
+      "env_vars": {
+        "MODEL_VERSION": "v2.0"
+      }
+    },
+    "release_strategy": {
+      "type": "blue-green",
+      "canary_percent": 0,
+      "auto_promote": false,
+      "promote_after_minutes": 0
+    },
+    "status": "running",
+    "created_at": "2026-03-15T18:34:33.146980",
+    "updated_at": "2026-03-18T12:34:33.146980"
+  },
+  {
+    "id": "deploy-task-003",
+    "name": "故障诊断XGBoost模型",
+    "description": "部署设备故障诊断分类模型",
+    "scenario": "fault-diagnosis",
+    "source_type": "template",
+    "source_id": "xgboost_classifier",
+    "source_name": "XGBoost故障分类",
+    "backtest_task_id": null,
+    "backtest_rank": null,
+    "deploy_config": {
+      "cpu": "2核",
+      "memory": "4GB",
+      "gpu": "无",
+      "replicas": 1,
+      "endpoint": "/api/predict/fault-diagnosis",
+      "timeout_ms": 3000,
+      "env_vars": {}
+    },
+    "release_strategy": {
+      "type": "full",
+      "canary_percent": 0,
+      "auto_promote": false,
+      "promote_after_minutes": 0
+    },
+    "status": "stopped",
+    "created_at": "2026-03-08T18:34:33.146980",
+    "updated_at": "2026-03-11T18:34:33.146980"
+  },
+  {
+    "id": "deploy-task-004",
+    "name": "电价预测模型部署",
+    "description": "部署电力市场价格预测模型",
+    "scenario": "price-forecasting",
+    "source_type": "template",
+    "source_id": "price_forecast_v1",
+    "source_name": "电价预测模型v1",
+    "backtest_task_id": null,
+    "backtest_rank": null,
+    "deploy_config": {
+      "cpu": "1核",
+      "memory": "2GB",
+      "gpu": "无",
+      "replicas": 1,
+      "endpoint": "/api/predict/price",
+      "timeout_ms": 5000,
+      "env_vars": {}
+    },
+    "release_strategy": {
+      "type": "full",
+      "canary_percent": 0,
+      "auto_promote": false,
+      "promote_after_minutes": 0
+    },
+    "status": "running",
+    "created_at": "2026-03-18T16:34:33.146980",
+    "updated_at": "2026-03-25T16:40:00.316244"
+  },
+  {
+    "id": "deploy-task-20260409140811-6126",
+    "name": "电价预测模型部署 (副本)",
+    "description": "部署电力市场价格预测模型",
+    "scenario": "price-forecasting",
+    "source_type": "template",
+    "source_id": "price_forecast_v1",
+    "source_name": "电价预测模型v1",
+    "backtest_task_id": null,
+    "backtest_rank": null,
+    "deploy_config": {
+      "cpu": "1核",
+      "memory": "2GB",
+      "gpu": "无",
+      "replicas": 1,
+      "endpoint": "/api/predict/price",
+      "timeout_ms": 5000,
+      "env_vars": {}
+    },
+    "release_strategy": {
+      "type": "full",
+      "canary_percent": 0,
+      "auto_promote": false,
+      "promote_after_minutes": 0
+    },
+    "status": "running",
+    "created_at": "2026-04-09T14:08:11.381288",
+    "updated_at": "2026-04-19T13:08:22.517138"
+  },
+  {
+    "id": "deploy-task-20260419130824-7453",
+    "name": "电价预测模型部署 (副本) (副本)",
+    "description": "部署电力市场价格预测模型",
+    "scenario": "price-forecasting",
+    "source_type": "template",
+    "source_id": "price_forecast_v1",
+    "source_name": "电价预测模型v1",
+    "backtest_task_id": null,
+    "backtest_rank": null,
+    "deploy_config": {
+      "cpu": "1核",
+      "memory": "2GB",
+      "gpu": "无",
+      "replicas": 1,
+      "endpoint": "/api/predict/price",
+      "timeout_ms": 5000,
+      "env_vars": {}
+    },
+    "release_strategy": {
+      "type": "full",
+      "canary_percent": 0,
+      "auto_promote": false,
+      "promote_after_minutes": 0
+    },
+    "status": "draft",
+    "created_at": "2026-04-19T13:08:24.556428",
+    "updated_at": "2026-04-19T13:08:24.556428"
+  }
+]

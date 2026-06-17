@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoResearch 架构链路总览</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #f8fafc;
+    color: #1e293b;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 24px;
+    min-height: 100vh;
+  }
+  .container { max-width: 1400px; margin: 0 auto; }
+  .header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 24px;
+    padding: 16px 20px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #10b981; }
+  .dot.pulse { animation: pulse 2s infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .header h1 { font-size: 18px; font-weight: 700; color: #0f172a; }
+  .header span { font-size: 13px; color: #64748b; margin-left: 8px; }
+  .diagram-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+  }
+  .legend {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    padding: 12px 0; border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 16px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #475569; }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px 20px;
+  }
+  .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .card-dot.f-blue  { background: #3b82f6; }
+  .card-dot.f-emerald { background: #10b981; }
+  .card-dot.f-violet { background: #8b5cf6; }
+  .card h3 { font-size: 13px; font-weight: 700; color: #0f172a; }
+  .card ul { list-style: none; font-size: 12px; color: #475569; line-height: 1.8; }
+  .card ul li::before { content: "▸ "; color: #94a3b8; }
+  .footer { text-align: center; font-size: 11px; color: #94a3b8; margin-top: 24px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+  <div class="dot pulse"></div>
+  <h1>AutoResearch 第四代 — 架构链路总览</h1>
+  <span>一条循环，16 个节点 · 2026-05-29</span>
+</div>
+
+<div class="diagram-card">
+  <div class="legend">
+    <div class="legend-item"><div class="legend-swatch" style="background:#dbeafe;border-color:#3b82f6;"></div> 输入/运行控制</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#d1fae5;border-color:#10b981;"></div> 规划/执行</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#ede9fe;border-color:#8b5cf6;"></div> 证据/候选</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#fef3c7;border-color:#f59e0b;"></div> 知识/反思</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#ffe4e6;border-color:#f43f5e;"></div> GLM/研究认知</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#f1f5f9;border-color:#94a3b8;"></div> 反馈回路</div>
+  </div>
+
+<svg viewBox="0 0 1320 1580" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">
+  <defs>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#3b82f6"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#10b981"/>
+    </marker>
+    <marker id="arrow-violet" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#8b5cf6"/>
+    </marker>
+    <marker id="arrow-amber" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#f59e0b"/>
+    </marker>
+    <marker id="arrow-rose" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#f43f5e"/>
+    </marker>
+    <marker id="arrow-slate" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- ============================================================ -->
+  <!-- NODE 1: 输入层 -->
+  <!-- ============================================================ -->
+  <rect x="440" y="20" width="440" height="70" rx="8" fill="#ffffff" stroke="#3b82f6" stroke-width="2"/>
+  <rect x="440" y="20" width="440" height="22" rx="8" fill="#dbeafe"/>
+  <rect x="440" y="32" width="440" height="10" fill="#dbeafe"/>
+  <text x="660" y="16" text-anchor="middle" font-size="12" font-weight="700" fill="#1e40af">1. 输入层 — Run 启动</text>
+  <text x="460" y="48" font-size="10" fill="#475569">baseline_template · registry_id 自动匹配 · windows(3) · contract</text>
+  <text x="460" y="64" font-size="10" fill="#475569">search_space · policy · memory_cases · force_activate · scenario_tags</text>
+
+  <!-- 1 → 2 -->
+  <line x1="660" y1="90" x2="660" y2="120" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+  <!-- ============================================================ -->
+  <!-- NODE 2: Job Queue + Worker -->
+  <!-- ============================================================ -->
+  <rect x="490" y="120" width="340" height="50" rx="8" fill="#f0fdf4" stroke="#10b981" stroke-width="1.5"/>
+  <text x="660" y="140" text-anchor="middle" font-size="11" font-weight="700" fill="#065f46">2. Job Queue + Worker</text>
+  <text x="660" y="158" text-anchor="middle" font-size="9" fill="#475569">SQLite 队列 → 轮询领取 → 心跳保活 → cancel 监听</text>
+
+  <!-- 2→3 -->
+  <line x1="660" y1="170" x2="660" y2="205" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+  <!-- ============================================================ -->
+  <!-- NODE 3: 研究认知输入 -->
+  <!-- ============================================================ -->
+  <rect x="90" y="205" width="280" height="70" rx="8" fill="#fff1f2" stroke="#f43f5e" stroke-width="1.5"/>
+  <rect x="90" y="205" width="280" height="20" rx="8" fill="#ffe4e6"/>
+  <rect x="90" y="215" width="280" height="10" fill="#ffe4e6"/>
+  <text x="230" y="218" text-anchor="middle" font-size="11" font-weight="700" fill="#9f1239">3. 研究认知输入</text>
+  <text x="105" y="240" font-size="9" fill="#475569">误差画像 (error profile)</text>
+  <text x="105" y="255" font-size="9" fill="#475569">→ 归因分析 (primary cause)</text>
+  <text x="105" y="270" font-size="9" fill="#475569">→ 研究问题 (question)</text>
+
+  <!-- ============================================================ -->
+  <!-- NODE 4: GLM 建议生成 -->
+  <!-- ============================================================ -->
+  <rect x="1070" y="205" width="240" height="70" rx="8" fill="#fff1f2" stroke="#f43f5e" stroke-width="1.5"/>
+  <text x="1190" y="225" text-anchor="middle" font-size="11" font-weight="700" fill="#9f1239">4. GLM 建议生成</text>
+  <text x="1085" y="245" font-size="9" fill="#475569">Knowledge 注入 → GLM</text>
+  <text x="1085" y="260" font-size="9" fill="#475569">→ 审计去重 → 白名单校验</text>
+
+  <!-- 3→4 (top bridge) -->
+  <path d="M370,205 L370,195 L1070,195 L1070,205" fill="none" stroke="#f43f5e" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrow-rose)"/>
+  <text x="720" y="192" text-anchor="middle" font-size="8" fill="#9f1239">research_questions → GLM proposal prompt</text>
+
+  <!-- 4→5 -->
+  <path d="M1190,275 L1190,295 L660,295 L660,315" fill="none" stroke="#f43f5e" stroke-width="1.2" marker-end="url(#arrow-rose)"/>
+  <text x="925" y="310" text-anchor="middle" font-size="8" fill="#9f1239">GLM candidate intent ← 审计通过</text>
+
+  <!-- ============================================================ -->
+  <!-- NODE 5: Planner 规划 -->
+  <!-- ============================================================ -->
+  <rect x="440" y="315" width="440" height="70" rx="8" fill="#f0fdf4" stroke="#10b981" stroke-width="2"/>
+  <rect x="440" y="315" width="440" height="22" rx="8" fill="#d1fae5"/>
+  <rect x="440" y="327" width="440" height="10" fill="#d1fae5"/>
+  <text x="660" y="328" text-anchor="middle" font-size="12" font-weight="700" fill="#065f46">5. Planner 规划</text>
+  <text x="460" y="350" font-size="10" fill="#475569">build_slots → 5 方向 (parameter / feature / model / data / risk)</text>
+  <text x="460" y="366" font-size="10" fill="#475569">方向匹配: GLM 候选 direction == slot target_direction ?</text>
+
+  <!-- 5→6 -->
+  <line x1="660" y1="385" x2="660" y2="425" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+  <!-- ============================================================ -->
+  <!-- NODE 6: 采样敲定 + Patch 路由 -->
+  <!-- ============================================================ -->
+  <rect x="440" y="425" width="440" height="85" rx="8" fill="#f0fdf4" stroke="#10b981" stroke-width="2"/>
+  <rect x="440" y="425" width="440" height="22" rx="8" fill="#d1fae5"/>
+  <rect x="440" y="437" width="440" height="10" fill="#d1fae5"/>
+  <text x="660" y="438" text-anchor="middle" font-size="12" font-weight="700" fill="#065f46">6. 采样敲定 &amp; Patch 路由</text>
+  <text x="460" y="460" font-size="10" fill="#475569">slot1 主候选: 已先生成 override/patch → 贴元数据</text>
+  <text x="460" y="476" font-size="10" fill="#475569">slot2..N: 匹配 GLM 候选 → 译 intent 为 patch | 无匹配 → registry 定向采样</text>
+  <text x="460" y="492" font-size="10" fill="#475569">search_space_patch → 采样单值 → override · structure_patch · node_param_patches · global_patch</text>
+
+  <!-- 6→7 -->
+  <line x1="660" y1="510" x2="660" y2="550" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+  <!-- ============================================================ -->
+  <!-- NODE 7: 防白跑 + 对照组 -->
+  <!-- ============================================================ -->
+  <rect x="490" y="550" width="340" height="50" rx="8" fill="#f0fdf4" stroke="#10b981" stroke-width="1.5"/>
+  <text x="660" y="570" text-anchor="middle" font-size="11" font-weight="700" fill="#065f46">7. 防白跑 · 去重 · 去污染 · 对照组</text>
+  <text x="660" y="588" text-anchor="middle" font-size="9" fill="#475569">非 param 方向剔除 train_days · 每 5 轮空覆盖回测</text>
+
+  <!-- 7→8 -->
+  <line x1="660" y1="600" x2="660" y2="645" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+  <!-- ============================================================ -->
+  <!-- NODE 8: 回测执行 -->
+  <!-- ============================================================ -->
+  <rect x="350" y="645" width="620" height="85" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+  <text x="660" y="665" text-anchor="middle" font-size="12" font-weight="700" fill="#065f46">8. Baseline vs Challenger 多窗口回测</text>
+  <text x="375" y="688" font-size="10" fill="#475569">Baseline 缓存复用 (24h TTL) → 3 组并发 × 每组 3 窗口串行</text>
+  <text x="375" y="704" font-size="10" fill="#475569">每窗口: B回测 → C回测 → score=candidate_score(100-SMAPE) → mean 聚合</text>
+  <text x="375" y="720" font-size="10" fill="#475569">baseline_mape = mean(窗口 avg_smape) · challenger_mape = mean(窗口 avg_smape)</text>
+
+  <!-- 8→9 -->
+  <line x1="660" y1="730" x2="660" y2="775" stroke="#8b5cf6" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+
+  <!-- ============================================================ -->
+  <!-- NODE 9: Evidence 构建 -->
+  <!-- ============================================================ -->
+  <rect x="440" y="775" width="440" height="70" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="2"/>
+  <rect x="440" y="775" width="440" height="22" rx="8" fill="#ede9fe"/>
+  <rect x="440" y="787" width="440" height="10" fill="#ede9fe"/>
+  <text x="660" y="788" text-anchor="middle" font-size="12" font-weight="700" fill="#5b21b6">9. Evidence 证据构建</text>
+  <text x="460" y="810" font-size="10" fill="#475569">patch_fingerprint → evidence_records → 证据强度评定</text>
+  <text x="460" y="826" font-size="10" fill="#475569">single_window_positive / multi_window_confirmed / multi_window_rejected</text>
+
+  <!-- 9 → 10a -->
+  <path d="M660,845 L660,865 L830,865 L830,895" fill="none" stroke="#8b5cf6" stroke-width="1.2" marker-end="url(#arrow-violet)"/>
+  <!-- 9 → 10b -->
+  <path d="M660,845 L660,865 L490,865 L490,895" fill="none" stroke="#f43f5e" stroke-width="1.2" marker-end="url(#arrow-rose)"/>
+  <!-- 9 → 10c -->
+  <line x1="660" y1="845" x2="660" y2="895" stroke="#f59e0b" stroke-width="1.2" marker-end="url(#arrow-amber)"/>
+
+  <!-- ============================================================ -->
+  <!-- NODE 10a: 候选晋级 -->
+  <!-- ============================================================ -->
+  <rect x="710" y="895" width="320" height="75" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="870" y="915" text-anchor="middle" font-size="11" font-weight="700" fill="#5b21b6">10a. 候选晋级</text>
+  <text x="725" y="935" font-size="9" fill="#475569">candidate_signature → novelty_audit</text>
+  <text x="725" y="950" font-size="9" fill="#475569">→ verification_queue → promote 新基线</text>
+
+  <!-- ============================================================ -->
+  <!-- NODE 10b: 研究认知回写 -->
+  <!-- ============================================================ -->
+  <rect x="290" y="895" width="320" height="75" rx="8" fill="#fff1f2" stroke="#f43f5e" stroke-width="1.5"/>
+  <text x="450" y="915" text-anchor="middle" font-size="11" font-weight="700" fill="#9f1239">10b. 研究认知回写</text>
+  <text x="305" y="935" font-size="9" fill="#475569">question lifecycle: open → testing → resolved/stale</text>
+  <text x="305" y="950" font-size="9" fill="#475569">hypothesis verification: verified / disproved</text>
+
+  <!-- ============================================================ -->
+  <!-- NODE 10c: 知识沉淀 -->
+  <!-- ============================================================ -->
+  <rect x="490" y="895" width="340" height="65" rx="8" fill="#fefce8" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="660" y="915" text-anchor="middle" font-size="11" font-weight="700" fill="#92400e">10c. 知识沉淀</text>
+  <text x="505" y="935" font-size="9" fill="#475569">Knowledge Claim → scenario_fingerprint</text>
+  <text x="505" y="950" font-size="9" fill="#475569">→ condition_hash → 跨 run 注入 (权重 1.0/0.3)</text>
+
+  <!-- 10c → 11 -->
+  <line x1="660" y1="960" x2="660" y2="1010" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+
+  <!-- ============================================================ -->
+  <!-- NODE 11: 阶段反思 -->
+  <!-- ============================================================ -->
+  <rect x="440" y="1010" width="440" height="70" rx="8" fill="#fefce8" stroke="#f59e0b" stroke-width="2"/>
+  <rect x="440" y="1010" width="440" height="22" rx="8" fill="#fef3c7"/>
+  <rect x="440" y="1022" width="440" height="10" fill="#fef3c7"/>
+  <text x="660" y="1023" text-anchor="middle" font-size="12" font-weight="700" fill="#92400e">11. 阶段反思 (Periodic Reflection)</text>
+  <text x="460" y="1045" font-size="10" fill="#475569">探索覆盖不足? → shift_focus · 重复候选多? → 优先 novel</text>
+  <text x="460" y="1061" font-size="10" fill="#475569">长期无收益? → expand_registry / early_stop</text>
+
+  <!-- 11 → 12 -->
+  <line x1="660" y1="1080" x2="660" y2="1120" stroke="#93b" stroke-width="1.5" marker-end="url(#arrow-slate)"/>
+
+  <!-- ============================================================ -->
+  <!-- NODE 12: 反馈回路 -->
+  <!-- ============================================================ -->
+  <rect x="490" y="1120" width="340" height="50" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="660" y="1140" text-anchor="middle" font-size="11" font-weight="700" fill="#475569">12. 反馈回路 — research_focus</text>
+  <text x="660" y="1158" text-anchor="middle" font-size="9" fill="#64748b">优先级层提高包含概率 · 回避层降低 · 回到 Planner 采样加权</text>
+
+  <!-- ============================================================ -->
+  <!-- 反馈线: 12 → 5（左侧绕回） -->
+  <!-- ============================================================ -->
+  <path d="M490,1145 L30,1145 L30,415 L440,415" fill="none" stroke="#93b" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrow-slate)"/>
+  <text x="25" y="790" font-size="9" fill="#64748b" transform="rotate(-90,25,790)">force_activate · priority_layers · avoid_layers</text>
+
+  <!-- ============================================================ -->
+  <!-- 控制层 (右侧贯穿) -->
+  <!-- ============================================================ -->
+  <rect x="1100" y="540" width="210" height="280" rx="10" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="1205" y="560" text-anchor="middle" font-size="11" font-weight="700" fill="#1e40af">13. 运行控制层</text>
+  <text x="1115" y="585" font-size="9" fill="#475569">snapshot.json</text>
+  <text x="1115" y="605" font-size="9" fill="#475569">trials.jsonl</text>
+  <text x="1115" y="625" font-size="9" fill="#475569">decisions.jsonl</text>
+  <text x="1115" y="650" font-size="9" fill="#475569">job queue</text>
+  <text x="1115" y="670" font-size="9" fill="#475569">resume (interrupted/</text>
+  <text x="1115" y="685" font-size="9" fill="#475569"> failed/cancelled)</text>
+  <text x="1115" y="710" font-size="9" fill="#475569">cancel API</text>
+  <text x="1115" y="740" font-size="9" fill="#93b">↓ 磁盘持久化</text>
+  <text x="1115" y="760" font-size="9" fill="#93b">↓ resume 恢复</text>
+
+  <!-- ============================================================ -->
+  <!-- 前端 Cockpit (底部) -->
+  <!-- ============================================================ -->
+  <rect x="200" y="1220" width="920" height="90" rx="10" fill="#f8fafc" stroke="#3b82f6" stroke-width="2"/>
+  <text x="660" y="1245" text-anchor="middle" font-size="13" font-weight="700" fill="#1e40af">14. Research Cockpit — 前端五张卡</text>
+  <rect x="260" y="1260" width="150" height="35" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1"/>
+  <text x="335" y="1282" text-anchor="middle" font-size="10" font-weight="600" fill="#1e40af">Experiment 实验卡</text>
+  <rect x="425" y="1260" width="140" height="35" rx="6" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1"/>
+  <text x="495" y="1282" text-anchor="middle" font-size="10" font-weight="600" fill="#5b21b6">Evidence 证据卡</text>
+  <rect x="580" y="1260" width="140" height="35" rx="6" fill="#ffe4e6" stroke="#f43f5e" stroke-width="1"/>
+  <text x="650" y="1282" text-anchor="middle" font-size="10" font-weight="600" fill="#9f1239">Question 问题卡</text>
+  <rect x="735" y="1260" width="150" height="35" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1"/>
+  <text x="810" y="1282" text-anchor="middle" font-size="10" font-weight="600" fill="#92400e">Knowledge 知识卡</text>
+  <rect x="900" y="1260" width="140" height="35" rx="6" fill="#d1fae5" stroke="#10b981" stroke-width="1"/>
+  <text x="970" y="1282" text-anchor="middle" font-size="10" font-weight="600" fill="#065f46">Strategy 策略卡</text>
+
+  <!-- 连线: 11→14 -->
+  <line x1="660" y1="1260" x2="660" y2="1220" stroke="#3b82f6" stroke-width="1.2" stroke-dasharray="5,3"/>
+
+  <!-- 左侧反馈线连接到规划层 -->
+  <path d="M490,1270 L140,1270 L140,380 L440,380" fill="none" stroke="#93b" stroke-width="1" stroke-dasharray="4,3"/>
+
+</svg>
+</div>
+
+<div class="summary-grid">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-dot f-blue"></div>
+      <h3>三条链路收成一条循环</h3>
+    </div>
+    <ul>
+      <li>实验执行: Planner → Patch → Compare → MAPE</li>
+      <li>候选晋级: Evidence → signature → novelty → verify → promote</li>
+      <li>研究认知: 画像 → 归因 → 问题 → GLM假设 → 验证 → 知识</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-dot f-emerald"></div>
+      <h3>五层架构</h3>
+    </div>
+    <ul>
+      <li>输入层: baseline / registry / windows / contract</li>
+      <li>规划层: Planner / direction slots / GLM match</li>
+      <li>执行层: patch route / compare / worker</li>
+      <li>证据层: Evidence Record / novelty / question lifecycle</li>
+      <li>沉淀层: Knowledge Claim / Reflection / promote</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-dot f-violet"></div>
+      <h3>关键判断规则</h3>
+    </div>
+    <ul>
+      <li>研究问题 ≠ 候选 patch（四级转换）</li>
+      <li>GLM Questioner ≠ GLM Proposal（两条路径）</li>
+      <li>单窗口正收益 ≠ 可以 Promote（需复验）</li>
+      <li>candidate ≠ active knowledge（需多证据+场景匹配）</li>
+      <li>Planner 仍是并发组调度中心（防偏科）</li>
+    </ul>
+  </div>
+</div>
+
+<div class="footer">AutoResearch 第四代 · Architecture Overview · {date}</div>
+
+</div>
+</body>
+</html>

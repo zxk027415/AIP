@@ -1,0 +1,136 @@
+/* 系统状态页面样式 */
+
+/* 强制禁用所有Ant Design motion动画 */
+.system-status-page .ant-motion-collapse,
+.system-status-page .ant-motion-collapse-legacy,
+.system-status-page [class*="ant-motion"],
+.system-status-page [class*="ant-zoom"],
+.system-status-page [class*="ant-slide"],
+.system-status-page [class*="ant-fade"] {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+/* 禁用Tab内容区域的所有动画 */
+.system-status-tabs .ant-tabs-tabpane,
+.system-status-tabs .ant-tabs-content,
+.system-status-tabs .ant-tabs-content-holder {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+/* Tab标签样式优化 */
+.system-status-tabs .ant-tabs-tab {
+  padding: 12px 0 !important;
+  margin: 0 16px 0 0 !important;
+  font-weight: 500;
+  transition: color 0.2s ease !important;
+  animation: none !important;
+  transform: none !important;
+}
+
+.system-status-tabs .ant-tabs-tab:hover {
+  color: #1890ff;
+}
+
+.system-status-tabs .ant-tabs-tab-active {
+  color: #1890ff !important;
+  font-weight: 600;
+}
+
+.system-status-tabs .ant-tabs-tab-active .anticon {
+  color: #1890ff !important;
+}
+
+.system-status-tabs .ant-tabs-ink-bar {
+  background: #1890ff;
+  height: 3px;
+  /* 恢复ink-bar的平滑移动动画 */
+  transition: left 0.3s ease, width 0.3s ease !important;
+}
+
+/* Tab导航栏 */
+.system-status-tabs .ant-tabs-nav {
+  animation: none !important;
+  transform: none !important;
+}
+
+.system-status-tabs .ant-tabs-nav-wrap {
+  animation: none !important;
+  transform: none !important;
+}
+
+.system-status-tabs .ant-tabs-nav-list {
+  animation: none !important;
+  transform: none !important;
+}
+
+/* Tab内容区域 */
+.system-status-tabs .ant-tabs-content-holder {
+  flex: 1;
+  overflow: hidden;
+}
+
+.system-status-tabs .ant-tabs-content {
+  height: 100%;
+}
+
+.system-status-tabs .ant-tabs-tabpane {
+  height: 100%;
+}
+
+/* 禁用按钮的点击波纹动画 */
+.system-status-page .ant-btn {
+  animation: none !important;
+}
+
+.system-status-page .ant-btn::after {
+  display: none !important;
+}
+
+/* 禁用按钮的点击缩放效果 */
+.system-status-page .ant-btn:active {
+  transform: none !important;
+}
+
+/* 但保留hover效果 */
+.system-status-page .ant-btn:hover {
+  transition: all 0.3s ease !important;
+}
+
+/* 禁用卡片内容的所有过渡效果 */
+.system-status-page .ant-card,
+.system-status-page .ant-card-body,
+.system-status-page .ant-descriptions,
+.system-status-page .ant-descriptions-item,
+.system-status-page .ant-descriptions-item-content {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+/* 禁用Tag的过渡效果 */
+.system-status-page .ant-tag {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+/* 禁用Space的过渡效果 */
+.system-status-page .ant-space,
+.system-status-page .ant-space-item {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+  .system-status-tabs .ant-tabs-tab {
+    padding: 8px 0 !important;
+    margin: 0 12px 0 0 !important;
+    font-size: 12px;
+  }
+}

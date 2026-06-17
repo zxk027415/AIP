@@ -1,0 +1,25 @@
+{
+  "claim": "因为midday误差极大且波动剧烈，所以增加 rolling_statistics 的窗口尺寸以捕捉更长期的同时间点统计特征，应该能有效平滑异常值并改善 MAPE。（第14轮验证，改善53.11%）",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "500d13d84c23",
+    "target_param": "correlational_text"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "granularity": "intraday",
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-12821a0b3926"
+  ],
+  "knowledge_type": "correlational",
+  "last_validated_at": "2026-05-22T08:41:01.967269",
+  "layer": "L2",
+  "scenario_condition_hash": "bcda466f47f336be",
+  "status": "active"
+}

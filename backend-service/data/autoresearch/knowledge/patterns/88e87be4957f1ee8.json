@@ -1,0 +1,23 @@
+{
+  "claim": "auto_tune_n_trials=3 在当前场景的 AutoResearch 候选中产生可验证结果",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": 3,
+    "target_param": "auto_tune_n_trials"
+  },
+  "condition": {
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v1"
+  },
+  "confidence": 0.0,
+  "counter_evidence": [
+    "ares-9c429d5ed43c:iter29"
+  ],
+  "evidence": [],
+  "knowledge_type": "causal_candidate",
+  "last_validated_at": "2026-05-25T19:43:39.362022",
+  "layer": "L2",
+  "scenario_condition_hash": "38706211494ad399",
+  "status": "rejected"
+}

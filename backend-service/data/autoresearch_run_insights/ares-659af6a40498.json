@@ -1,0 +1,53 @@
+{
+  "run_id": "ares-659af6a40498",
+  "created_at": "2026-05-07T15:48:36.086762",
+  "baseline_workflow_id": "workflow-load-forecast-backtest-v2",
+  "registry_id": "load_forecast_v1",
+  "scenario_fingerprint": {
+    "granularity": "intraday",
+    "span_days": null,
+    "load_type": null,
+    "seasonality": null,
+    "weekend_sensitivity": "normal",
+    "anomaly_ratio": null,
+    "backtest_mode": "rolling_retrain",
+    "train_days": 30
+  },
+  "total_iterations": 6,
+  "best_mape_improvement": 0.5975999999999999,
+  "best_candidate_config": {
+    "override": {
+      "train_days": 60
+    },
+    "global_config_patch": {}
+  },
+  "data_profile": {
+    "granularity_minutes": null,
+    "span_days": null,
+    "weekend_weekday_gap": null,
+    "outlier_ratio": null
+  },
+  "exploration_summary": {
+    "phases": [
+      "parameter_exploration"
+    ],
+    "hypotheses_tested": 5,
+    "hypotheses_verified": 3,
+    "hypotheses_disproved": 2,
+    "total_iterations": 6,
+    "success_iterations": 6
+  },
+  "learned_rules": [
+    "因为历史记忆显示 train_days=44 曾带来 +0.306 的正向改善，而当前 train_days=60 导致负向收益，所以将训练窗口缩减至 45 应该能改善 MAPE。（第2轮验证，改善20.37%）",
+    "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第4轮验证，改善59.76%）",
+    "因为诊断表明 parameter_saturation 且极短数据窗口（total_days=2）容易引发过拟合，所以为 xgboost_forecast 引入更强的衰减权重（sample_weight_decay）应该能缓解过拟合并改善 MAPE。（第5轮验证，改善23.51%）"
+  ],
+  "ineffective_attempts": [
+    "因为诊断显示参数饱和且当前自动调参试验次数过少，所以增加 auto_tune_n_trials 到 8 应该能突破当前的参数瓶颈并改善 MAPE。（第3轮，实际=-0.14179999999999993）",
+    "因为当前仅有 total_days=2 的极短数据，过长的滞后特征会导致严重的维度灾难和参数饱和，所以将 create_lag_features 的滞后天数（lag_days）缩短至 1 应该能提升有效样本率并改善 MAPE。（第6轮，实际=-0.6318000000000001）"
+  ],
+  "open_questions": [],
+  "recommended_starting_config_for_similar": {
+    "train_days": 60
+  }
+}

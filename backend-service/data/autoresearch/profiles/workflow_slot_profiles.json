@@ -1,0 +1,138 @@
+{
+  "default_profile_id": "load_forecast_linear_pipeline_v1",
+  "profiles": [
+    {
+      "profile_id": "load_forecast_linear_pipeline_v1",
+      "title": "线性负荷预测流水线（槽位化）",
+      "description": "固定主干顺序：载入→清洗/重采样→特征→窗口与切分→多步配置→调参→主模型→评估。每一段为一个槽位；槽内可有多个可选算子（family），候选来自算子库且必须已在运行时注册。",
+      "preflight_required": true,
+      "notes": [
+        "拓扑顺序由 profile 约定；不在此处允许任意改连线。",
+        "多候选槽需在模板中存在对应节点且契约等价时再放开搜索；首期可为 singleton。",
+        "primary_forecast_model 槽使用 candidate_rule=ts_forecast_registered，与 model-operators-available 同源。"
+      ],
+      "slots": [
+        {
+          "slot_id": "ingest_csv",
+          "title": "CSV 数据载入",
+          "stage": "ingest",
+          "candidate_ids": ["load_csv"],
+          "notes": "singleton：当前注册链路仅此数据源算子。"
+        },
+        {
+          "slot_id": "row_filter",
+          "title": "行过滤",
+          "stage": "clean",
+          "candidate_ids": ["row_filter"],
+          "notes": "singleton。"
+        },
+        {
+          "slot_id": "resample_timeseries",
+          "title": "时序重采样",
+          "stage": "clean",
+          "candidate_ids": ["resample_timeseries"],
+          "notes": "singleton；粒度变更会影响下游滞后语义，暂不做多候选。"
+        },
+        {
+          "slot_id": "outlier_detection",
+          "title": "异常值检测",
+          "stage": "clean",
+          "candidate_ids": ["detect_outliers"],
+          "notes": "singleton；后续若有等价替代算子可扩 family。"
+        },
+        {
+          "slot_id": "missing_value",
+          "title": "缺失值处理",
+          "stage": "clean",
+          "candidate_ids": ["handle_missing"],
+          "notes": "singleton。"
+        },
+        {
+          "slot_id": "time_features",
+          "title": "时间特征",
+          "stage": "features",
+          "candidate_ids": ["extract_time_features"],
+          "notes": "singleton。"
+        },
+        {
+          "slot_id": "holiday_features",
+          "title": "节假日特征",
+          "stage": "features",
+          "candidate_ids": ["holiday_features"],
+          "notes": "可做启用类 patch（已在 structure_switch 白名单）。"
+        },
+        {
+          "slot_id": "workday_features",
+          "title": "工作日特征",
+          "stage": "features",
+          "candidate_ids": ["workday_features"],
+          "notes": "可做启用类 patch。"
+        },
+        {
+          "slot_id": "rolling_statistics",
+          "title": "滚动统计特征",
+          "stage": "features",
+          "candidate_ids": ["rolling_statistics"],
+          "notes": "可做启用类 patch。"
+        },
+        {
+          "slot_id": "lag_features",
+          "title": "滞后特征",
+          "stage": "features",
+          "candidate_ids": ["create_lag_features"],
+          "notes": "singleton。"
+        },
+        {
+          "slot_id": "sliding_window",
+          "title": "滑动窗口",
+          "stage": "prepare",
+          "candidate_ids": ["sliding_window"],
+          "notes": "singleton。"
+        },
+        {
+          "slot_id": "train_test_split",
+          "title": "训练/验证/测试切分",
+          "stage": "prepare",
+          "candidate_ids": ["train_test_split_ts"],
+          "notes": "singleton。"
+        },
+        {
+          "slot_id": "multi_step_forecast",
+          "title": "多步预测配置",
+          "stage": "prepare",
+          "candidate_ids": ["multi_step_forecast"],
+          "notes": "singleton。"
+        },
+        {
+          "slot_id": "hyperparameter_tuning",
+          "title": "贝叶斯超参搜索（挂靠训练链）",
+          "stage": "model",
+          "candidate_ids": ["auto_tune_xgboost"],
+          "notes": "singleton；与部分主模型耦合，扩展时需校验契约。"
+        },
+        {
+          "slot_id": "primary_forecast_model",
+          "title": "主预测模型",
+          "stage": "model",
+          "candidate_rule": "ts_forecast_registered",
+          "candidate_ids": [],
+          "notes": "与 GET model-operators-available 同源规则：ts_forecast + *_forecast + 已注册。"
+        },
+        {
+          "slot_id": "metric_smape",
+          "title": "SMAPE 评估",
+          "stage": "evaluate",
+          "candidate_ids": ["smape_score"],
+          "notes": "singleton。"
+        },
+        {
+          "slot_id": "metric_errors",
+          "title": "MSE / RMSE / MAE",
+          "stage": "evaluate",
+          "candidate_ids": ["mse_rmse_mae"],
+          "notes": "singleton。"
+        }
+      ]
+    }
+  ]
+}

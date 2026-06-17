@@ -1,0 +1,892 @@
+{
+  "id": "workflow-20260318142752280405",
+  "name": "光伏发电功率预测 - high-accuracy",
+  "description": "为场景 renewable-energy 生成工作流：，数据管理层 2 个节点，数据处理层 4 个节点，算法模型层 2 个节点，评估输出层 3 个节点，共 11 个节点、22 条连接",
+  "nodes": [
+    {
+      "id": "node-d0f7ad51",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 80.0
+      },
+      "data": {
+        "label": "CSV/Excel文件加载",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-d0f7ad51-in-file_path",
+            "name": "file_path",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-d0f7ad51-in-delimiter",
+            "name": "delimiter",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-d0f7ad51-in-encoding",
+            "name": "encoding",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-d0f7ad51-in-header_row",
+            "name": "header_row",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-d0f7ad51-in-timestamp_column",
+            "name": "timestamp_column",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-d0f7ad51-in-value_columns",
+            "name": "value_columns",
+            "type": "input",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-d0f7ad51-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "load_csv",
+          "operation": null,
+          "chartType": null,
+          "delimiter": ",",
+          "encoding": "utf-8",
+          "header_row": 0,
+          "timestamp_column": "",
+          "value_columns": []
+        },
+        "status": "idle",
+        "error": null,
+        "description": null
+      }
+    },
+    {
+      "id": "node-93f71f9a",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 80.0
+      },
+      "data": {
+        "label": "时序数据库接入",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-93f71f9a-in-db_type",
+            "name": "db_type",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-93f71f9a-in-connection_string",
+            "name": "connection_string",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-93f71f9a-in-query",
+            "name": "query",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-93f71f9a-in-start_time",
+            "name": "start_time",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-93f71f9a-in-end_time",
+            "name": "end_time",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-93f71f9a-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "load_timeseries_db",
+          "operation": null,
+          "chartType": null,
+          "start_time": "",
+          "end_time": ""
+        },
+        "status": "idle",
+        "error": null,
+        "description": null
+      }
+    },
+    {
+      "id": "node-05500181",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 230.0
+      },
+      "data": {
+        "label": "缺失值处理",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-05500181-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-05500181-in-method",
+            "name": "method",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-05500181-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "handle_missing",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": null
+      }
+    },
+    {
+      "id": "node-71d81cf8",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 230.0
+      },
+      "data": {
+        "label": "时序重采样",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-71d81cf8-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-71d81cf8-in-frequency",
+            "name": "frequency",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-71d81cf8-in-method",
+            "name": "method",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-71d81cf8-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "resample_timeseries",
+          "operation": null,
+          "chartType": null,
+          "method": "mean"
+        },
+        "status": "idle",
+        "error": null,
+        "description": null
+      }
+    },
+    {
+      "id": "node-a0d24dd1",
+      "type": "enhanced",
+      "position": {
+        "x": 600.0,
+        "y": 230.0
+      },
+      "data": {
+        "label": "小波去噪",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-a0d24dd1-in-signal",
+            "name": "signal",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-a0d24dd1-in-wavelet",
+            "name": "wavelet",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-a0d24dd1-in-level",
+            "name": "level",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-a0d24dd1-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "wavelet_denoise",
+          "operation": null,
+          "chartType": null,
+          "wavelet": "db4",
+          "level": "4"
+        },
+        "status": "idle",
+        "error": null,
+        "description": null
+      }
+    },
+    {
+      "id": "node-b6b57a32",
+      "type": "enhanced",
+      "position": {
+        "x": 850.0,
+        "y": 230.0
+      },
+      "data": {
+        "label": "Min-Max归一化",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-b6b57a32-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-b6b57a32-in-feature_range",
+            "name": "feature_range",
+            "type": "input",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-b6b57a32-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "min_max_scale",
+          "operation": null,
+          "chartType": null,
+          "feature_range": "[0, 1]"
+        },
+        "status": "idle",
+        "error": null,
+        "description": null
+      }
+    },
+    {
+      "id": "node-b075fe0f",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 380.0
+      },
+      "data": {
+        "label": "LSTM时序预测",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-b075fe0f-in-train_data",
+            "name": "train_data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-b075fe0f-in-sequence_length",
+            "name": "sequence_length",
+            "type": "input",
+            "dataType": "number",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-b075fe0f-in-forecast_horizon",
+            "name": "forecast_horizon",
+            "type": "input",
+            "dataType": "number",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-b075fe0f-in-hidden_units",
+            "name": "hidden_units",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-b075fe0f-in-auto_tune",
+            "name": "auto_tune",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-b075fe0f-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "lstm_forecast",
+          "operation": null,
+          "chartType": null,
+          "hidden_units": 64,
+          "auto_tune": "false"
+        },
+        "status": "idle",
+        "error": null,
+        "description": null
+      }
+    },
+    {
+      "id": "node-2de85aeb",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 380.0
+      },
+      "data": {
+        "label": "Transformer时序预测",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-2de85aeb-in-data",
+            "name": "data",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-2de85aeb-in-target_col",
+            "name": "target_col",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-2de85aeb-in-seq_len",
+            "name": "seq_len",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-2de85aeb-in-pred_len",
+            "name": "pred_len",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-2de85aeb-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "object",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "transformer_forecast",
+          "operation": null,
+          "chartType": null,
+          "seq_len": "96",
+          "pred_len": "24"
+        },
+        "status": "idle",
+        "error": null,
+        "description": null
+      }
+    },
+    {
+      "id": "node-e34a96a6",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 530.0
+      },
+      "data": {
+        "label": "平均绝对百分比误差(MAPE)",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-e34a96a6-in-y_true",
+            "name": "y_true",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-e34a96a6-in-y_pred",
+            "name": "y_pred",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-e34a96a6-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "mape_metric",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": null
+      }
+    },
+    {
+      "id": "node-61610980",
+      "type": "enhanced",
+      "position": {
+        "x": 350.0,
+        "y": 530.0
+      },
+      "data": {
+        "label": "均方根误差(RMSE)",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-61610980-in-y_true",
+            "name": "y_true",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-61610980-in-y_pred",
+            "name": "y_pred",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-61610980-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "number",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "rmse_metric",
+          "operation": null,
+          "chartType": null
+        },
+        "status": "idle",
+        "error": null,
+        "description": null
+      }
+    },
+    {
+      "id": "node-deb5163d",
+      "type": "enhanced",
+      "position": {
+        "x": 600.0,
+        "y": 530.0
+      },
+      "data": {
+        "label": "预测结果可视化",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "node-deb5163d-in-actual",
+            "name": "actual",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-deb5163d-in-predicted",
+            "name": "predicted",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": null
+          },
+          {
+            "id": "node-deb5163d-in-confidence_interval",
+            "name": "confidence_interval",
+            "type": "input",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "node-deb5163d-in-title",
+            "name": "title",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "node-deb5163d-out-result",
+            "name": "result",
+            "type": "output",
+            "dataType": "object",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "forecast_plot",
+          "operation": null,
+          "chartType": null,
+          "title": "预测结果"
+        },
+        "status": "idle",
+        "error": null,
+        "description": null
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-4d5c84e0",
+      "source": "node-d0f7ad51",
+      "target": "node-05500181",
+      "sourceHandle": "node-d0f7ad51-out-result",
+      "targetHandle": "node-05500181-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-fb549a6f",
+      "source": "node-d0f7ad51",
+      "target": "node-71d81cf8",
+      "sourceHandle": "node-d0f7ad51-out-result",
+      "targetHandle": "node-71d81cf8-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-1d5d7354",
+      "source": "node-d0f7ad51",
+      "target": "node-a0d24dd1",
+      "sourceHandle": "node-d0f7ad51-out-result",
+      "targetHandle": "node-a0d24dd1-in-signal",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-55a636fa",
+      "source": "node-d0f7ad51",
+      "target": "node-b6b57a32",
+      "sourceHandle": "node-d0f7ad51-out-result",
+      "targetHandle": "node-b6b57a32-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-667d5436",
+      "source": "node-93f71f9a",
+      "target": "node-05500181",
+      "sourceHandle": "node-93f71f9a-out-result",
+      "targetHandle": "node-05500181-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-6fd357bb",
+      "source": "node-93f71f9a",
+      "target": "node-71d81cf8",
+      "sourceHandle": "node-93f71f9a-out-result",
+      "targetHandle": "node-71d81cf8-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-7640a10e",
+      "source": "node-93f71f9a",
+      "target": "node-a0d24dd1",
+      "sourceHandle": "node-93f71f9a-out-result",
+      "targetHandle": "node-a0d24dd1-in-signal",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-67bf7afc",
+      "source": "node-93f71f9a",
+      "target": "node-b6b57a32",
+      "sourceHandle": "node-93f71f9a-out-result",
+      "targetHandle": "node-b6b57a32-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-457a2c90",
+      "source": "node-05500181",
+      "target": "node-b075fe0f",
+      "sourceHandle": "node-05500181-out-result",
+      "targetHandle": "node-b075fe0f-in-train_data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-9e291d3c",
+      "source": "node-05500181",
+      "target": "node-2de85aeb",
+      "sourceHandle": "node-05500181-out-result",
+      "targetHandle": "node-2de85aeb-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-35b4b1f8",
+      "source": "node-71d81cf8",
+      "target": "node-b075fe0f",
+      "sourceHandle": "node-71d81cf8-out-result",
+      "targetHandle": "node-b075fe0f-in-train_data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-7d55adaf",
+      "source": "node-71d81cf8",
+      "target": "node-2de85aeb",
+      "sourceHandle": "node-71d81cf8-out-result",
+      "targetHandle": "node-2de85aeb-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-9733a330",
+      "source": "node-a0d24dd1",
+      "target": "node-b075fe0f",
+      "sourceHandle": "node-a0d24dd1-out-result",
+      "targetHandle": "node-b075fe0f-in-train_data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-82a2779a",
+      "source": "node-a0d24dd1",
+      "target": "node-2de85aeb",
+      "sourceHandle": "node-a0d24dd1-out-result",
+      "targetHandle": "node-2de85aeb-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-ea079efe",
+      "source": "node-b6b57a32",
+      "target": "node-b075fe0f",
+      "sourceHandle": "node-b6b57a32-out-result",
+      "targetHandle": "node-b075fe0f-in-train_data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-b5840704",
+      "source": "node-b6b57a32",
+      "target": "node-2de85aeb",
+      "sourceHandle": "node-b6b57a32-out-result",
+      "targetHandle": "node-2de85aeb-in-data",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-97caf7ce",
+      "source": "node-b075fe0f",
+      "target": "node-e34a96a6",
+      "sourceHandle": "node-b075fe0f-out-result",
+      "targetHandle": "node-e34a96a6-in-y_true",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-55f67a5b",
+      "source": "node-b075fe0f",
+      "target": "node-61610980",
+      "sourceHandle": "node-b075fe0f-out-result",
+      "targetHandle": "node-61610980-in-y_true",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-98945517",
+      "source": "node-b075fe0f",
+      "target": "node-deb5163d",
+      "sourceHandle": "node-b075fe0f-out-result",
+      "targetHandle": "node-deb5163d-in-actual",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-172b245a",
+      "source": "node-2de85aeb",
+      "target": "node-e34a96a6",
+      "sourceHandle": "node-2de85aeb-out-result",
+      "targetHandle": "node-e34a96a6-in-y_true",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-f3234fc1",
+      "source": "node-2de85aeb",
+      "target": "node-61610980",
+      "sourceHandle": "node-2de85aeb-out-result",
+      "targetHandle": "node-61610980-in-y_true",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "edge-370c515a",
+      "source": "node-2de85aeb",
+      "target": "node-deb5163d",
+      "sourceHandle": "node-2de85aeb-out-result",
+      "targetHandle": "node-deb5163d-in-actual",
+      "type": "smoothstep",
+      "data": null
+    }
+  ],
+  "createdAt": "2026-03-18T14:27:52.280405",
+  "updatedAt": "2026-03-18T14:27:52.280405"
+}

@@ -1,0 +1,388 @@
+{
+  "id": "workflow-20260306172434927500",
+  "name": "test2",
+  "description": null,
+  "nodes": [
+    {
+      "id": "node-1772789033467",
+      "type": "enhanced",
+      "position": {
+        "x": 259.0,
+        "y": 114.0
+      },
+      "data": {
+        "label": "时序数据加载",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "source",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": "数据源路径或连接字符串"
+          },
+          {
+            "id": "input-1",
+            "name": "timestamp_column",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": "时间戳列名"
+          },
+          {
+            "id": "input-2",
+            "name": "value_columns",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": "数值列名列表"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "结果",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "load_timeseries",
+          "operation": null,
+          "chartType": null,
+          "category": "data_source"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "从CSV文件或数据库加载时序数据，支持负荷数据、传感器数据等格式。"
+      }
+    },
+    {
+      "id": "node-1772789036753",
+      "type": "enhanced",
+      "position": {
+        "x": 598.0,
+        "y": 191.0
+      },
+      "data": {
+        "label": "异常值检测",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": "输入时序数据"
+          },
+          {
+            "id": "input-1",
+            "name": "method",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": "检测方法：zscore/iqr/isolation_forest"
+          },
+          {
+            "id": "input-2",
+            "name": "threshold",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": "异常阈值"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "结果",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "detect_outliers",
+          "operation": null,
+          "chartType": null,
+          "category": "data_source"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "检测时序数据中的异常值，基于统计方法或机器学习方法。"
+      }
+    },
+    {
+      "id": "node-1772789044876",
+      "type": "enhanced",
+      "position": {
+        "x": 401.0,
+        "y": 321.0
+      },
+      "data": {
+        "label": "时序重采样",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": "输入时序数据"
+          },
+          {
+            "id": "input-1",
+            "name": "frequency",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": "目标频率（如'1H'表示1小时，'15min'表示15分钟）"
+          },
+          {
+            "id": "input-2",
+            "name": "method",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": "聚合方法：mean/sum/max/min"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "结果",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "resample_timeseries",
+          "operation": null,
+          "chartType": null,
+          "category": "data_source"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "对时序数据进行重采样，支持上采样和下采样，适用于不同频率的数据对齐。"
+      }
+    },
+    {
+      "id": "node-1772789050432",
+      "type": "enhanced",
+      "position": {
+        "x": 715.0,
+        "y": 434.0
+      },
+      "data": {
+        "label": "滞后特征生成",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": "输入时序数据"
+          },
+          {
+            "id": "input-1",
+            "name": "lags",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": "滞后步数列表，如[1, 2, 24, 168]"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "结果",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "create_lag_features",
+          "operation": null,
+          "chartType": null,
+          "category": "feature_engineering"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "创建时序数据的滞后特征，用于捕捉时间依赖关系。"
+      }
+    },
+    {
+      "id": "node-1772789055316",
+      "type": "enhanced",
+      "position": {
+        "x": 990.0,
+        "y": 447.0
+      },
+      "data": {
+        "label": "特征归一化",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": "输入特征数据"
+          },
+          {
+            "id": "input-1",
+            "name": "method",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": "归一化方法：minmax/zscore/robust"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "结果",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "normalize_features",
+          "operation": null,
+          "chartType": null,
+          "category": "feature_engineering"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "对特征进行归一化或标准化处理，提高模型训练效果。"
+      }
+    },
+    {
+      "id": "node-1772789059111",
+      "type": "enhanced",
+      "position": {
+        "x": 1036.0,
+        "y": 700.0
+      },
+      "data": {
+        "label": "XGBoost时序预测",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "train_features",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": "训练特征"
+          },
+          {
+            "id": "input-1",
+            "name": "train_target",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": "训练目标"
+          },
+          {
+            "id": "input-2",
+            "name": "n_estimators",
+            "type": "input",
+            "dataType": "number",
+            "required": false,
+            "description": "树的数量，默认100"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "结果",
+            "type": "output",
+            "dataType": "array",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "xgboost_forecast",
+          "operation": null,
+          "chartType": null,
+          "category": "algorithm_model"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "使用XGBoost梯度提升树进行时序预测，适合处理非线性关系。"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "reactflow__edge-node-1772789033467output-node-1772789036753input",
+      "source": "node-1772789033467",
+      "target": "node-1772789036753",
+      "sourceHandle": "output",
+      "targetHandle": "input",
+      "type": "default",
+      "data": null
+    },
+    {
+      "id": "reactflow__edge-node-1772789036753output-node-1772789044876input",
+      "source": "node-1772789036753",
+      "target": "node-1772789044876",
+      "sourceHandle": "output",
+      "targetHandle": "input",
+      "type": "default",
+      "data": null
+    },
+    {
+      "id": "reactflow__edge-node-1772789044876output-node-1772789050432input",
+      "source": "node-1772789044876",
+      "target": "node-1772789050432",
+      "sourceHandle": "output",
+      "targetHandle": "input",
+      "type": "default",
+      "data": null
+    },
+    {
+      "id": "reactflow__edge-node-1772789050432output-node-1772789055316input",
+      "source": "node-1772789050432",
+      "target": "node-1772789055316",
+      "sourceHandle": "output",
+      "targetHandle": "input",
+      "type": "default",
+      "data": null
+    },
+    {
+      "id": "edge-4",
+      "source": "node-1772789055316",
+      "target": "node-1772789059111",
+      "sourceHandle": "output",
+      "targetHandle": "input",
+      "type": "default",
+      "data": null
+    }
+  ],
+  "createdAt": "2026-03-06T17:24:34.927500",
+  "updatedAt": "2026-03-06T17:24:34.927500"
+}

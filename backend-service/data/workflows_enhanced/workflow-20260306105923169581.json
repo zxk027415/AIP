@@ -1,0 +1,195 @@
+{
+  "id": "workflow-20260306105923169581",
+  "name": "test1",
+  "description": null,
+  "nodes": [
+    {
+      "id": "node-1772765943912",
+      "type": "enhanced",
+      "position": {
+        "x": 283.0,
+        "y": 188.0
+      },
+      "data": {
+        "label": "时序数据加载",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "source",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": "数据源路径或连接字符串"
+          },
+          {
+            "id": "input-1",
+            "name": "timestamp_column",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": "时间戳列名"
+          },
+          {
+            "id": "input-2",
+            "name": "value_columns",
+            "type": "input",
+            "dataType": "array",
+            "required": true,
+            "description": "数值列名列表"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "结果",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "load_timeseries",
+          "operation": null,
+          "chartType": null,
+          "category": "data_source"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "从CSV文件或数据库加载时序数据，支持负荷数据、传感器数据等格式。"
+      }
+    },
+    {
+      "id": "node-1772765945300",
+      "type": "enhanced",
+      "position": {
+        "x": 655.0,
+        "y": 231.0
+      },
+      "data": {
+        "label": "时序重采样",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": "输入时序数据"
+          },
+          {
+            "id": "input-1",
+            "name": "frequency",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": "目标频率（如'1H'表示1小时，'15min'表示15分钟）"
+          },
+          {
+            "id": "input-2",
+            "name": "method",
+            "type": "input",
+            "dataType": "string",
+            "required": false,
+            "description": "聚合方法：mean/sum/max/min"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "结果",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "resample_timeseries",
+          "operation": null,
+          "chartType": null,
+          "category": "data_source"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "对时序数据进行重采样，支持上采样和下采样，适用于不同频率的数据对齐。"
+      }
+    },
+    {
+      "id": "node-1772765946428",
+      "type": "enhanced",
+      "position": {
+        "x": 664.0,
+        "y": 453.0
+      },
+      "data": {
+        "label": "缺失值处理",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": true,
+            "description": "输入时序数据"
+          },
+          {
+            "id": "input-1",
+            "name": "method",
+            "type": "input",
+            "dataType": "string",
+            "required": true,
+            "description": "填充方法：linear/ffill/bfill/mean"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "结果",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "handle_missing",
+          "operation": null,
+          "chartType": null,
+          "category": "data_source"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "处理时序数据中的缺失值，支持插值、前向填充、后向填充等方法。"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "reactflow__edge-node-1772765943912output-node-1772765945300input",
+      "source": "node-1772765943912",
+      "target": "node-1772765945300",
+      "sourceHandle": "output",
+      "targetHandle": "input",
+      "type": "default",
+      "data": null
+    },
+    {
+      "id": "reactflow__edge-node-1772765945300output-node-1772765946428input",
+      "source": "node-1772765945300",
+      "target": "node-1772765946428",
+      "sourceHandle": "output",
+      "targetHandle": "input",
+      "type": "default",
+      "data": null
+    }
+  ],
+  "createdAt": "2026-03-06T10:59:23.169581",
+  "updatedAt": "2026-03-06T10:59:23.169581"
+}

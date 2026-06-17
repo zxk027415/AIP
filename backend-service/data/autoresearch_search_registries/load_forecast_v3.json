@@ -1,0 +1,425 @@
+{
+  "registry_id": "load_forecast_v3",
+  "version": "3.0.0",
+  "description": "负荷预测搜索空间 V3：从参数枚举升级为 typed research actions，画像驱动选路",
+  "schema_type": "research_actions",
+  "actions": [
+    {
+      "action_id": "short_window_probe",
+      "action_type": "compare",
+      "target_direction": "parameter",
+      "target_layer": "training",
+      "description": "缩短训练窗口（14-21天），验证近期数据是否比长历史更有效（时变/漂移假设）",
+      "applicable_profile": [
+        {"signal": "drift_strength", "operator": "gt", "value": 0.3}
+      ],
+      "patch_template": {
+        "global_config": {"train_days": [14, 21]},
+        "auto_tune_n_trials": 10
+      },
+      "max_changed_variables": 1,
+      "risk_level": "low",
+      "expected_evidence": "短窗口在漂移场景下 MAPE 改善 > 0.5%",
+      "stop_conditions": ["consecutive_negative >= 3", "same_patch_duplicate"],
+      "fallback_actions": ["long_window_probe"],
+      "known_anti_patterns": ["train_days=14 + high_noise"],
+      "cooldown_iterations": 2,
+      "stage": "A"
+    },
+    {
+      "action_id": "long_window_probe",
+      "action_type": "compare",
+      "target_direction": "parameter",
+      "target_layer": "training",
+      "description": "拉长训练窗口（60-90天），验证长历史是否带来更稳定泛化",
+      "applicable_profile": [
+        {"signal": "data_length_days", "operator": "gt", "value": 60},
+        {"signal": "drift_strength", "operator": "lt", "value": 0.3}
+      ],
+      "patch_template": {
+        "global_config": {"train_days": [60, 75, 90]}
+      },
+      "max_changed_variables": 1,
+      "risk_level": "low",
+      "expected_evidence": "长窗口在稳定场景下泛化 MAPE 改善",
+      "stop_conditions": ["consecutive_negative >= 3"],
+      "fallback_actions": ["short_window_probe"],
+      "known_anti_patterns": ["train_days=90 + drift_strong"],
+      "cooldown_iterations": 2,
+      "stage": "A"
+    },
+    {
+      "action_id": "calendar_feature_ablation",
+      "action_type": "ablation",
+      "target_direction": "feature",
+      "target_layer": "feature",
+      "description": "节假日/工作日特征开关消融，验证日历特征是否真正贡献精度",
+      "applicable_profile": [
+        {"signal": "weekend_sensitive", "operator": "eq", "value": true}
+      ],
+      "patch_template": {
+        "structure_switches": {
+          "holiday_features": [true, false],
+          "workday_features": [true, false]
+        }
+      },
+      "max_changed_variables": 2,
+      "risk_level": "low",
+      "expected_evidence": "启用日历特征时周末 MAPE 改善 > 1%",
+      "stop_conditions": ["both_tested_with_evidence"],
+      "fallback_actions": ["rolling_window_family"],
+      "known_anti_patterns": [],
+      "cooldown_iterations": 3,
+      "stage": "B"
+    },
+    {
+      "action_id": "rolling_window_family",
+      "action_type": "sweep",
+      "target_direction": "feature",
+      "target_layer": "feature",
+      "description": "滚动统计窗口组合探索：短期(4,8)/中期(24,48)/长期(96)统计特征族",
+      "applicable_profile": [
+        {"signal": "volatility_level", "operator": "in", "value": ["medium", "high"]}
+      ],
+      "patch_template": {
+        "node_params": {
+          "rolling_statistics": {
+            "window_sizes": [[4, 8, 24], [4, 8, 24, 96], [8, 24, 48, 96], [4, 12, 24, 48, 96]]
+          }
+        }
+      },
+      "max_changed_variables": 1,
+      "risk_level": "low",
+      "expected_evidence": "波动场景下更宽 rolling 窗口族改善尾部误差",
+      "stop_conditions": ["best_found_repeated >= 2", "all_options_tested"],
+      "fallback_actions": ["lag_feature_sweep"],
+      "known_anti_patterns": ["window_sizes=[4,12,24,48,96] + data_length < 30d"],
+      "cooldown_iterations": 3,
+      "stage": "B"
+    },
+    {
+      "action_id": "lag_feature_sweep",
+      "action_type": "sweep",
+      "target_direction": "feature",
+      "target_layer": "feature",
+      "description": "滞后特征步数组合探索：短滞后(1-3) vs 中滞后(7-14) vs 长滞后(21-56)",
+      "applicable_profile": [],
+      "patch_template": {
+        "node_params": {
+          "create_lag_features": {
+            "lags": [[1,2,3], [1,2,3,7,14], [1,2,3,7,14,21,28], [1,2,3,7,14,21,28,56]]
+          }
+        }
+      },
+      "max_changed_variables": 1,
+      "risk_level": "low",
+      "expected_evidence": "适当滞后步数改善自回归信息捕获",
+      "stop_conditions": ["all_options_tested", "consecutive_negative >= 2"],
+      "fallback_actions": ["diff_feature_ablation"],
+      "known_anti_patterns": ["lags=[1..56] + data_length < 60d"],
+      "cooldown_iterations": 3,
+      "stage": "B"
+    },
+    {
+      "action_id": "diff_feature_ablation",
+      "action_type": "ablation",
+      "target_direction": "feature",
+      "target_layer": "feature",
+      "description": "差分特征和统计特征开关消融",
+      "applicable_profile": [],
+      "patch_template": {
+        "structure_switches": {
+          "diff_features": [true, false],
+          "extract_statistical_features": [true, false]
+        }
+      },
+      "max_changed_variables": 2,
+      "risk_level": "low",
+      "expected_evidence": "差分/统计特征对精度的边际贡献是否显著",
+      "stop_conditions": ["both_tested_with_evidence"],
+      "fallback_actions": [],
+      "known_anti_patterns": [],
+      "cooldown_iterations": 3,
+      "stage": "B"
+    },
+    {
+      "action_id": "ensemble_weight_strategy",
+      "action_type": "compare",
+      "target_direction": "model",
+      "target_layer": "model",
+      "description": "集成权重策略对比：auto_rmse vs upstream_oof_rmse vs equal",
+      "applicable_profile": [],
+      "patch_template": {
+        "node_params": {
+          "ensemble_forecast": {
+            "weight_mode": ["upstream_oof_rmse", "auto_rmse", "equal"]
+          }
+        }
+      },
+      "max_changed_variables": 1,
+      "risk_level": "low",
+      "expected_evidence": "不同权重策略在多窗口上的稳定性差异",
+      "stop_conditions": ["all_options_tested"],
+      "fallback_actions": ["ensemble_mode_compare"],
+      "known_anti_patterns": [],
+      "cooldown_iterations": 3,
+      "stage": "B"
+    },
+    {
+      "action_id": "ensemble_mode_compare",
+      "action_type": "compare",
+      "target_direction": "model",
+      "target_layer": "model",
+      "description": "集成模式对比：single_best vs all_adaptive vs subset_adaptive",
+      "applicable_profile": [],
+      "patch_template": {
+        "global_config": {
+          "ensemble_mode": ["single_best", "all_adaptive", "subset_adaptive"]
+        }
+      },
+      "max_changed_variables": 1,
+      "risk_level": "medium",
+      "expected_evidence": "集成模式选择对泛化稳定性的影响",
+      "stop_conditions": ["all_options_tested", "best_found_confirmed"],
+      "fallback_actions": ["model_regularization_profile"],
+      "known_anti_patterns": ["all_adaptive + data_length < 21d"],
+      "cooldown_iterations": 3,
+      "stage": "B"
+    },
+    {
+      "action_id": "model_regularization_profile",
+      "action_type": "sweep",
+      "target_direction": "model",
+      "target_layer": "model",
+      "description": "模型复杂度边界组合：学习率上限 × 深度上限 × 子采样率",
+      "applicable_profile": [
+        {"signal": "noise_level", "operator": "in", "value": ["medium", "high"]}
+      ],
+      "patch_template": {
+        "global_config": {
+          "xgb_eta_high": [0.05, 0.1, 0.2],
+          "xgb_max_depth_high": [6, 8, 10],
+          "xgb_subsample_high": [0.6, 0.8, 1.0]
+        }
+      },
+      "max_changed_variables": 3,
+      "risk_level": "medium",
+      "expected_evidence": "适度正则化在噪声场景下改善泛化",
+      "stop_conditions": ["consecutive_negative >= 3", "improvement < 0.1%"],
+      "fallback_actions": ["model_subset_focus"],
+      "known_anti_patterns": ["eta_high=0.05 + n_trials < 10"],
+      "cooldown_iterations": 4,
+      "stage": "B"
+    },
+    {
+      "action_id": "model_subset_focus",
+      "action_type": "compare",
+      "target_direction": "model",
+      "target_layer": "model",
+      "description": "模型子集聚焦：只用 2-3 个模型的 subset_adaptive",
+      "applicable_profile": [],
+      "patch_template": {
+        "global_config": {"ensemble_mode": "subset_adaptive"},
+        "model_focus": [
+          ["xgboost_forecast", "lightgbm_forecast"],
+          ["xgboost_forecast", "catboost_forecast"],
+          ["xgboost_forecast", "lightgbm_forecast", "catboost_forecast"]
+        ]
+      },
+      "max_changed_variables": 2,
+      "risk_level": "medium",
+      "expected_evidence": "去掉弱模型后集成更稳定",
+      "stop_conditions": ["all_subsets_tested"],
+      "fallback_actions": [],
+      "known_anti_patterns": ["single model subset + all_adaptive"],
+      "cooldown_iterations": 3,
+      "stage": "B"
+    },
+    {
+      "action_id": "weather_sensitivity_probe",
+      "action_type": "probe",
+      "target_direction": "feature",
+      "target_layer": "feature",
+      "description": "天气特征探针：仅在画像显示天气敏感时启用温度/风速列",
+      "applicable_profile": [
+        {"signal": "weather_correlated", "operator": "eq", "value": true}
+      ],
+      "patch_template": {
+        "node_params": {
+          "load_csv": {
+            "value_columns_extra": [["temperature"], ["temperature", "wind_speed"]]
+          }
+        }
+      },
+      "max_changed_variables": 1,
+      "risk_level": "low",
+      "expected_evidence": "天气列在温度敏感负荷上改善 > 0.5%",
+      "stop_conditions": ["weather_not_available", "consecutive_negative >= 2"],
+      "fallback_actions": [],
+      "known_anti_patterns": ["weather columns + no weather data file"],
+      "cooldown_iterations": 5,
+      "stage": "A"
+    },
+    {
+      "action_id": "horizon_density_probe",
+      "action_type": "probe",
+      "target_direction": "data",
+      "target_layer": "data",
+      "description": "预测粒度和样本密度实验：daily_horizon × sliding_window.step",
+      "applicable_profile": [],
+      "patch_template": {
+        "global_config": {"daily_horizon": [48, 96]},
+        "node_params": {
+          "sliding_window": {"step": [1, 12, 24, 48]}
+        }
+      },
+      "max_changed_variables": 2,
+      "risk_level": "high",
+      "expected_evidence": "密度和粒度对训练效率和精度的 tradeoff",
+      "stop_conditions": ["all_combinations_tested"],
+      "fallback_actions": [],
+      "known_anti_patterns": ["step=1 + train_days > 60（内存爆）"],
+      "cooldown_iterations": 5,
+      "stage": "B"
+    },
+    {
+      "action_id": "sliding_window_size_probe",
+      "action_type": "compare",
+      "target_direction": "feature",
+      "target_layer": "feature",
+      "description": "滑动窗口大小对比：影响每个样本覆盖的历史长度",
+      "applicable_profile": [],
+      "patch_template": {
+        "node_params": {
+          "sliding_window": {"window_size": [48, 96, 144, 192]}
+        }
+      },
+      "max_changed_variables": 1,
+      "risk_level": "low",
+      "expected_evidence": "窗口大小与样本数量的平衡点",
+      "stop_conditions": ["all_options_tested"],
+      "fallback_actions": [],
+      "known_anti_patterns": ["window_size=192 + data_length < 30d"],
+      "cooldown_iterations": 3,
+      "stage": "B"
+    },
+    {
+      "action_id": "tuning_intensity_sweep",
+      "action_type": "sweep",
+      "target_direction": "parameter",
+      "target_layer": "training",
+      "description": "调参强度探索：n_trials × cv_folds 的投入产出比",
+      "applicable_profile": [],
+      "patch_template": {
+        "node_params": {
+          "auto_tune_xgboost": {
+            "n_trials": [5, 10, 20, 30],
+            "cv_folds": [3, 5]
+          }
+        }
+      },
+      "max_changed_variables": 2,
+      "risk_level": "low",
+      "expected_evidence": "调参轮数的边际收益递减点",
+      "stop_conditions": ["diminishing_returns_detected"],
+      "fallback_actions": [],
+      "known_anti_patterns": ["n_trials=50 + train_days < 21（过拟合）"],
+      "cooldown_iterations": 3,
+      "stage": "A"
+    },
+    {
+      "action_id": "lgb_regularization_probe",
+      "action_type": "sweep",
+      "target_direction": "model",
+      "target_layer": "model",
+      "description": "LightGBM 正则化边界：叶节点数 × 学习率上限",
+      "applicable_profile": [
+        {"signal": "noise_level", "operator": "in", "value": ["medium", "high"]}
+      ],
+      "patch_template": {
+        "global_config": {
+          "lgb_num_leaves_high": [31, 63, 127],
+          "lgb_learning_rate_high": [0.05, 0.1, 0.2]
+        }
+      },
+      "max_changed_variables": 2,
+      "risk_level": "medium",
+      "expected_evidence": "LGB 复杂度控制在噪声场景下泛化改善",
+      "stop_conditions": ["consecutive_negative >= 3"],
+      "fallback_actions": ["cb_regularization_probe"],
+      "known_anti_patterns": ["num_leaves=255 + data_length < 30d"],
+      "cooldown_iterations": 4,
+      "stage": "B"
+    },
+    {
+      "action_id": "cb_regularization_probe",
+      "action_type": "sweep",
+      "target_direction": "model",
+      "target_layer": "model",
+      "description": "CatBoost 正则化边界：深度 × 学习率上限",
+      "applicable_profile": [
+        {"signal": "noise_level", "operator": "in", "value": ["medium", "high"]}
+      ],
+      "patch_template": {
+        "global_config": {
+          "cb_depth_high": [6, 8, 10],
+          "cb_learning_rate_high": [0.05, 0.1, 0.2]
+        }
+      },
+      "max_changed_variables": 2,
+      "risk_level": "medium",
+      "expected_evidence": "CatBoost 复杂度控制在噪声场景下泛化改善",
+      "stop_conditions": ["consecutive_negative >= 3"],
+      "fallback_actions": [],
+      "known_anti_patterns": ["depth=10 + small dataset"],
+      "cooldown_iterations": 4,
+      "stage": "B"
+    },
+    {
+      "action_id": "train_window_vs_tune_intensity",
+      "action_type": "compare",
+      "target_direction": "parameter",
+      "target_layer": "training",
+      "description": "交互实验：短窗口+高调参 vs 长窗口+低调参，验证哪个策略更稳健",
+      "applicable_profile": [],
+      "patch_template": {
+        "variants": [
+          {"global_config": {"train_days": 21}, "node_params": {"auto_tune_xgboost": {"n_trials": 30}}},
+          {"global_config": {"train_days": 60}, "node_params": {"auto_tune_xgboost": {"n_trials": 5}}}
+        ]
+      },
+      "max_changed_variables": 2,
+      "risk_level": "medium",
+      "expected_evidence": "训练窗口和调参强度的最优组合",
+      "stop_conditions": ["both_variants_multi_window_tested"],
+      "fallback_actions": ["short_window_probe", "long_window_probe"],
+      "known_anti_patterns": [],
+      "cooldown_iterations": 5,
+      "stage": "B"
+    }
+  ],
+  "staged_evaluation": {
+    "stage_A": {
+      "description": "低成本探针：1 窗口、低 trials，快速排除明显坏 action",
+      "windows_count": 1,
+      "auto_tune_n_trials_override": 5,
+      "promotion_to_B": "mape_improvement > 0 OR inconclusive"
+    },
+    "stage_B": {
+      "description": "正式比较：3 窗口，标准配置，生成候选证据",
+      "windows_count": 3,
+      "auto_tune_n_trials_override": null,
+      "promotion_to_C": "eligible_for_pool AND novelty=novel"
+    },
+    "stage_C": {
+      "description": "复验：5 窗口，仅 passed 才允许 Promote 或 active knowledge",
+      "windows_count": 5,
+      "auto_tune_n_trials_override": null,
+      "promotion_to_knowledge": "passed AND multi_window_confirmed"
+    }
+  },
+  "compatibility": {
+    "backward_compatible_with": ["load_forecast_v1", "load_forecast_v2"],
+    "note": "v3 新增 actions 字段，旧 layers 结构仍可从 v1/v2 读取；v3 不覆盖 v1/v2 文件"
+  }
+}

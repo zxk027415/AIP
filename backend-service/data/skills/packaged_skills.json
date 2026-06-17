@@ -1,0 +1,204 @@
+[
+  {
+    "skill_id": "skill-2365da5d",
+    "skill_name": "光伏发电功率预测 Skill",
+    "skill_version": "1.0.0",
+    "description": "基于LSTM和气象数据的光伏发电功率预测，适用于分布式光伏电站，支持日前预测和实时预测",
+    "source_template_id": "tpl-pv-power-001",
+    "source_template_name": "光伏发电功率预测模板",
+    "source_template_version": "v2.1.0",
+    "training_config": {
+      "enabled": true,
+      "min_samples": 30,
+      "default_epochs": 80,
+      "default_batch_size": 32
+    },
+    "resource_config": {
+      "cpu": "2",
+      "memory": "4Gi",
+      "gpu": "optional",
+      "timeout_seconds": 300
+    },
+    "status": "ready",
+    "created_at": "2026-03-23T12:59:29.170382",
+    "updated_at": "2026-03-23T13:30:00.000000",
+    "created_by": "system"
+  },
+  {
+    "skill_id": "skill-8f4a2b1c",
+    "skill_name": "电网负荷预测 Skill",
+    "skill_version": "1.0.0",
+    "description": "基于XGBoost和Transformer的电网负荷预测，支持短期（1-24小时）和中期（1-7天）预测",
+    "source_template_id": "tpl-load-forecast-001",
+    "source_template_name": "电网负荷预测模板",
+    "source_template_version": "v1.5.0",
+    "training_config": {
+      "enabled": true,
+      "min_samples": 50,
+      "default_epochs": 100,
+      "default_batch_size": 64
+    },
+    "resource_config": {
+      "cpu": "4",
+      "memory": "8Gi",
+      "gpu": "optional",
+      "timeout_seconds": 600
+    },
+    "status": "deployed",
+    "created_at": "2026-03-20T10:00:00.000000",
+    "updated_at": "2026-03-22T14:00:00.000000",
+    "created_by": "system"
+  },
+  {
+    "skill_id": "skill-3c7d9e2f",
+    "skill_name": "设备振动故障诊断 Skill",
+    "skill_version": "1.0.0",
+    "description": "基于频谱分析和随机森林的旋转设备振动故障诊断，支持轴承、齿轮箱等设备",
+    "source_template_id": "tpl-vibration-001",
+    "source_template_name": "设备振动故障诊断模板",
+    "source_template_version": "v1.2.0",
+    "training_config": {
+      "enabled": true,
+      "min_samples": 100,
+      "default_epochs": 50,
+      "default_batch_size": 16
+    },
+    "resource_config": {
+      "cpu": "2",
+      "memory": "4Gi",
+      "gpu": "none",
+      "timeout_seconds": 300
+    },
+    "status": "ready",
+    "created_at": "2026-03-18T09:00:00.000000",
+    "updated_at": "2026-03-21T11:00:00.000000",
+    "created_by": "system"
+  },
+  {
+    "skill_id": "skill-5a1b8c4d",
+    "skill_name": "锂电池SOC估计 Skill",
+    "skill_version": "0.9.0",
+    "description": "基于卡尔曼滤波和神经网络的锂电池荷电状态估计，适用于储能系统和电动车",
+    "source_template_id": "tpl-battery-soc-001",
+    "source_template_name": "锂电池SOC估计模板",
+    "source_template_version": "v0.9.0",
+    "training_config": {
+      "enabled": true,
+      "min_samples": 20,
+      "default_epochs": 60,
+      "default_batch_size": 32
+    },
+    "resource_config": {
+      "cpu": "2",
+      "memory": "4Gi",
+      "gpu": "none",
+      "timeout_seconds": 300
+    },
+    "status": "training",
+    "created_at": "2026-03-22T14:00:00.000000",
+    "updated_at": "2026-03-23T10:00:00.000000",
+    "created_by": "system"
+  },
+  {
+    "skill_id": "skill-9e2f7a3b",
+    "skill_name": "产品缺陷检测 Skill",
+    "skill_version": "0.5.0",
+    "description": "基于YOLOv8的工业产品表面缺陷检测，支持划痕、凹坑、裂纹等多类缺陷识别",
+    "source_template_id": "tpl-defect-detect-001",
+    "source_template_name": "产品表面缺陷检测模板",
+    "source_template_version": "v0.5.0",
+    "training_config": {
+      "enabled": true,
+      "min_samples": 200,
+      "default_epochs": 100,
+      "default_batch_size": 8
+    },
+    "resource_config": {
+      "cpu": "4",
+      "memory": "16Gi",
+      "gpu": "required",
+      "timeout_seconds": 1800
+    },
+    "status": "packaged",
+    "created_at": "2026-03-23T11:00:00.000000",
+    "updated_at": "2026-03-23T11:00:00.000000",
+    "created_by": "system"
+  },
+  {
+    "skill_id": "skill-a8607cbc",
+    "skill_name": "电网负荷预测模板 Skill",
+    "skill_version": "1.0.0",
+    "description": "",
+    "source_template_id": "tpl-load-forecast-001",
+    "source_template_name": "电网负荷预测模板",
+    "source_template_version": "v1.5.0",
+    "training_config": {
+      "enabled": true,
+      "min_samples": 30,
+      "default_epochs": 80,
+      "default_batch_size": 32
+    },
+    "resource_config": {
+      "cpu": "2",
+      "memory": "4Gi",
+      "gpu": "optional",
+      "timeout_seconds": 300
+    },
+    "status": "packaged",
+    "created_at": "2026-03-23T17:41:13.704438",
+    "updated_at": "2026-03-23T17:41:13.704438",
+    "created_by": "system"
+  },
+  {
+    "skill_id": "skill-eea6b7e2",
+    "skill_name": "光伏发电功率预测模板 Skill",
+    "skill_version": "1.0.0",
+    "description": "",
+    "source_template_id": "tpl-pv-power-001",
+    "source_template_name": "光伏发电功率预测模板",
+    "source_template_version": "v2.1.0",
+    "training_config": {
+      "enabled": true,
+      "min_samples": 30,
+      "default_epochs": 80,
+      "default_batch_size": 32
+    },
+    "resource_config": {
+      "cpu": "2",
+      "memory": "4Gi",
+      "gpu": "optional",
+      "timeout_seconds": 300
+    },
+    "status": "packaged",
+    "created_at": "2026-03-24T09:45:50.746420",
+    "updated_at": "2026-03-24T09:45:50.746420",
+    "created_by": "system"
+  },
+  {
+    "_comment": "@AI_GENERATED",
+    "skill_id": "skill-load-forecast-ar-001",
+    "skill_name": "负荷预测 AutoResearch Skill",
+    "skill_version": "1.0.0",
+    "description": "基于 XGBoost 和贝叶斯超参优化的电力负荷预测 AutoResearch Skill，支持 DI/D/WI/W/MI/M 六种场景，AI 可自主修改 train.py 优化预测效果",
+    "source_template_id": "tpl-load-forecast-001",
+    "source_template_name": "电网负荷预测模板",
+    "source_template_version": "v1.5.0",
+    "training_config": {
+      "enabled": true,
+      "min_samples": 14,
+      "default_epochs": 1,
+      "default_batch_size": 1
+    },
+    "resource_config": {
+      "cpu": "4",
+      "memory": "8Gi",
+      "gpu": "none",
+      "timeout_seconds": 600
+    },
+    "status": "ready",
+    "created_at": "2026-04-15T10:00:00.000000",
+    "updated_at": "2026-04-15T10:00:00.000000",
+    "created_by": "system",
+    "_comment_end": "@AI_GENERATED: end"
+  }
+]

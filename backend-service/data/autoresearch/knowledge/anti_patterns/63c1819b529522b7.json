@@ -1,0 +1,25 @@
+{
+  "claim": "结构调整（开关特征节点）可突破当前参数层瓶颈（诊断：parameter_saturation）（第4轮，实际=0.12709999999999955）",
+  "claim_key": {
+    "direction": null,
+    "metric": "mape",
+    "recommended_value": "6cd3da759c01",
+    "target_param": "anti_pattern_text"
+  },
+  "condition": {
+    "backtest_mode": "rolling_retrain",
+    "granularity": "intraday",
+    "train_days": 30,
+    "weekend_sensitivity": "normal"
+  },
+  "confidence": 1.0,
+  "counter_evidence": [],
+  "evidence": [
+    "ares-12821a0b3926"
+  ],
+  "knowledge_type": "anti_pattern",
+  "last_validated_at": "2026-05-22T08:41:01.967304",
+  "layer": "L3",
+  "scenario_condition_hash": "bcda466f47f336be",
+  "status": "active"
+}

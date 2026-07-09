@@ -51,7 +51,7 @@
         ],
         "config": {
           "functionId": "load_csv",
-          "file_path": "/Users/zxk/Desktop/project/AIP/fault-diag-algo-release-3.1/相关数据/train_ori/data_long#dangyang&_&_.csv",
+          "file_path": "../fault-diag-algo-release-3.1/enos_fault_diag/test/predict_small.parquet",
           "time_field": "time",
           "id_fields": [
             "site_id",
@@ -386,6 +386,7 @@
           "method": "mrmr",
           "mode": "transform",
           "feature_list": "latest",
+          "model_path": "",
           "k": 20,
           "target_col": "label"
         },
@@ -424,7 +425,8 @@
         "config": {
           "functionId": "random_forest_classifier",
           "mode": "predict",
-          "model_id": "latest"
+          "model_id": "latest",
+          "model_path": ""
         },
         "status": "idle",
         "error": null,
@@ -517,6 +519,8 @@
       "id": "ep-p5-p8",
       "source": "qvp-extract_statistical_features-p5",
       "target": "qvp-feature_select-p8",
+      "sourceHandle": "p5-out-0",
+      "targetHandle": "data",
       "type": "smoothstep",
       "data": {
         "label": "merge_features"
@@ -526,6 +530,8 @@
       "id": "ep-p6-p8",
       "source": "qvp-tsfresh_extract-p6",
       "target": "qvp-feature_select-p8",
+      "sourceHandle": "p6-out-0",
+      "targetHandle": "data_tsfresh",
       "type": "smoothstep",
       "data": {
         "label": "merge_features"
@@ -535,6 +541,8 @@
       "id": "ep-p7-p8",
       "source": "qvp-ts_comparison_features-p7",
       "target": "qvp-feature_select-p8",
+      "sourceHandle": "p7-out-0",
+      "targetHandle": "data_compare",
       "type": "smoothstep",
       "data": {
         "label": "merge_features"
@@ -554,5 +562,6 @@
       "type": "smoothstep",
       "data": null
     }
-  ]
+  ],
+  "scenario_id": "renewable-energy"
 }

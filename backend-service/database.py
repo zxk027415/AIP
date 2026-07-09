@@ -7,16 +7,29 @@ from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 import os
 
-# 数据库文件路径
-DATABASE_DIR = os.path.join(os.path.dirname(__file__), 'data')
-os.makedirs(DATABASE_DIR, exist_ok=True)
-DATABASE_URL = f"sqlite:///{os.path.join(DATABASE_DIR, 'users.db')}"
+# @AI_GENERATED
+# 数据库连接串：优先读环境变量 DB_CONNECTION_URL（MySQL）；
+# 未设置时降级到本地 SQLite，保证零配置也能启动。
+# 生产/开发环境在 .env.local 或 .aip.local.env 中设置 DB_CONNECTION_URL。
+_db_url_from_env = os.environ.get("DB_CONNECTION_URL", "").strip()
+if _db_url_from_env:
+    DATABASE_URL = _db_url_from_env
+    # MySQL：不传 check_same_thread（SQLite 专用参数）
+    _engine_kwargs: dict = {}
+else:
+    # 降级到本地 SQLite
+    DATABASE_DIR = os.path.join(os.path.dirname(__file__), 'data')
+    os.makedirs(DATABASE_DIR, exist_ok=True)
+    DATABASE_URL = f"sqlite:///{os.path.join(DATABASE_DIR, 'users.db')}"
+    _engine_kwargs = {"connect_args": {"check_same_thread": False}}
+# @AI_GENERATED: end
+
+# 兜底：确保 SQLite 的 data 目录存在（MySQL 模式下也不报错）
+_data_dir = os.path.join(os.path.dirname(__file__), 'data')
+os.makedirs(_data_dir, exist_ok=True)
 
 # 创建数据库引擎
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False}  # SQLite 需要
-)
+engine = create_engine(DATABASE_URL, **_engine_kwargs)  # type: ignore[arg-type]
 
 # 创建会话工厂
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

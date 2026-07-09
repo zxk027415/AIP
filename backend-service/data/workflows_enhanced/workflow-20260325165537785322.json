@@ -785,5 +785,6 @@
     }
   ],
   "createdAt": "2026-03-25T16:55:37.785322",
-  "updatedAt": "2026-03-25T16:55:37.785322"
+  "updatedAt": "2026-03-25T16:55:37.785322",
+  "scenario_id": "energy-storage"
 }

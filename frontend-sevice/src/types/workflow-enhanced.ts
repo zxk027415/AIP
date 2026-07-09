@@ -94,14 +94,25 @@ export interface EnhancedWorkflow {
   description?: string;
   nodes: EnhancedWorkflowNode[];
   edges: EnhancedWorkflowEdge[];
+  scenario_id?: string;
+  version?: number;
+  version_group_id?: string;
+  parent_version_id?: string;
   createdAt?: string;
   updatedAt?: string;
+  // @AI_GENERATED
+  // 创建来源模板 ID（"从模板新建"时记录溯源；"空白新建"或"编辑已有"时可为 null）
+  source_template_id?: string | null;
+  // @AI_GENERATED: end
 }
 
 export interface EnhancedWorkflowSummary {
   id: string;
   name: string;
   description?: string;
+  scenario_id?: string;
+  version?: number;
+  version_group_id?: string;
   nodeCount: number;
   edgeCount: number;
   createdAt?: string;

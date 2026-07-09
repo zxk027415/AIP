@@ -1,0 +1,17 @@
+
+> ai-computing-platform-frontend@0.1.0 dev
+> vite --host 0.0.0.0 --port 3001
+
+✓ 前端服务器启动时间已记录到文件: 2026-06-24T06:17:53.767Z
+⏳ 等待 3 秒让后端完全初始化（数据库、路由等）...
+
+  VITE v5.4.21  ready in 478 ms
+
+  ➜  Local:   http://localhost:3001/
+  ➜  Network: http://172.20.10.14:3001/
+  ➜  Network: http://100.66.66.10:3001/
+✓ 前端服务状态已成功记录到数据库: 2026-06-24T14:17:56.790456
+  数据库记录ID: 1902
+
+warn - No utility classes were detected in your source files. If this is unexpected, double-check the `content` option in your Tailwind CSS configuration.
+warn - https://tailwindcss.com/docs/content-configuration

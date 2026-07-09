@@ -3897,28 +3897,33 @@ const WorkflowBaselineComparePage: React.FC = () => {
                     size="small"
                     pagination={{ pageSize: 8 }}
                     locale={{ emptyText: '暂无复验任务' }}
+                    scroll={{ x: 900 }}
                     columns={[
                       {
                         title: '复验 ID',
                         dataIndex: 'id',
-                        width: 160,
-                        render: (value: string) => <Text code>{value || '-'}</Text>,
+                        width: 180,
+                        ellipsis: true,
+                        render: (value: string) => <Text code style={{ fontSize: 11 }}>{value?.slice(0, 20) || '-'}</Text>,
                       },
                       {
                         title: '候选',
                         dataIndex: 'candidate_id',
-                        width: 160,
-                        render: (value: string) => <Text code>{value || '-'}</Text>,
+                        width: 170,
+                        ellipsis: true,
+                        render: (value: string) => <Text code style={{ fontSize: 11 }}>{value?.slice(0, 18) || '-'}</Text>,
                       },
                       {
                         title: '配置',
                         key: 'config',
+                        width: 260,
+                        ellipsis: true,
                         render: (_: unknown, record: Record<string, unknown>) => verificationConfigSummary(record),
                       },
                       {
                         title: '状态',
                         dataIndex: 'status',
-                        width: 100,
+                        width: 90,
                         render: (value: string) => (
                           <Tag color={value === 'passed' ? 'green' : value === 'running' ? 'blue' : value === 'failed' ? 'red' : 'default'}>
                             {value || '-'}
@@ -3928,12 +3933,47 @@ const WorkflowBaselineComparePage: React.FC = () => {
                       {
                         title: '进度',
                         key: 'progress',
-                        width: 120,
+                        width: 100,
                         render: (_: unknown, record: Record<string, unknown>) => {
                           const progress = (record.progress as Record<string, unknown> | undefined) || {};
                           const done = Number(progress.completed ?? progress.done ?? 0);
                           const total = Number(progress.total ?? 0);
                           return total > 0 ? `${done} / ${total}` : '-';
+                        },
+                      },
+                      {
+                        title: '操作',
+                        key: 'actions',
+                        width: 140,
+                        render: (_: unknown, record: Record<string, unknown>) => {
+                          const status = String(record.status || '');
+                          return (
+                            <Space size="small">
+                              {status === 'passed' && (
+                                <Tag color="green">已通过</Tag>
+                              )}
+                              {status === 'running' && (
+                                <Button
+                                  size="small"
+                                  danger
+                                  onClick={async () => {
+                                    try {
+                                      await baselineCompareApi.cancelVerification(record.id as string);
+                                      message.success('已发送取消');
+                                      loadVerificationQueue();
+                                    } catch (e: unknown) {
+                                      message.error((e as Error).message || '取消失败');
+                                    }
+                                  }}
+                                >
+                                  取消
+                                </Button>
+                              )}
+                              {status !== 'running' && status !== 'passed' && (
+                                <Text type="secondary">-</Text>
+                              )}
+                            </Space>
+                          );
                         },
                       },
                     ]}
@@ -7631,7 +7671,7 @@ const WorkflowBaselineComparePage: React.FC = () => {
             type="info"
             showIcon
             style={{ marginBottom: 12 }}
-            message="默认只允许复验池 passed 的候选 Promote。未通过复验时需显式勾选人工强制 Promote。"
+            message="默认只允许复验池 passed 的候选 Promote。未通过复验时可强制进入预上线观察。"
           />
           <Form.Item name="note" label="备注">
             <Input placeholder="可选备注" />
@@ -7651,7 +7691,7 @@ const WorkflowBaselineComparePage: React.FC = () => {
               ) : null
             }
           </Form.Item>
-          <Form.Item name="force" label="人工强制 Promote（跳过复验门控）" valuePropName="checked">
+          <Form.Item name="force" label="强制进入预上线（跳过复验门控，进入 7 天观察期）" valuePropName="checked">
             <Switch />
           </Form.Item>
         </Form>

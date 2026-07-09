@@ -28,6 +28,9 @@ import {
   RobotOutlined,
   ThunderboltOutlined,
   ApiOutlined,
+  ClusterOutlined,
+  FolderOutlined,
+  BuildOutlined,
 } from '@ant-design/icons';
 // @AI_GENERATED: end
 import type { MenuProps } from 'antd';
@@ -169,78 +172,41 @@ const MainLayout: React.FC = () => {
       icon: <HomeOutlined />,
       label: t('nav.home'),
     },
-    // ── Agentic Service ──
-    // @AI_GENERATED: Kiro v1.0
+    // ── 行业服务 ──
     {
-      key: 'grp-agentic',
+      key: 'grp-industry-service',
       type: 'group',
-      label: t('nav.agenticService'),
-      children: [
-        {
-          key: '/algorithm-agent',
-          icon: <RobotOutlined />,
-          label: t('nav.algorithmAgent'),
-        },
-        {
-          key: '/agent-skill-status',
-          icon: <ThunderboltOutlined />,
-          label: t('nav.agentSkillStatus'),
-        },
-        {
-          key: '/llm-config',
-          icon: <ApiOutlined />,
-          label: t('nav.llmConfig'),
-        },
-      ],
-    },
-    // @AI_GENERATED: end
-    // ── 算法服务 ──
-    {
-      key: 'grp-service',
-      type: 'group',
-      label: t('nav.algorithmService'),
+      label: '行业服务',
       children: [
         {
           key: '/industry',
           icon: <BankOutlined />,
-          label: t('nav.industryScenario'),
+          label: '行业场景',
         },
         {
-          key: 'algorithm-solutions',
+          key: '/algorithm-solutions',
           icon: <ExperimentOutlined />,
-          label: t('nav.algorithmSolutions'),
-          children: [
-            {
-              key: '/algorithm-solutions',
-              icon: <AppstoreOutlined />,
-              label: t('nav.solutionLibrary'),
-            },
-            {
-              key: '/algorithm-solutions/accuracy',
-              icon: <ExperimentOutlined />,
-              label: t('nav.accuracyManagement'),
-            },
-            {
-              key: '/algorithm-solutions/applications',
-              icon: <ApartmentOutlined />,
-              label: t('nav.applicationInstances'),
-            },
-          ],
+          label: '算法方案库',
         },
         {
           key: 'data-mgmt',
           icon: <DatabaseOutlined />,
-          label: t('nav.industryDataManagement'),
+          label: '行业数据管理',
           children: [
             {
               key: '/data-sources',
               icon: <CloudServerOutlined />,
-              label: t('nav.dataSourceManagement'),
+              label: '数据源管理',
             },
             {
               key: '/datasets',
               icon: <DatabaseOutlined />,
-              label: t('nav.datasetManagement'),
+              label: '数据集管理',
+            },
+            {
+              key: '/industry-data/pipelines',
+              icon: <ApartmentOutlined />,
+              label: '数据管线',
             },
             {
               key: '/iterative-labeling',
@@ -249,109 +215,44 @@ const MainLayout: React.FC = () => {
             },
           ],
         },
-        {
-          key: 'deployment',
-          icon: <RocketOutlined />,
-          label: t('nav.algorithmDeployment'),
-          children: [
-            {
-              key: '/deployment',
-              icon: <AppstoreOutlined />,
-              label: t('nav.deploymentTasks'),
-            },
-            {
-              key: '/deployment/services',
-              icon: <CloudServerOutlined />,
-              label: t('nav.serviceManagement'),
-            },
-            {
-              key: '/deployment/monitor',
-              icon: <DashboardOutlined />,
-              label: t('nav.serviceMonitor'),
-            },
-          ],
-        },
-        // @AI_GENERATED: Kiro v1.0
-        {
-          key: '/ops',
-          icon: <LineChartOutlined />,
-          label: t('nav.algorithmOps'),
-        },
-        // @AI_GENERATED: end
       ],
     },
-    // ── 算法模板 ──
+    // ── 算法开发 ──
     {
-      key: 'grp-template',
+      key: 'grp-algorithm-dev',
       type: 'group',
-      label: t('nav.algorithmTemplate'),
+      label: '算法开发',
       children: [
         {
-          key: '/template-library',
-          icon: <AppstoreOutlined />,
-          label: t('nav.templateLibrary'),
+          key: '/algorithm-dev/management',
+          icon: <ClusterOutlined />,
+          label: '算法管理',
         },
         {
-          key: '/functions',
-          icon: <FunctionOutlined />,
-          label: t('nav.basicAlgorithmLibrary'),
-        },
-        {
-          key: 'workflow-edit',
+          key: '/algorithm-dev/workflows',
           icon: <ApartmentOutlined />,
-          label: t('nav.workflowOrchestration'),
-          children: [
-            {
-              key: '/workflow/editor',
-              icon: <AppstoreOutlined />,
-              label: t('nav.editor'),
-            },
-            {
-              key: '/workflow/list',
-              icon: <FileTextOutlined />,
-              label: t('nav.myWorkflows'),
-            },
-            {
-              key: '/workflow/baseline-compare',
-              icon: <ExperimentOutlined />,
-              label: t('nav.baselineCompare'),
-            },
-            {
-              key: '/workflow-agent',
-              icon: <RobotOutlined />,
-              label: t('nav.intelligentOrchestration'),
-            },
-            {
-              key: '/workflow-agent/history',
-              icon: <FileTextOutlined />,
-              label: t('nav.orchestrationHistory'),
-            },
-          ],
+          label: '工作流编排',
         },
-        // @AI_GENERATED: Kiro v1.0
         {
-          key: 'backtest',
-          icon: <ExperimentOutlined />,
-          label: t('nav.templateBacktest'),
-          children: [
-            {
-              key: '/backtest/unified',
-              icon: <ExperimentOutlined />,
-              label: t('nav.backtestTasks'),
-            },
-            {
-              key: '/backtest/unified/monitor',
-              icon: <DashboardOutlined />,
-              label: t('nav.backtestMonitor'),
-            },
-            {
-              key: '/backtest/unified/results',
-              icon: <LineChartOutlined />,
-              label: t('nav.backtestResults'),
-            },
-          ],
+          key: '/algorithm-dev/operators',
+          icon: <FunctionOutlined />,
+          label: '基础算法库',
         },
-        // @AI_GENERATED: end
+        {
+          key: '/algorithm-dev/autoresearch',
+          icon: <ExperimentOutlined />,
+          label: '自动化回测',
+        },
+        {
+          key: '/algorithm-dev/deployment',
+          icon: <RocketOutlined />,
+          label: '算法部署',
+        },
+        {
+          key: '/algorithm-dev/ops',
+          icon: <LineChartOutlined />,
+          label: '算法运营',
+        },
       ],
     },
     // ── 系统 ──
@@ -363,29 +264,66 @@ const MainLayout: React.FC = () => {
         {
           key: 'system-admin',
           icon: <ToolOutlined />,
-          label: t('nav.systemManagement'),
+          label: '系统管理',
           children: [
             {
               key: '/system-status',
               icon: <DashboardOutlined />,
-              label: t('nav.systemStatus'),
+              label: '系统状态',
             },
             {
               key: '/settings',
               icon: <SettingOutlined />,
-              label: t('nav.systemConfig'),
+              label: '系统配置',
             },
             {
               key: '/architecture',
               icon: <CodeOutlined />,
-              label: t('nav.devArchitecture'),
+              label: '研发架构',
             },
           ],
         },
         {
           key: '/profile',
           icon: <UserOutlined />,
-          label: t('nav.profile'),
+          label: '个人信息',
+        },
+        {
+          key: 'legacy-tools',
+          icon: <FolderOutlined />,
+          label: '旧入口',
+          children: [
+            {
+              key: '/workflow-agent',
+              icon: <RobotOutlined />,
+              label: '智能编排 Agent',
+            },
+            {
+              key: '/algorithm-agent',
+              icon: <RobotOutlined />,
+              label: '算法 Agent',
+            },
+            {
+              key: '/template-library',
+              icon: <AppstoreOutlined />,
+              label: '官方模板库',
+            },
+            {
+              key: '/backtest/unified',
+              icon: <BuildOutlined />,
+              label: '统一回测',
+            },
+            {
+              key: '/precision-ops',
+              icon: <ThunderboltOutlined />,
+              label: '精度运营旧入口',
+            },
+            {
+              key: '/llm-config',
+              icon: <ApiOutlined />,
+              label: 'LLM 配置',
+            },
+          ],
         },
       ],
     },
@@ -411,6 +349,13 @@ const MainLayout: React.FC = () => {
       setMobileMenuVisible(false);
     }
   };
+
+  const selectedMenuKey = useMemo(() => {
+    const path = location.pathname;
+    if (path.startsWith('/algorithm-dev/workflow-editor')) return '/algorithm-dev/workflows';
+    if (path.startsWith('/algorithm-dev')) return path;
+    return path;
+  }, [location.pathname]);
 
   const handleSiderResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -471,20 +416,45 @@ const MainLayout: React.FC = () => {
             top: 0,
             bottom: 0,
             background: '#fff',
-            borderRight: '1px solid #e6f4ff',
+            borderRight: '1px solid #f0f0f0',
           }}
         >
+          {/* Navigation CSS overrides per design spec fig.3 */}
+          <style>{`
+            .seventh-gen-nav .ant-menu-item {
+              height: 40px;
+              line-height: 40px;
+              margin: 0;
+              border-radius: 0;
+            }
+            .seventh-gen-nav .ant-menu-item-selected {
+              border-left: 3px solid #1677ff;
+              background-color: #e6f7ff !important;
+            }
+            .seventh-gen-nav .ant-menu-item-group-title {
+              font-size: 11px;
+              color: #8c8c8c;
+              padding-left: 16px;
+              margin-top: 12px;
+            }
+            .seventh-gen-nav .ant-menu-submenu-title {
+              height: 40px;
+              line-height: 40px;
+              margin: 0;
+              border-radius: 0;
+            }
+          `}</style>
           <div
             style={{
-              height: '64px',
+              height: 56,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#262626',
-              fontSize: '16px',
-              fontWeight: 'bold',
+              fontSize: 15,
+              fontWeight: 600,
               borderBottom: '1px solid #f0f0f0',
-              background: '#fafafa',
+              background: '#fff',
             }}
           >
             {t('app.title')}
@@ -493,10 +463,11 @@ const MainLayout: React.FC = () => {
             key={i18n.language}
             theme="light"
             mode="inline"
-            selectedKeys={[location.pathname]}
+            selectedKeys={[selectedMenuKey]}
             onClick={handleMenuClick}
             items={menuItems}
             style={{ borderRight: 0 }}
+            className="seventh-gen-nav"
           />
           <div
             onMouseDown={handleSiderResizeStart}
@@ -537,6 +508,14 @@ const MainLayout: React.FC = () => {
                 {location.pathname === '/home' && t('header.home')}
                 {location.pathname === '/industry' && t('header.industryAISolutions')}
                 {location.pathname.startsWith('/industry/') && t('header.scenarioDetails')}
+                {location.pathname === '/algorithm-dev/management' && '算法管理'}
+                {location.pathname === '/algorithm-dev/workflows' && '工作流编排'}
+                {location.pathname === '/algorithm-dev/workflow-editor' && '工作流编排'}
+                {location.pathname.startsWith('/algorithm-dev/workflow-editor/') && '工作流编排'}
+                {location.pathname === '/algorithm-dev/operators' && '基础算法库'}
+                {location.pathname === '/algorithm-dev/autoresearch' && '自动化回测'}
+                {location.pathname === '/algorithm-dev/ops' && '算法运营'}
+                {location.pathname === '/algorithm-dev/deployment' && '算法部署'}
                 {location.pathname === '/functions' && t('header.basicAlgorithmLibrary')}
                 {location.pathname === '/knowledge-graph' && t('header.aiKnowledgeGraph')}
                 {location.pathname === '/workflow/editor' && t('header.workflowEditor')}
@@ -547,6 +526,7 @@ const MainLayout: React.FC = () => {
                 {location.pathname === '/workflow-agent/history' && t('header.orchestrationHistory')}
                 {location.pathname === '/data-sources' && t('header.dataSourceManagement')}
                 {location.pathname === '/datasets' && t('header.datasetManagement')}
+                {location.pathname === '/industry-data/pipelines' && '数据管线管理'}
                 {location.pathname === '/algorithm-solutions' && t('header.algorithmSolutions')}
                 {location.pathname === '/algorithm-solutions/accuracy' && t('header.accuracyManagement')}
                 {location.pathname === '/algorithm-solutions/applications' && t('header.applicationInstances')}
@@ -562,6 +542,7 @@ const MainLayout: React.FC = () => {
                 {location.pathname === '/ops/drift' && t('header.driftMonitor')}
                 {location.pathname === '/ops/ab-test' && t('header.abTest')}
                 {location.pathname === '/ops/retrain' && t('header.autoRetrain')}
+                {location.pathname === '/precision-ops' && '精度运营'}
                 {location.pathname === '/algorithm-agent' && t('header.algorithmAgent')}
                 {location.pathname === '/llm-config' && t('header.llmConfig')}
                 {location.pathname === '/templates' && t('header.templateLibrary')}
@@ -693,7 +674,7 @@ const MainLayout: React.FC = () => {
         <Menu
           key={i18n.language}
           mode="vertical"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[selectedMenuKey]}
           onClick={handleMenuClick}
           items={menuItems}
         />

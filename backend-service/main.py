@@ -51,6 +51,10 @@ from api.load_forecast import router as load_forecast_router
 # @AI_GENERATED
 from api.iterative_labeling import router as iterative_labeling_router
 # @AI_GENERATED: end
+# @AI_GENERATED
+from api.precision_ops import router as precision_ops_router  # 精度运营路由
+# @AI_GENERATED: end
+from api.scheduler import router as scheduler_router, set_scheduler_engine
 
 # 导入数据库初始化
 from database import init_db
@@ -165,6 +169,154 @@ async def startup_event():
     except Exception as e:
         print(f"AutoResearch Job Queue 检查失败: {e}")
 
+    # @AI_GENERATED
+    # 数据库连通性校验 — 在初始化 DBAdapter 之前主动校验配置和连通性。
+    # 依赖 services/db/connectivity_validator.py（返回结构化 ValidationResult）。
+    # 行为契约：
+    #   - status == 'config_error' 且 fatal_on_missing_vars=True → 抛 RuntimeError，
+    #     阻止服务以半配置状态启动（Requirement 8.6 "启动阶段立即报错并列出所有缺失的变量名"）。
+    #   - status == 'skipped'（DB_ENABLED=false）→ 打印 info 后继续，走文件存储。
+    #   - status == 'unhealthy'（连接失败）→ 打印 warning 后继续，其他端点仍可服务。
+    # 与运行时 /api/system/db-health 端点解耦：本处是启动阶段一次性校验，
+    # /db-health 端点由 UI/探针按需实时轮询（api/system.py::get_db_health）。
+    # Requirements: 8.4, 8.6
+    try:
+        from services.db.connectivity_validator import validate_at_startup
+
+        _db_validation = validate_at_startup(fatal_on_missing_vars=True)
+        if _db_validation.status == "healthy":
+            print(
+                "✓ DB 连通性校验通过："
+                f"engine={_db_validation.engine} "
+                f"latency={_db_validation.latency_ms}ms "
+                f"url={_db_validation.connection_url_masked}"
+            )
+        elif _db_validation.status == "unhealthy":
+            print(
+                "⚠ DB 连通性异常但继续启动："
+                f"error_type={_db_validation.error_type} "
+                f"message={_db_validation.message} "
+                f"url={_db_validation.connection_url_masked}"
+            )
+        else:
+            # skipped：DB_ENABLED=false，或其它非致命状态
+            print(
+                f"ℹ DB 连通性校验：status={_db_validation.status} "
+                f"message={_db_validation.message}"
+            )
+    except RuntimeError:
+        # config_error 且 fatal_on_missing_vars=True — 直接抛出，让 uvicorn 报错
+        # 并展示 validate_at_startup 生成的中文错误信息（含缺失变量名列表）
+        raise
+    except Exception as _db_val_exc:  # noqa: BLE001 — 兜底：验证器自身异常不阻断启动
+        print(f"DB 连通性校验遇到未预期异常（非致命，继续启动）：{_db_val_exc}")
+    # @AI_GENERATED: end
+
+    # DB 层和调度器初始化（DB_ENABLED 控制是否真正连接）
+    try:
+        from services.db.config import DBConfig
+        from services.db.adapter import DBAdapter
+        from services.scheduler.engine import SchedulerEngine
+        from services.scheduler.tasks.load_forecast_tasks import (
+            make_data_pull_task, make_daily_rolling_task, make_accuracy_backfill_task
+        )
+        from services.scheduler.tasks.pv_fault_tasks import (
+            make_pv_data_pull_task, make_pv_prediction_task
+        )
+        from services.precision_ops.production_registry import ProductionRegistry
+        from services.precision_ops.version_registry import VersionRegistry
+        from services.precision_ops.config_manager import ConfigManager
+        from services.db.datasources.local_db_mock import (
+            LocalDbMockDataSource,
+            build_default_mock_feeder,
+        )
+        from services.db.repositories.load_forecast import LoadForecastRepository
+        from services.db.repositories.pv_fault import PVFaultRepository
+
+        _db_cfg = DBConfig()
+        _db_adapter = DBAdapter(_db_cfg)
+        _lf_repo = LoadForecastRepository(_db_adapter)
+        from services.precision_ops._db_helper import set_lf_repo
+        set_lf_repo(_lf_repo)
+        _pv_repo = PVFaultRepository(_db_adapter)
+        _mock_feeder = build_default_mock_feeder(_db_adapter)
+        _mock_feeder.ensure_tables()
+        _mock_source = LocalDbMockDataSource(_db_adapter)
+
+        _sched_engine = SchedulerEngine()
+        # @AI_GENERATED: mock_data_feed — 模拟公司生产库每天新增 96 行数据（独立于平台拉取）
+        _sched_engine.register_task(
+            "mock_data_feed",
+            _mock_feeder.feed_next_batch,
+            "0 0 * * *", "load_forecast"  # 默认每天 0:00 喂一批（比 lf_data_pull 早 1 小时）
+        )
+        # @AI_GENERATED: end
+        _sched_engine.register_task(
+            "lf_data_pull",
+            make_data_pull_task(
+                _mock_source,
+                _lf_repo,
+                "default",
+            ),
+            _db_cfg.sched_lf_pull_cron, "load_forecast"
+        )
+        # @AI_GENERATED: 改用新版 make_daily_rolling_task（严格 gap-1-day + slot config 读训练窗口）
+        from services.deployment.store import DeploymentSlotStore as _SlotStore
+        _slot_store_instance = _SlotStore()
+        _sched_engine.register_task(
+            "lf_daily_rolling",
+            make_daily_rolling_task(
+                _lf_repo,
+                "default",
+                station_id=_mock_feeder.station_id,
+                feature_name=_mock_feeder.feature_name,
+                slot_store=_slot_store_instance,
+                production_registry=ProductionRegistry(),
+                version_registry=VersionRegistry(),
+            ),
+            _db_cfg.sched_lf_predict_cron, "load_forecast"
+        )
+        # @AI_GENERATED: end
+        _sched_engine.register_task(
+            "lf_backfill",
+            make_accuracy_backfill_task(
+                _lf_repo,
+                "default",
+                station_id=_mock_feeder.station_id,
+                feature_name=_mock_feeder.feature_name,
+                slot_store=_slot_store_instance,
+            ),
+            _db_cfg.sched_lf_backfill_cron, "load_forecast"
+        )
+        _sched_engine.register_task(
+            "pv_data_pull", make_pv_data_pull_task(_mock_source, _pv_repo),
+            _db_cfg.sched_pv_pull_cron, "pv_fault"
+        )
+        _sched_engine.register_task(
+            "pv_prediction", make_pv_prediction_task(_pv_repo, "models/pv_fault.pkl"),
+            _db_cfg.sched_pv_predict_cron, "pv_fault"
+        )
+        set_scheduler_engine(_sched_engine)
+        app._db_adapter = _db_adapter  # store for shutdown
+        print("✓ DBAdapter 和 SchedulerEngine 初始化完成")
+
+        # @AI_GENERATED: 阶段 3 — 启动时预置 tasks.json 种子（幂等，已存在则不覆盖）
+        _seed_scheduler_tasks(_db_cfg)
+        # @AI_GENERATED: end
+    except Exception as e:
+        print(f"DBAdapter/SchedulerEngine 初始化失败（非致命）: {e}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    try:
+        if hasattr(app, '_db_adapter') and app._db_adapter:
+            app._db_adapter.dispose()
+            print("✓ DBAdapter 已关闭")
+    except Exception as e:
+        print(f"DBAdapter 关闭失败: {e}")
+
+
 # 注册路由
 # 注意：更具体的路由要先注册，避免被通用路由拦截
 app.include_router(auth_router, prefix="/api")
@@ -196,6 +348,10 @@ app.include_router(load_forecast_router)  # 负荷预测路由
 # @AI_GENERATED
 app.include_router(iterative_labeling_router)  # 光伏故障迭代标注闭环路由
 # @AI_GENERATED: end
+# @AI_GENERATED
+app.include_router(precision_ops_router)  # 精度运营路由
+# @AI_GENERATED: end
+app.include_router(scheduler_router)  # 调度器状态路由
 
 print("已注册的路由:")
 for route in app.routes:
@@ -251,3 +407,130 @@ async def health_check():
             "start_time": SERVER_START_DATETIME.isoformat(),
             "current_time": datetime.now().isoformat()
         }
+
+# @AI_GENERATED: 阶段 3 — 启动时预置 tasks.json 种子函数
+def _seed_scheduler_tasks(db_cfg) -> None:
+    """
+    启动时把 5 条默认 cron 任务写入 tasks.json（幂等，已存在则不覆盖）。
+
+    以 tasks.json 为运行时唯一真源：
+      - 初次启动时 tasks.json 不存在 → 全部写入
+      - 后续启动时 tasks.json 已有记录 → 保留用户改过的 cron_expr，不覆盖
+
+    默认 5 条任务（cron 表达式来自 configs/db.yaml）：
+      lf_data_pull      — 负荷预测数据拉取
+      lf_daily_rolling  — 负荷预测每日滚动训练+预测
+      lf_accuracy_backfill — 负荷预测精度回填
+      pv_data_pull      — 光伏故障数据拉取
+      pv_prediction     — 光伏故障预测
+    """
+    try:
+        from services.deployment.scheduler_store import SchedulerStore
+        from services.deployment.scheduler_models import ScheduledTask
+
+        store = SchedulerStore()
+        now = __import__('datetime').datetime.now().isoformat()
+
+        _DEFAULT_TASKS = [
+            {
+                "task_id": "mock_data_feed",
+                "name": "模拟喂数据 — 公司生产库每天新增 96 行",
+                "pipeline": "load_forecast",
+                "schedule_type": "cron",
+                "cron_expr": "0 0 * * *",
+                "slot": "default",
+            },
+            {
+                "task_id": "lf_data_pull",
+                "name": "负荷预测 — 数据拉取（从公司库拉到平台库）",
+                "pipeline": "load_forecast",
+                "schedule_type": "cron",
+                "cron_expr": getattr(db_cfg, "sched_lf_pull_cron", "0 1 * * *"),
+                "slot": "default",
+            },
+            {
+                "task_id": "lf_daily_rolling",
+                "name": "负荷预测 — 每日滚动训练+预测（gap-1-day，预测 T+1）",
+                "pipeline": "load_forecast",
+                "schedule_type": "cron",
+                "cron_expr": getattr(db_cfg, "sched_lf_predict_cron", "30 1 * * *"),
+                "slot": "default",
+            },
+            {
+                "task_id": "lf_accuracy_backfill",
+                "name": "负荷预测 — 精度回填（用 T 真值补 T-1 预测精度）",
+                "pipeline": "load_forecast",
+                "schedule_type": "cron",
+                "cron_expr": getattr(db_cfg, "sched_lf_backfill_cron", "0 4 * * *"),
+                "slot": "default",
+            },
+            {
+                "task_id": "pv_data_pull",
+                "name": "光伏故障 — 数据拉取",
+                "pipeline": "pv_fault",
+                "schedule_type": "cron",
+                "cron_expr": getattr(db_cfg, "sched_pv_pull_cron", "0 2 * * *"),
+                "slot": "default",
+            },
+            {
+                "task_id": "pv_prediction",
+                "name": "光伏故障 — 预测",
+                "pipeline": "pv_fault",
+                "schedule_type": "cron",
+                "cron_expr": getattr(db_cfg, "sched_pv_predict_cron", "30 2 * * *"),
+                "slot": "default",
+            },
+        ]
+
+        seeded = 0
+        for defaults in _DEFAULT_TASKS:
+            # 已存在则跳过（不覆盖用户改过的 cron_expr）
+            if store.get_task(defaults["task_id"]) is not None:
+                continue
+            try:
+                task = ScheduledTask(
+                    **defaults,
+                    trigger_time="02:00",
+                    status="stopped",
+                    retry_on_failure=True,
+                    max_retries=3,
+                    created_at=now,
+                    updated_at=now,
+                )
+                store.upsert_task(task)
+                seeded += 1
+            except Exception as _e:
+                print(f"  seed task {defaults['task_id']} 失败（跳过）: {_e}")
+
+        if seeded > 0:
+            print(f"✓ tasks.json 种子写入：{seeded} 条新任务")
+        else:
+            print("✓ tasks.json 已有种子，无需重新写入")
+
+    except Exception as e:
+        print(f"tasks.json 种子写入失败（非致命）: {e}")
+# @AI_GENERATED: end
+
+    # @AI_GENERATED: Phase 1 双写 — B' 类静态配置文件 → MySQL 镜像同步
+    # 三份 Git-tracked 权威配置文件（search_space_registry / feature_recipes / production_workflow_registry）
+    # 按 SHA-256 幂等同步到 DB，供后续跨机器统一读。
+    # 失败降级 warning（非致命），不阻塞其他 startup 步骤。
+    try:
+        from services.db.repositories.registry_sync import sync_all_from_files
+        _sync_summary = sync_all_from_files()
+        if isinstance(_sync_summary, dict) and _sync_summary.get("error"):
+            print(f"⚠ 静态配置 sync 失败（非致命）: {_sync_summary['error']}")
+        else:
+            for _table_name, _stats in (_sync_summary or {}).items():
+                if not isinstance(_stats, dict):
+                    continue
+                print(
+                    f"✓ 静态配置 sync [{_table_name}]: "
+                    f"scanned={_stats.get('scanned', 0)} "
+                    f"upserted={_stats.get('upserted', 0)} "
+                    f"unchanged={_stats.get('unchanged', 0)} "
+                    f"errors={len(_stats.get('errors', []))}"
+                )
+    except Exception as _sync_exc:
+        print(f"静态配置 sync 遇到未预期异常（非致命）: {_sync_exc}")
+    # @AI_GENERATED: end

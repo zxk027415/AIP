@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 // @AI_GENERATED: end
 import {
   Card, Typography, Tag, Space, Row, Col, Input, Grid, Statistic,
-  Empty, Button, Collapse, Tooltip, Badge, Modal, message,
+  Empty, Button, Collapse, Tooltip, Badge, Modal, message, Segmented,
 } from 'antd';
 import {
   SearchOutlined,
@@ -27,6 +27,9 @@ import { td } from '../utils/dataTranslation';
 // @AI_GENERATED: end
 import FunctionExecutor from '../components/FunctionExecutor';
 import type { FunctionDefinition } from '../types/function';
+// @AI_GENERATED
+import useBackendReadyOperators from '../hooks/useBackendReadyOperators';
+// @AI_GENERATED: end
 
 const { Text, Paragraph } = Typography;
 const { useBreakpoint } = Grid;
@@ -111,6 +114,13 @@ const FunctionLibraryPage: React.FC = () => {
   // 执行模态框状态
   const [executeModalVisible, setExecuteModalVisible] = useState(false);
   const [selectedFunction, setSelectedFunction] = useState<BasicModuleFunction | null>(null);
+  // @AI_GENERATED: end
+
+  // @AI_GENERATED
+  // 后端可执行状态 hook — readySet 为空表示 API 未返回（加载中或出错）
+  const { readySet, loading: backendLoading, error: backendError } = useBackendReadyOperators();
+  // 筛选模式：'all' | 'ready' | 'definition-only'
+  const [backendFilter, setBackendFilter] = useState<'all' | 'ready' | 'definition-only'>('all');
   // @AI_GENERATED: end
 
   const displayText = (text: string | null | undefined, fallbackId?: string): string => {
@@ -239,6 +249,28 @@ const FunctionLibraryPage: React.FC = () => {
     () => displaySubCategories.reduce((s, sc) => s + sc.functions.length, 0),
     [displaySubCategories],
   );
+
+  // @AI_GENERATED
+  // filteredSubCategories — applies backend-filter on top of search/category filtering
+  const filteredSubCategories = useMemo(() => {
+    if (backendFilter === 'all' || backendLoading || backendError) {
+      return displaySubCategories;
+    }
+    return displaySubCategories
+      .map(sc => ({
+        ...sc,
+        functions: sc.functions.filter(fn =>
+          backendFilter === 'ready' ? readySet.has(fn.id) : !readySet.has(fn.id),
+        ),
+      }))
+      .filter(sc => sc.functions.length > 0);
+  }, [displaySubCategories, backendFilter, readySet, backendLoading, backendError]);
+
+  const filteredFunctionCount = useMemo(
+    () => filteredSubCategories.reduce((s, sc) => s + sc.functions.length, 0),
+    [filteredSubCategories],
+  );
+  // @AI_GENERATED: end
 
   const totalFunctions = useMemo(
     () => BASIC_MODULE_CATEGORIES.reduce((s, c) => s + c.functionCount, 0),
@@ -431,14 +463,14 @@ const FunctionLibraryPage: React.FC = () => {
             </div>
           )}
           {!selectedCategory && searchText.trim() && (
-            <Text type="secondary">{t('functions.searchResult', { keyword: searchText, count: displayFunctionCount })}</Text>
+            <Text type="secondary">{t('functions.searchResult', { keyword: searchText, count: filteredFunctionCount })}</Text>
           )}
-          {displaySubCategories.length > 0 ? (
+          {filteredSubCategories.length > 0 ? (
             <Collapse
-              defaultActiveKey={displaySubCategories.map((_, i) => String(i))}
+              defaultActiveKey={filteredSubCategories.map((_, i) => String(i))}
               ghost
               size="small"
-              items={displaySubCategories.map((sc, idx) => ({
+              items={filteredSubCategories.map((sc, idx) => ({
                 key: String(idx),
                 label: (
                   <Space>
@@ -453,7 +485,16 @@ const FunctionLibraryPage: React.FC = () => {
                         <Card size="small" hoverable style={{ borderLeft: `3px solid ${color}` }} styles={{ body: { padding: '10px 12px' } }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <Text strong style={{ fontSize: 13 }}>{displayFunctionName(fn)}</Text>
+                              <Space size={4} wrap>
+                                <Text strong style={{ fontSize: 13 }}>{displayFunctionName(fn)}</Text>
+                                {/* @AI_GENERATED */}
+                                {!backendLoading && !backendError && (
+                                  readySet.has(fn.id)
+                                    ? <Tag color="success" style={{ fontSize: 10, lineHeight: '16px', padding: '0 4px' }}>{t('functions.badgeReady')}</Tag>
+                                    : <Tag color="default" style={{ fontSize: 10, lineHeight: '16px', padding: '0 4px' }}>{t('functions.badgeDefinitionOnly')}</Tag>
+                                )}
+                                {/* @AI_GENERATED: end */}
+                              </Space>
                               <br />
                               <Text type="secondary" style={{ fontSize: 11 }}>{fn.id}</Text>
                               <Paragraph type="secondary" ellipsis={{ rows: 1 }} style={{ fontSize: 12, marginBottom: 0, marginTop: 2 }}>
@@ -538,7 +579,7 @@ const FunctionLibraryPage: React.FC = () => {
               <Tag color={LAYERS.find(l => l.name === selectedLayer)?.color}>{displayText(selectedLayer, selectedLayer)}</Tag>
             )}
             <Text type="secondary" style={{ fontSize: 12 }}>
-              {selectedCategoryId ? t('functions.functionsCount', { count: displayFunctionCount }) : t('functions.functionsCount', { count: totalFunctions })}
+              {selectedCategoryId ? t('functions.functionsCount', { count: filteredFunctionCount }) : t('functions.functionsCount', { count: totalFunctions })}
             </Text>
           </Space>
         }
@@ -552,6 +593,18 @@ const FunctionLibraryPage: React.FC = () => {
             >
               {t('functions.knowledgeGraph')}
             </Button>
+            {/* @AI_GENERATED: end */}
+            {/* @AI_GENERATED */}
+            <Segmented
+              size="small"
+              value={backendFilter}
+              onChange={v => setBackendFilter(v as 'all' | 'ready' | 'definition-only')}
+              options={[
+                { label: t('functions.filterAll'), value: 'all' },
+                { label: t('functions.filterReady'), value: 'ready' },
+                { label: t('functions.filterDefinitionOnly'), value: 'definition-only' },
+              ]}
+            />
             {/* @AI_GENERATED: end */}
             <Input placeholder={t('functions.searchShort')} prefix={<SearchOutlined />} allowClear value={searchText}
               onChange={e => setSearchText(e.target.value)} style={{ width: 240 }} size="small" />

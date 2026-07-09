@@ -1,6 +1,7 @@
 """
 函数库 API 路由
 """
+import os
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
@@ -11,6 +12,51 @@ from services.execution_service import ExecutionService
 from services.matrix_service import MatrixService
 
 router = APIRouter(prefix="/api/functions", tags=["functions"])
+
+# @AI_GENERATED
+# operator_backends/ 目录的绝对路径（相对于本文件计算，与 workflows_enhanced.py 约定一致）
+# __file__ = backend-service/api/functions.py
+# dirname(__file__)     = backend-service/api/
+# dirname(dirname(...)) = backend-service/
+_OPERATOR_BACKENDS_DIR: str = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "services",
+    "operator_backends",
+)
+
+# 模块级懒初始化路由器；首次调用 _ensure_router() 时自动 auto_discover
+_operator_router: Optional[Any] = None  # type: ignore[assignment]
+
+
+def _ensure_router() -> Any:
+    """
+    惰性初始化 OperatorRouter 并完成自动发现。
+    首次调用时扫描 operator_backends/ 目录注册所有算子；后续调用复用缓存实例。
+
+    Returns:
+        OperatorRouter: 已完成自动发现的路由器实例。
+    """
+    global _operator_router
+    if _operator_router is None:
+        from services.operator_execution.router import OperatorRouter
+        _operator_router = OperatorRouter()
+        _operator_router.auto_discover(_OPERATOR_BACKENDS_DIR)
+    return _operator_router
+
+
+class BackendStatusResponse(BaseModel):
+    """算子后端注册状态响应体"""
+    total_registered: int        # 已注册算子总数
+    registered_operators: List[str]  # 已注册算子 ID 列表（按字母排序）
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "total_registered": 3,
+                "registered_operators": ["load_csv", "load_parquet", "min_max_scale"],
+            }
+        }
+# @AI_GENERATED: end
 
 
 class FunctionExecutionRequest(BaseModel):
@@ -60,6 +106,31 @@ async def get_all_functions():
         return service.get_all_functions()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取函数列表失败: {str(e)}")
+
+
+# @AI_GENERATED
+@router.get("/backend-status", response_model=BackendStatusResponse, summary="查询已注册算子后端状态")
+async def get_backend_status():
+    """
+    返回所有已在 operator_backends/ 目录中发现并注册的算子 ID 列表。
+
+    用于前端展示"可执行"徽标：凡出现在 registered_operators 中的算子即有真实后端实现。
+
+    Returns:
+        BackendStatusResponse:
+            - total_registered: 已注册算子总数
+            - registered_operators: 已注册算子 ID 的字母排序列表
+    """
+    try:
+        r = _ensure_router()
+        ids = r.list_operators()
+        return BackendStatusResponse(
+            total_registered=len(ids),
+            registered_operators=sorted(ids),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取算子后端状态失败: {str(e)}")
+# @AI_GENERATED: end
 
 
 @router.get("/{function_id}", response_model=FunctionDefinition, summary="获取函数定义")

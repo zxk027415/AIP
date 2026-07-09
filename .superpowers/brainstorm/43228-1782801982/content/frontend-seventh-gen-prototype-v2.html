@@ -1,0 +1,122 @@
+<h2>第七代算法管理页细化</h2>
+<p class="subtitle">默认采用 A 方向：平衡型控制台；内部吸收 B 的高密度版本表格能力。</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">算法管理首页</div>
+    <div class="mockup-body">
+      <div class="mock-nav">工业AI算法平台 · 算法开发 / 算法管理</div>
+      <div style="display:flex; gap:12px; margin-top:12px;">
+        <div class="mock-sidebar" style="width:26%;">
+          首页<br><br>
+          行业服务<br>
+          - 行业场景<br>
+          - 算法方案库<br>
+          - 行业数据管理<br><br>
+          <strong>算法开发</strong><br>
+          - <strong>算法管理</strong><br>
+          - 工作流编排<br>
+          - 基础算法库<br>
+          - 自动化回测<br>
+          - 算法部署<br>
+          - 算法运营<br><br>
+          系统
+        </div>
+        <div class="mock-content" style="width:74%;">
+          <div style="display:grid; grid-template-columns:1.1fr 1.2fr 1fr 1fr auto; gap:8px; margin-bottom:10px;">
+            <div class="mock-input">场景筛选：全部 / 负荷预测 / 光伏故障 / 储能</div>
+            <div class="mock-input">搜索：工作流名称 / workflow_id / version_tag</div>
+            <div class="mock-input">状态：开发中 / 候选 / 复验通过 / 生产</div>
+            <div class="mock-input">视图：场景分组 / 列表</div>
+            <button class="mock-button">+ 新建算法工作流</button>
+          </div>
+
+          <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-bottom:12px;">
+            <div class="placeholder">场景数 14</div>
+            <div class="placeholder">工作流 48</div>
+            <div class="placeholder">开发版本 126</div>
+            <div class="placeholder">运营中 19</div>
+            <div class="placeholder">待部署 7</div>
+          </div>
+
+          <div class="placeholder" style="height:34px; margin-bottom:8px;">负荷预测</div>
+          <div class="placeholder" style="height:168px; margin-bottom:12px;">
+            紧凑版本表格<br><br>
+            算法 | 版本 | 最近回测 | 复验 | 运营 | 更新时间 | 操作<br>
+            负荷预测训练主线 | 开发 v3 | MAPE 4.12 | passed | shadow | 2026-06-30 | 编辑 / 回测 / 运营 / 部署<br>
+            负荷预测训练主线 | 开发 v2 | MAPE 4.21 | candidate | - | 2026-06-28 | 编辑 / 回测<br>
+            负荷预测训练主线 | 开发 v1 | MAPE 4.35 | promoted | production | 2026-06-21 | 运营 / 部署
+          </div>
+
+          <div class="placeholder" style="height:34px; margin-bottom:8px;">光伏故障诊断</div>
+          <div class="placeholder" style="height:136px;">
+            quickval-cv / quickval-predict 两条主线<br><br>
+            展示开发版本、标注闭环状态、最近验证结果、运营入口
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">结构点评</div>
+    <div class="mockup-body">
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>保留的优点</h4>
+          <ul>
+            <li>场景分组仍然存在，适合未来扩场景</li>
+            <li>顶部筛选和统计让首页更像工作台</li>
+            <li>主区改为紧凑表格，避免大卡片浪费空间</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>实现注意</h4>
+          <ul>
+            <li>表格列必须支持省略和 Tooltip</li>
+            <li>版本状态要统一标签体系</li>
+            <li>场景分组要能折叠，否则长列表会很重</li>
+          </ul>
+        </div>
+      </div>
+      <div class="section">
+        <p class="subtitle">这一版是“场景分组 + 紧凑版本表格”的混合方案，和当前前端技术栈兼容性最好。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:28px;">
+  <h3>关键状态标签建议</h3>
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="dev" onclick="toggleSelect(this)">
+      <div class="letter">1</div>
+      <div class="content">
+        <h3>开发中</h3>
+        <p>草稿或最近保存版本，尚未进入回测闭环。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="candidate" onclick="toggleSelect(this)">
+      <div class="letter">2</div>
+      <div class="content">
+        <h3>候选</h3>
+        <p>来自 AutoResearch 或人工调整，等待复验。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="verified" onclick="toggleSelect(this)">
+      <div class="letter">3</div>
+      <div class="content">
+        <h3>复验通过</h3>
+        <p>多窗口确认通过，可 Promote 或进入运营。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="production" onclick="toggleSelect(this)">
+      <div class="letter">4</div>
+      <div class="content">
+        <h3>生产 / 影子</h3>
+        <p>已经进入精度运营体系的工作流版本。</p>
+      </div>
+    </div>
+  </div>
+</div>
+

@@ -1,5 +1,5 @@
 {
-  "execution_id": "exec-dede3b8be103",
+  "execution_id": "exec-0a781746094a",
   "workflow_id": "workflow-pv-fault-diag-quickval-cv-v1",
   "status": "success",
   "nodeResults": {
@@ -8,21 +8,21 @@
       "outputSummary": {
         "data": "DataFrame[1056806, 7]"
       },
-      "executionTime": 0.14
+      "executionTime": 0.881
     },
     "qv-time_window_split-n4": {
       "status": "success",
       "outputSummary": {
         "data": "DataFrame[1056806, 8]"
       },
-      "executionTime": 1.971
+      "executionTime": 16.134
     },
     "qv-handle_missing-n5": {
       "status": "success",
       "outputSummary": {
         "data": "DataFrame[1056068, 8]"
       },
-      "executionTime": 0.27
+      "executionTime": 1.232
     },
     "qv-detect_outliers-n6": {
       "status": "success",
@@ -30,28 +30,29 @@
         "data": "DataFrame[1056068, 8]",
         "outlier_indices": "list[0]"
       },
-      "executionTime": 3.766
+      "executionTime": 30.823
     },
     "qv-extract_statistical_features-n7": {
       "status": "success",
       "outputSummary": {
         "data": "DataFrame[4452, 63]"
       },
-      "executionTime": 5.415
+      "executionTime": 50.439
     },
     "qv-ts_comparison_features-n9": {
       "status": "success",
       "outputSummary": {
-        "data": "DataFrame[4452, 10]"
+        "status": "skipped",
+        "message": "算子 ts_comparison_features 未注册"
       },
-      "executionTime": 4.92
+      "executionTime": 0.0
     },
     "qv-tsfresh_extract-n8": {
       "status": "success",
       "outputSummary": {
         "data": "DataFrame[4452, 20]"
       },
-      "executionTime": 1.485
+      "executionTime": 11.67
     },
     "qv-stratified_cv_eval-n10": {
       "status": "success",
@@ -60,124 +61,129 @@
         "test_ratio": 0.2,
         "k_features": 50,
         "n_samples": 4452,
-        "n_features_total": 88,
+        "n_features_total": 78,
         "n_classes": 13,
         "class_distribution": "dict[13]",
-        "accuracy_mean": 0.982,
-        "accuracy_std": 0.0032,
-        "macro_precision_mean": 0.9812,
-        "macro_recall_mean": 0.9658,
-        "macro_f1_mean": 0.9718,
-        "macro_f1_std": 0.0068,
+        "accuracy_mean": 0.9757,
+        "accuracy_std": 0.0023,
+        "macro_precision_mean": 0.8862,
+        "macro_recall_mean": 0.8772,
+        "macro_f1_mean": 0.8811,
+        "macro_f1_std": 0.0044,
         "per_repeat_macro_f1": "list[3]",
         "per_class_recall_mean": "dict[13]",
         "confusion_matrix": "dict[3]",
-        "classification_report": "              precision    recall  f1-score   support\n\n           0       0.98      0.99      0.98       345\n           1       0.99      1.00      0.99      1245\n           2       0.97      0.96      0.97       198\n           3       0.96      0.96      0.96       141\n           4       0.95      0.98      0.97       117\n           6       0.96      0.97      0.97       108\n           7       0.96      0.98      0.97       141\n           8       1.00      0.78      0.88        72\n           9       0.00      0.00      0.00         0\n          10       1.00      1.00      1.00         3\n          11       1.00      1.00      1.00       252\n          12       1.00      0.98      0.99        45\n          16       1.00      1.00      1.00         3\n\n    accuracy                           0.98      2670\n   macro avg       0.91      0.89      0.90      2670\nweighted avg       0.98      0.98      0.98      2670\n",
-        "warnings": "list[2]",
-        "model_id": "pv_fault_rfc_1781685814_699860",
-        "model_path": "/Users/zxk/Desktop/project/AIP/backend-service/data/models/pv_fault_rfc_1781685814_699860.pkl",
+        "classification_report": "              precision    recall  f1-score   support\n\n           0       0.99      0.98      0.98       345\n           1       0.99      0.99      0.99      1245\n           2       0.98      0.96      0.97       198\n           3       0.93      0.91      0.92       141\n           4       0.97      0.99      0.98       117\n           6       0.97      0.95      0.96       108\n           7       0.92      0.94      0.93       141\n           8       0.94      0.83      0.88        72\n           9       0.00      0.00      0.00         0\n          10       0.00      0.00      0.00         3\n          11       0.98      1.00      0.99       252\n          12       0.98      0.96      0.97        45\n          16       1.00      1.00      1.00         3\n\n    accuracy                           0.98      2670\n   macro avg       0.82      0.81      0.81      2670\nweighted avg       0.97      0.98      0.97      2670\n",
+        "warnings": "list[3]",
+        "model_id": "pv_fault_rfc_1783409030_90a52a",
+        "model_path": "data\\models\\pv_fault_rfc_1783409030_90a52a.pkl",
         "feature_list": "list[50]"
       },
-      "executionTime": 5.808
+      "executionTime": 1.354
     }
   },
   "logs": [
     {
-      "timestamp": "16:43:10",
+      "timestamp": "15:21:58",
       "message": "流水线开始执行: 光伏故障诊断 - 无泄漏重复分层评估 (算子数: 8)",
       "type": "start"
     },
     {
-      "timestamp": "16:43:10",
+      "timestamp": "15:21:58",
       "message": "▶ 光伏源数据 (train_ori) 开始执行...",
       "type": "start"
     },
     {
-      "timestamp": "16:43:10",
-      "message": "✓ 光伏源数据 (train_ori) 完成 (耗时 0.14s)",
+      "timestamp": "15:21:58",
+      "message": "✓ 光伏源数据 (train_ori) 完成 (耗时 0.88s)",
       "type": "success"
     },
     {
-      "timestamp": "16:43:10",
+      "timestamp": "15:21:58",
       "message": "▶ 时间窗口切分 开始执行...",
       "type": "start"
     },
     {
-      "timestamp": "16:43:12",
-      "message": "✓ 时间窗口切分 完成 (耗时 1.97s)",
+      "timestamp": "15:22:15",
+      "message": "✓ 时间窗口切分 完成 (耗时 16.13s)",
       "type": "success"
     },
     {
-      "timestamp": "16:43:12",
+      "timestamp": "15:22:15",
       "message": "▶ 缺失值处理 开始执行...",
       "type": "start"
     },
     {
-      "timestamp": "16:43:12",
-      "message": "✓ 缺失值处理 完成 (耗时 0.27s)",
+      "timestamp": "15:22:16",
+      "message": "✓ 缺失值处理 完成 (耗时 1.23s)",
       "type": "success"
     },
     {
-      "timestamp": "16:43:12",
+      "timestamp": "15:22:16",
       "message": "▶ 鲁棒异常裁剪 开始执行...",
       "type": "start"
     },
     {
-      "timestamp": "16:43:16",
-      "message": "✓ 鲁棒异常裁剪 完成 (耗时 3.77s)",
+      "timestamp": "15:22:47",
+      "message": "✓ 鲁棒异常裁剪 完成 (耗时 30.82s)",
       "type": "success"
     },
     {
-      "timestamp": "16:43:16",
+      "timestamp": "15:22:47",
       "message": "▶ 统计特征提取 开始执行...",
       "type": "start"
     },
     {
-      "timestamp": "16:43:21",
-      "message": "✓ 统计特征提取 完成 (耗时 5.42s)",
+      "timestamp": "15:23:37",
+      "message": "✓ 统计特征提取 完成 (耗时 50.44s)",
       "type": "success"
     },
     {
-      "timestamp": "16:43:21",
+      "timestamp": "15:23:37",
       "message": "▶ 多变量对比特征 开始执行...",
       "type": "start"
     },
     {
-      "timestamp": "16:43:26",
-      "message": "✓ 多变量对比特征 完成 (耗时 4.92s)",
+      "timestamp": "15:23:37",
+      "message": "  算子 ts_comparison_features 未注册，使用旧路由",
+      "type": "warning"
+    },
+    {
+      "timestamp": "15:23:37",
+      "message": "✓ 多变量对比特征 完成 (耗时 0.00s)",
       "type": "success"
     },
     {
-      "timestamp": "16:43:26",
+      "timestamp": "15:23:37",
       "message": "▶ tsfresh 特征 开始执行...",
       "type": "start"
     },
     {
-      "timestamp": "16:43:28",
-      "message": "✓ tsfresh 特征 完成 (耗时 1.49s)",
+      "timestamp": "15:23:49",
+      "message": "✓ tsfresh 特征 完成 (耗时 11.67s)",
       "type": "success"
     },
     {
-      "timestamp": "16:43:28",
+      "timestamp": "15:23:49",
       "message": "▶ 分层重复评估 (无泄漏) 开始执行...",
       "type": "start"
     },
     {
-      "timestamp": "16:43:34",
-      "message": "✓ 分层重复评估 (无泄漏) 完成 (耗时 5.81s)",
+      "timestamp": "15:23:50",
+      "message": "✓ 分层重复评估 (无泄漏) 完成 (耗时 1.35s)",
       "type": "success"
     },
     {
-      "timestamp": "16:43:34",
-      "message": "✓ 流水线执行完成，总耗时 23.78s",
+      "timestamp": "15:23:50",
+      "message": "✓ 流水线执行完成，总耗时 115.29s",
       "type": "success"
     }
   ],
-  "executionTime": 23.777,
+  "executionTime": 115.294,
   "error": null,
-  "created_at": "2026-06-17T16:43:10.304625",
-  "started_at": "2026-06-17T16:43:10.304741",
-  "finished_at": "2026-06-17T16:43:34.082174",
+  "created_at": "2026-07-07T15:21:55.247032",
+  "started_at": "2026-07-07T15:21:55.248032",
+  "finished_at": "2026-07-07T15:23:50.598271",
   "forecast_timestamps": null,
   "forecast_values": null,
   "y_true": null,
@@ -186,64 +192,64 @@
   "best_recommendation": null,
   "mode": null,
   "metrics": {
-    "model_id": "pv_fault_rfc_1781685814_699860",
-    "model_path": "/Users/zxk/Desktop/project/AIP/backend-service/data/models/pv_fault_rfc_1781685814_699860.pkl",
+    "model_id": "pv_fault_rfc_1783409030_90a52a",
+    "model_path": "data\\models\\pv_fault_rfc_1783409030_90a52a.pkl",
     "feature_list": [
-      "value_min",
-      "value_i_cal_spearman",
-      "i_cal_abs_energy",
-      "value_diff_max",
-      "value_diff_max_min",
-      "value_diff_min",
-      "value_max_drop",
-      "value_flat_max",
-      "value_max_min",
-      "value_diff_std",
-      "value_cid",
-      "value_i_cal_pearson_",
-      "value_abs_energy",
-      "value_median",
-      "value_flat_rate",
-      "diff_value_i_cal_nanmax",
-      "i_cal_benford_correlation",
-      "value_i_cal_eu_dist",
       "value_max",
-      "i_cal_diff_mean",
-      "value_last_location_of_maximum",
-      "value_first_location_of_minimum",
-      "diff_value_i_cal_sum_values",
-      "value_above_mean_ratio",
-      "diff_value_i_cal_nanstd",
-      "value_benford_correlation",
-      "value_std",
-      "value_last_location_of_minimum",
-      "value_first_location_of_maximum",
-      "i_cal_quantile_75",
-      "value_i_cal_dtw",
-      "value_absolute_sum_of_changes",
-      "i_cal_flat_max",
-      "diff_value_i_cal_absolute_sum_of_changes",
-      "value_flat_count",
-      "value_sum_values",
-      "i_cal_std",
+      "i_cal_max",
+      "value_min",
+      "i_cal_min",
       "value_mean",
-      "value_quantile_75",
-      "i_cal_median",
-      "value_diff_above_mean_ratio",
-      "i_cal_sum_values",
       "i_cal_mean",
-      "value_variance_larger_than_std",
-      "i_cal_flat_rate",
-      "i_cal_diff_above_mean_ratio",
-      "i_cal_max_drop",
-      "diff_value_i_cal_nanmedian",
+      "value_median",
+      "i_cal_median",
+      "value_std",
+      "i_cal_std",
+      "value_kurtosis",
+      "i_cal_kurtosis",
+      "value_skew",
+      "i_cal_skew",
+      "value_max_min",
+      "i_cal_max_min",
+      "value_above_mean_ratio",
+      "i_cal_above_mean_ratio",
+      "value_variation_coef",
       "i_cal_variation_coef",
-      "i_cal_flat_count"
+      "value_quantile_25",
+      "i_cal_quantile_25",
+      "value_quantile_75",
+      "i_cal_quantile_75",
+      "value_autocorr_lag1",
+      "i_cal_autocorr_lag1",
+      "value_autocorr_lag2",
+      "i_cal_autocorr_lag2",
+      "value_autocorr_lag3",
+      "i_cal_autocorr_lag3",
+      "value_flat_rate",
+      "value_flat_max",
+      "value_flat_count",
+      "value_max_drop",
+      "i_cal_flat_rate",
+      "i_cal_flat_max",
+      "i_cal_flat_count",
+      "i_cal_max_drop",
+      "value_diff_max",
+      "i_cal_diff_max",
+      "value_diff_min",
+      "i_cal_diff_min",
+      "value_diff_mean",
+      "i_cal_diff_mean",
+      "value_diff_median",
+      "i_cal_diff_median",
+      "value_diff_std",
+      "i_cal_diff_std",
+      "value_diff_kurtosis",
+      "i_cal_diff_kurtosis"
     ],
-    "accuracy": 0.982,
-    "precision": 0.9812,
-    "recall": 0.9658,
-    "f1": 0.9718,
+    "accuracy": 0.9757,
+    "precision": 0.8862,
+    "recall": 0.8772,
+    "f1": 0.8811,
     "confusion_matrix": {
       "labels": [
         "0",
@@ -262,13 +268,13 @@
       ],
       "data": [
         [
-          340,
+          338,
           0,
           0,
           1,
-          1,
-          1,
-          2,
+          0,
+          0,
+          6,
           0,
           0,
           0,
@@ -278,9 +284,9 @@
         ],
         [
           2,
-          1241,
+          1238,
           0,
-          1,
+          4,
           0,
           0,
           0,
@@ -295,8 +301,8 @@
           0,
           0,
           191,
-          1,
-          5,
+          2,
+          4,
           1,
           0,
           0,
@@ -308,12 +314,12 @@
         ],
         [
           0,
+          8,
           3,
-          3,
-          135,
+          129,
           0,
           0,
-          0,
+          1,
           0,
           0,
           0,
@@ -324,9 +330,9 @@
         [
           1,
           0,
-          1,
           0,
-          115,
+          0,
+          116,
           0,
           0,
           0,
@@ -342,12 +348,12 @@
           1,
           1,
           0,
-          105,
+          103,
+          2,
+          0,
+          0,
+          0,
           1,
-          0,
-          0,
-          0,
-          0,
           0,
           0
         ],
@@ -358,23 +364,23 @@
           1,
           0,
           2,
-          138,
+          133,
+          1,
           0,
           0,
-          0,
-          0,
-          0,
+          3,
+          1,
           0
         ],
         [
-          5,
-          8,
+          2,
+          7,
           0,
           0,
           0,
           0,
           3,
-          56,
+          60,
           0,
           0,
           0,
@@ -397,8 +403,6 @@
           0
         ],
         [
-          0,
-          0,
           0,
           0,
           0,
@@ -407,6 +411,8 @@
           0,
           0,
           3,
+          0,
+          0,
           0,
           0,
           0
@@ -430,6 +436,7 @@
           0,
           1,
           0,
+          1,
           0,
           0,
           0,
@@ -437,8 +444,7 @@
           0,
           0,
           0,
-          0,
-          44,
+          43,
           0
         ],
         [
@@ -458,18 +464,18 @@
         ]
       ]
     },
-    "classification_report": "【无泄漏 · 重复分层留出评估】\n重复次数 n_repeats=3  每次测试占比 test_ratio=0.2  样本数=4452  类别数=13\nAccuracy = 0.982 ± 0.0032    Macro-F1 = 0.9718 ± 0.0068\n每次 Macro-F1 = [0.9768, 0.9622, 0.9765]\n各类 Recall 均值 = 0:0.9855, 1:0.9968, 2:0.9646, 3:0.9574, 4:0.9829, 6:0.9722, 7:0.9787, 8:0.7778, 9:None, 10:1.0, 11:0.996, 12:0.9778, 16:1.0\n告警 = class_9_only_1_sample_train_only, smote_skipped_class_9\n------------------------------------------------------------\n              precision    recall  f1-score   support\n\n           0       0.98      0.99      0.98       345\n           1       0.99      1.00      0.99      1245\n           2       0.97      0.96      0.97       198\n           3       0.96      0.96      0.96       141\n           4       0.95      0.98      0.97       117\n           6       0.96      0.97      0.97       108\n           7       0.96      0.98      0.97       141\n           8       1.00      0.78      0.88        72\n           9       0.00      0.00      0.00         0\n          10       1.00      1.00      1.00         3\n          11       1.00      1.00      1.00       252\n          12       1.00      0.98      0.99        45\n          16       1.00      1.00      1.00         3\n\n    accuracy                           0.98      2670\n   macro avg       0.91      0.89      0.90      2670\nweighted avg       0.98      0.98      0.98      2670\n"
+    "classification_report": "【无泄漏 · 重复分层留出评估】\n重复次数 n_repeats=3  每次测试占比 test_ratio=0.2  样本数=4452  类别数=13\nAccuracy = 0.9757 ± 0.0023    Macro-F1 = 0.8811 ± 0.0044\n每次 Macro-F1 = [0.8863, 0.8755, 0.8816]\n各类 Recall 均值 = 0:0.9797, 1:0.9944, 2:0.9646, 3:0.9149, 4:0.9915, 6:0.9537, 7:0.9433, 8:0.8333, 9:None, 10:0.0, 11:0.996, 12:0.9556, 16:1.0\n告警 = class_9_only_1_sample_train_only, imblearn_unavailable, mrmr_fallback_all_features\n------------------------------------------------------------\n              precision    recall  f1-score   support\n\n           0       0.99      0.98      0.98       345\n           1       0.99      0.99      0.99      1245\n           2       0.98      0.96      0.97       198\n           3       0.93      0.91      0.92       141\n           4       0.97      0.99      0.98       117\n           6       0.97      0.95      0.96       108\n           7       0.92      0.94      0.93       141\n           8       0.94      0.83      0.88        72\n           9       0.00      0.00      0.00         0\n          10       0.00      0.00      0.00         3\n          11       0.98      1.00      0.99       252\n          12       0.98      0.96      0.97        45\n          16       1.00      1.00      1.00         3\n\n    accuracy                           0.98      2670\n   macro avg       0.82      0.81      0.81      2670\nweighted avg       0.97      0.98      0.97      2670\n"
   },
-  "model_id": "pv_fault_rfc_1781685814_699860",
+  "model_id": "pv_fault_rfc_1783409030_90a52a",
   "nodeDurations": {
-    "光伏源数据 (train_ori)": 0.14,
-    "时间窗口切分": 1.971,
-    "缺失值处理": 0.27,
-    "鲁棒异常裁剪": 3.766,
-    "统计特征提取": 5.415,
-    "多变量对比特征": 4.92,
-    "tsfresh 特征": 1.485,
-    "分层重复评估 (无泄漏)": 5.808
+    "光伏源数据 (train_ori)": 0.881,
+    "时间窗口切分": 16.134,
+    "缺失值处理": 1.232,
+    "鲁棒异常裁剪": 30.823,
+    "统计特征提取": 50.439,
+    "多变量对比特征": 0.0,
+    "tsfresh 特征": 11.67,
+    "分层重复评估 (无泄漏)": 1.354
   },
   "fault_predictions": null,
   "fault_timeseries": null

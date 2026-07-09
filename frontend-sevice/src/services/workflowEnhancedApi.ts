@@ -119,6 +119,59 @@ export const enhancedWorkflowApi = {
     return api.put(`/workflows/enhanced/${id}`, workflow);
   },
 
+  // @AI_GENERATED
+  /**
+   * 保存已有算法模板（"编辑已有"模式，递增 version、写入 parent_version_id）
+   *
+   * 后端路由：POST /api/workflows/enhanced/{workflow_id}/save
+   * - `workflow_id` — 已有工作流的唯一 ID（同一 workflow_id 内版本递增）
+   * - 请求体承载最新的 name/nodes/edges/description
+   * - 响应中的 `version` 已由后端 +1，`parent_version_id` 指向前一版本
+   */
+  saveExistingWorkflow: async (
+    id: string,
+    workflow: {
+      name?: string;
+      description?: string;
+      nodes?: EnhancedWorkflowNode[];
+      edges?: EnhancedWorkflowEdge[];
+    }
+  ): Promise<EnhancedWorkflow> => {
+    return api.post(`/workflows/enhanced/${id}/save`, workflow);
+  },
+  // @AI_GENERATED: end
+
+  /**
+   * 克隆模板为新版本（version +1，新 id，继承 scenario_id/version_group_id）
+   */
+  cloneWorkflow: async (id: string): Promise<EnhancedWorkflow> => {
+    return api.post(`/workflows/enhanced/${id}/clone`);
+  },
+
+  // @AI_GENERATED
+  /**
+   * 从模板创建独立工作流 —— 统一新建入口（spec: algorithm-deployment-refactor, task 7.1/11.1）
+   *
+   * 后端行为：
+   * - 深拷贝源模板 nodes/edges/metadata/scenario_id
+   * - 分配全新 workflow_id + 独立 version_group_id
+   * - version=1, parent_version_id=null, source_template_id=<template.id>
+   * - name 必须与模板不同，否则返回 400 {detail:{code:"name_conflict"}}
+   * - template_id 不存在返回 404
+   *
+   * @param payload
+   *   - template_id — 源模板 workflow_id（必填）
+   *   - name — 新工作流名称（必填，且必须与源模板名称不同）
+   * @returns 新创建的 EnhancedWorkflow（含全新 id / version_group_id / version=1）
+   */
+  createFromTemplate: async (payload: {
+    template_id: string;
+    name: string;
+  }): Promise<EnhancedWorkflow> => {
+    return api.post('/workflows/enhanced/create-from-template', payload);
+  },
+  // @AI_GENERATED: end
+
   /**
    * 加载算法模板
    */

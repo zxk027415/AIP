@@ -1,0 +1,31 @@
+{
+  "slot": "load_forecast",
+  "evaluation_window_days": 7,
+  "metrics": {
+    "workflow-20260511-optimal-505": {
+      "rolling_mape": 5.6616,
+      "rolling_mae": 1539.02,
+      "valid_cycle_count": 0,
+      "total_cycle_count": 0,
+      "last_evaluated_at": "2026-07-09T09:37:35.115308+00:00",
+      "status": "insufficient_data"
+    },
+    "workflow-20260511-optimal-505#shadow-run43-mape4109": {
+      "rolling_mape": 4.1093,
+      "rolling_mae": 0.0,
+      "valid_cycle_count": 0,
+      "total_cycle_count": 0,
+      "last_evaluated_at": "2026-07-09T09:37:35.115308+00:00",
+      "status": "insufficient_data"
+    },
+    "workflow-20260511-optimal-505#shadow-run7-generic-mape4109": {
+      "rolling_mape": 4.1093,
+      "rolling_mae": 0.0,
+      "valid_cycle_count": 0,
+      "total_cycle_count": 0,
+      "last_evaluated_at": "2026-07-09T09:37:35.115308+00:00",
+      "status": "insufficient_data"
+    }
+  },
+  "updated_at": "2026-07-09T09:37:35.115308+00:00"
+}

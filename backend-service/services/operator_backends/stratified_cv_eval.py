@@ -391,7 +391,7 @@ def execute(params: dict, inputs: dict) -> dict:
             }, f, ensure_ascii=False, indent=2)
 
         result["model_id"] = model_id
-        result["model_path"] = os.path.abspath(model_path)
+        result["model_path"] = os.path.relpath(model_path, start=os.path.join(os.path.dirname(__file__), '..', '..'))
         result["feature_list"] = final_feat_list
 
         logger.info(f"[{OPERATOR_ID}] Final model saved: {model_path} (id={model_id})")

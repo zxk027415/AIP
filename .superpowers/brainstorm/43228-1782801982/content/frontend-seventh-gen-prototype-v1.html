@@ -1,0 +1,137 @@
+<h2>第七代前端重构方向</h2>
+<p class="subtitle">先看结构，不追求高保真。建议从这 3 个中保真方向里选一个主方向，再进入 image2 打磨。</p>
+
+<div class="cards">
+  <div class="card" data-choice="direction-a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. 平衡型控制台</div>
+        <div class="mockup-body">
+          <div class="mock-nav">工业AI算法平台</div>
+          <div style="display:flex; gap:12px; margin-top:12px;">
+            <div class="mock-sidebar" style="width:30%;">
+              首页<br><br>
+              行业服务<br>
+              - 行业场景<br>
+              - 算法方案库<br>
+              - 行业数据管理<br><br>
+              算法开发<br>
+              - 算法管理<br>
+              - 工作流编排<br>
+              - 基础算法库<br>
+              - 自动化回测<br>
+              - 算法部署<br>
+              - 算法运营
+            </div>
+            <div class="mock-content" style="width:70%;">
+              <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:10px;">
+                <div class="placeholder">场景数</div>
+                <div class="placeholder">工作流数</div>
+                <div class="placeholder">开发版本数</div>
+                <div class="placeholder">运营中版本数</div>
+              </div>
+              <div class="placeholder" style="height:44px; margin-bottom:10px;">筛选区 + 搜索 + 新建算法工作流</div>
+              <div class="placeholder" style="height:180px;">场景分组卡片 + 紧凑版本列表</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>平衡型控制台</h3>
+      <p>导航稳定，主区用场景分组卡片加版本列表，适合先落 MVP，再做视觉打磨。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="direction-b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. 强表格型工作台</div>
+        <div class="mockup-body">
+          <div class="mock-nav">工业AI算法平台</div>
+          <div style="display:flex; gap:12px; margin-top:12px;">
+            <div class="mock-sidebar" style="width:26%;">
+              首页<br><br>
+              行业服务<br>
+              算法开发<br>
+              系统
+            </div>
+            <div class="mock-content" style="width:74%;">
+              <div class="placeholder" style="height:44px; margin-bottom:10px;">筛选区 + 场景切换 + 快捷操作</div>
+              <div class="placeholder" style="height:240px;">高密度版本表格：场景 / 算法 / 版本 / 回测 / 复验 / 生产 / 更新时间 / 操作</div>
+              <div class="placeholder" style="height:70px; margin-top:10px;">展开行：开发 v1 / v2 / v3</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>强表格型工作台</h3>
+      <p>更像运营控制台，信息密度最高。适合版本很多、需要频繁筛选和批量查看状态的场景。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="direction-c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. 场景驱动型工作台</div>
+        <div class="mockup-body">
+          <div class="mock-nav">工业AI算法平台</div>
+          <div style="display:flex; gap:12px; margin-top:12px;">
+            <div class="mock-sidebar" style="width:28%;">
+              首页<br><br>
+              行业服务<br>
+              算法开发<br>
+              系统
+            </div>
+            <div class="mock-content" style="width:72%;">
+              <div class="placeholder" style="height:44px; margin-bottom:10px;">场景切换 + 搜索 + 新建算法工作流</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <div class="placeholder" style="height:150px;">负荷预测场景<br>推荐模板 + 开发版本 + 回测入口</div>
+                <div class="placeholder" style="height:150px;">光伏故障诊断场景<br>推荐模板 + 开发版本 + 运营入口</div>
+                <div class="placeholder" style="height:150px;">储能场景<br>推荐模板 + 开发版本 + 部署入口</div>
+                <div class="placeholder" style="height:150px;">更多场景...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>场景驱动型工作台</h3>
+      <p>更突出行业场景到算法版本的映射，适合未来不断增加场景，但实现时要小心避免页面过散。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <h3>我当前推荐</h3>
+  <div class="mockup">
+    <div class="mockup-header">推荐：A 作为主方向，吸收 B 的高密度表格能力</div>
+    <div class="mockup-body">
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>为什么推荐</h4>
+          <ul>
+            <li>更容易承接你现有页面和 Ant Design 结构</li>
+            <li>先做算法管理 MVP 风险最低</li>
+            <li>后续可以逐步加表格密度，而不必一次性重做所有页面</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>注意点</h4>
+          <ul>
+            <li>不能做成“大卡片看板”，信息密度必须保持住</li>
+            <li>算法管理页内部仍要引入紧凑表格或展开行</li>
+            <li>场景分组不能让操作路径变长</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>下一步页面</h3>
+  <p class="subtitle">确认主方向后，下一屏继续做 2 个页面：新建工作流向导、算法管理首页细化布局。</p>
+</div>

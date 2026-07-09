@@ -1,600 +1,713 @@
-# @AI_GENERATED: Kiro v1.0
+# @AI_GENERATED
 """
-算法部署上线系统 API
-提供部署任务CRUD、服务管理、监控指标、告警规则等端点
+api/deployment.py — 算法部署槽位管理 HTTP 层
+
+本模块把 `services.deployment` 中的槽位/切换/回滚逻辑暴露为 REST 端点，
+供前端 "算法部署页面 → 模型管理 Tab" 使用。
+
+对应 spec：
+  - `.kiro/specs/algorithm-deployment-refactor/design.md`
+    → "Components and Interfaces → 1. 部署槽位管理 API"
+  - `.kiro/specs/algorithm-deployment-refactor/tasks.md` → Task 6.1
+  - Requirements 3.1 / 3.2 / 3.3 / 3.4 / 5.1 / 5.2 / 5.3 / 5.5
+
+端点一览（相对 prefix `/api/deployment`）：
+  GET  /slots                            — 列出所有槽位及其 production/shadow 模型
+  GET  /slots/{slot}/versions            — 获取版本历史（production + shadow + retired）
+  POST /slots/{slot}/switch              — 执行切换（shadow → production）
+  POST /slots/{slot}/rollback            — 回滚到前一 production 版本
+  GET  /slots/{slot}/switch-log          — 获取切换日志（按 slot 过滤，按追加顺序）
+  GET  /slots/{slot}/config              — 获取自动切换配置
+  PUT  /slots/{slot}/config              — 局部更新自动切换配置
+
+字段命名约定（"英文 key — 中文含义"）：
+  - `slot`                       — 槽位名称（分区键，复用 version_registry / candidate_pool 等表的 slot 列）
+  - `workflow_id`                — 工作流/模板唯一标识（EnhancedWorkflow.id）
+  - `version_tag`                — 版本标签（人类可读，如 "v2.1"）
+  - `deployed_at`                — 模型注册/部署时间（ISO 8601）
+  - `accuracy_score`             — 最新精度评分（当前项目内 MAPE，越低越好）
+  - `latest_mape`                — GET /slots 返回的 production 展示字段，语义等同于 accuracy_score
+  - `consecutive_better_days`    — 影子模型连续优于生产的天数（切换资格判定，仅 shadow 有意义）
+  - `auto_switch_enabled`        — 是否启用自动切换（false 时仅 UI 高亮，不自动 promote）
+  - `switch_observation_days`    — 切换观察天数：shadow 连续多少天优于生产才建议切换
+                                   【重命名自旧字段 evaluation_window_days，兼容读取；响应体中保留旧字段名作为 deprecated alias】
+  - `cooldown_hours`             — 切换后冷却期（小时），冷却期内不允许再次切换（force=True 可绕过）
+  - `threshold_mape`             — 精度阈值（低于此值触发回滚，可选）
+  - `training_window_days`       — 训练窗口天数：每天训练用最近 N 天历史数据（跟 AutoResearch train_days 语义一致）
+  - `max_shadow_slots`           — 影子池上限，默认 3（限制每日 cron 里跑几个 shadow）
+  - `max_prelaunch_slots`        — 预上线池上限，默认 2（并行观察数量）
+  - `prelaunch_models`           — 预上线模型列表（每个独立跟生产比，达标 + 期满则毕业为 shadow）
+  - `prelaunch_meta`             — 预上线专属元数据（挂在单个 ModelVersion 上）
+
+错误映射（对应 design.md "Error Handling → 模型切换错误处理"）：
+  code                       -> HTTP
+  ----                          ----
+  slot_not_found             -> 404
+  target_not_found           -> 404
+  invalid_state_transition   -> 400
+  cooldown_active            -> 409
+  no_previous_version        -> 400
+  no_current_production      -> 400
 """
-from fastapi import APIRouter, Query
-from typing import Optional
-import json, os, copy, random, math
-from datetime import datetime, timedelta
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+from services.deployment import (
+    DeploymentSlot,
+    DeploymentSlotStore,
+    ModelVersion,
+    SwitchDecisionEngine,
+    SwitchDecisionError,
+    SwitchEventLog,
+)
+
+# ---------------------------------------------------------------------------
+# Router + 单例依赖
+# ---------------------------------------------------------------------------
 
 router = APIRouter(prefix="/api/deployment", tags=["deployment"])
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
-DEPLOY_DIR = os.path.join(DATA_DIR, "deployment")
-os.makedirs(DEPLOY_DIR, exist_ok=True)
+# Store/Log 每次调用都会读文件，安全地在进程内单例共享
+_slot_store = DeploymentSlotStore()
+_event_log = SwitchEventLog()
+_engine = SwitchDecisionEngine(slot_store=_slot_store, event_log=_event_log)
 
 
-def _tasks_path():
-    return os.path.join(DEPLOY_DIR, "tasks.json")
+# ---------------------------------------------------------------------------
+# 请求体 Schema
+# ---------------------------------------------------------------------------
+
+class SwitchRequest(BaseModel):
+    """
+    POST /slots/{slot}/switch 请求体。
+
+    字段：
+      - target_workflow_id — 必填，要提升为 production 的影子模型 workflow_id
+      - trigger_type       — 触发类型 "manual" | "auto"，默认 "manual"
+      - reason             — 切换原因备注（人类可读，可选）
+      - pre_switch_mape    — 切换前精度覆盖值（可选，未提供则取 production.accuracy_score）
+      - force              — 手动 UI 可传 True 绕过冷却期检查（默认 False）
+    """
+
+    target_workflow_id: str = Field(..., description="要提升为 production 的影子模型 workflow_id")
+    trigger_type: str = Field("manual", description="触发类型：'manual' | 'auto'")
+    reason: str = Field("", description="切换原因备注")
+    pre_switch_mape: Optional[float] = Field(None, description="切换前精度覆盖值")
+    force: bool = Field(False, description="是否绕过冷却期检查（人工操作）")
 
 
-def _services_path():
-    return os.path.join(DEPLOY_DIR, "services.json")
+class RollbackRequest(BaseModel):
+    """
+    POST /slots/{slot}/rollback 请求体。
+
+    字段：
+      - reason — 回滚原因备注（可选，默认 "manual_rollback"）
+    """
+
+    reason: str = Field("manual_rollback", description="回滚原因备注")
 
 
-def _alerts_path():
-    return os.path.join(DEPLOY_DIR, "alerts.json")
+class SlotConfigUpdate(BaseModel):
+    """
+    PUT /slots/{slot}/config 请求体 —— 局部更新，仅设置传入的非 None 字段。
+
+    字段（均可选，None 表示不修改）：
+      - auto_switch_enabled        — 是否启用自动切换（Shadow → Production）
+      - switch_observation_days    — 切换观察天数（旧字段名 evaluation_window_days 兼容读取）
+      - evaluation_window_days     — 已废弃，旧字段名兼容，值将映射到 switch_observation_days
+      - cooldown_hours             — 切换后冷却期（小时）
+      - threshold_mape             — 精度阈值（低于此值触发回滚）
+      - training_window_days       — 训练窗口天数（每天训练用最近 N 天历史数据）
+      - max_shadow_slots           — 影子池上限（锦标赛并行数量）
+      - max_prelaunch_slots        — 预上线池上限（安全闸门并行数量）
+    """
+
+    auto_switch_enabled: Optional[bool] = None
+    switch_observation_days: Optional[int] = Field(default=None, ge=1, le=30)
+    # 旧字段名兼容：如果客户端传 evaluation_window_days，会被读入并在 apply 时映射到新字段
+    evaluation_window_days: Optional[int] = Field(default=None, ge=1, le=30, deprecated=True)
+    cooldown_hours: Optional[int] = Field(default=None, ge=0)
+    threshold_mape: Optional[float] = None
+    training_window_days: Optional[int] = Field(default=None, ge=7, le=730)
+    max_shadow_slots: Optional[int] = Field(default=None, ge=1, le=10)
+    max_prelaunch_slots: Optional[int] = Field(default=None, ge=1, le=5)
 
 
-def _load_json(path: str) -> list:
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
+# ---------------------------------------------------------------------------
+# 内部工具：模型对象 -> 前端友好视图
+# ---------------------------------------------------------------------------
 
+def _production_view(model: Optional[ModelVersion]) -> Optional[Dict[str, Any]]:
+    """
+    序列化 production_model 到前端展示格式。
 
-def _save_json(path: str, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-
-def _init_mock_data():
-    """Initialize mock deployment data if none exist."""
-    if os.path.exists(_tasks_path()):
-        return
-    now = datetime.now()
-    tasks = [
-        {
-            "id": "deploy-task-001",
-            "name": "负荷预测LSTM模型部署",
-            "description": "部署回测排名第一的LSTM预测模型到生产环境",
-            "scenario": "load-forecasting",
-            "source_type": "template",
-            "source_id": "lstm_forecast",
-            "source_name": "LSTM时序预测",
-            "backtest_task_id": "bt-task-001",
-            "backtest_rank": 1,
-            "deploy_config": {
-                "cpu": "2核", "memory": "4GB", "gpu": "无",
-                "replicas": 2, "endpoint": "/api/predict/load-forecast",
-                "timeout_ms": 5000, "env_vars": {"MODEL_VERSION": "v1.2"}
-            },
-            "release_strategy": {
-                "type": "canary", "canary_percent": 20,
-                "auto_promote": True, "promote_after_minutes": 30
-            },
-            "status": "running",
-            "created_at": (now - timedelta(days=5)).isoformat(),
-            "updated_at": (now - timedelta(days=1)).isoformat(),
-        },
-        {
-            "id": "deploy-task-002",
-            "name": "光伏发电预测集成模型",
-            "description": "部署集成预测算法模板用于光伏发电功率预测",
-            "scenario": "pv-power-forecast",
-            "source_type": "workflow",
-            "source_id": "wf-pv-ensemble",
-            "source_name": "光伏集成预测算法模板",
-            "backtest_task_id": "bt-task-002",
-            "backtest_rank": 1,
-            "deploy_config": {
-                "cpu": "4核", "memory": "8GB", "gpu": "1×T4",
-                "replicas": 3, "endpoint": "/api/predict/pv-power",
-                "timeout_ms": 10000, "env_vars": {"MODEL_VERSION": "v2.0"}
-            },
-            "release_strategy": {
-                "type": "blue-green", "canary_percent": 0,
-                "auto_promote": False, "promote_after_minutes": 0
-            },
-            "status": "running",
-            "created_at": (now - timedelta(days=3)).isoformat(),
-            "updated_at": (now - timedelta(hours=6)).isoformat(),
-        },
-        {
-            "id": "deploy-task-003",
-            "name": "故障诊断XGBoost模型",
-            "description": "部署设备故障诊断分类模型",
-            "scenario": "fault-diagnosis",
-            "source_type": "template",
-            "source_id": "xgboost_classifier",
-            "source_name": "XGBoost故障分类",
-            "backtest_task_id": None,
-            "backtest_rank": None,
-            "deploy_config": {
-                "cpu": "2核", "memory": "4GB", "gpu": "无",
-                "replicas": 1, "endpoint": "/api/predict/fault-diagnosis",
-                "timeout_ms": 3000, "env_vars": {}
-            },
-            "release_strategy": {
-                "type": "full", "canary_percent": 0,
-                "auto_promote": False, "promote_after_minutes": 0
-            },
-            "status": "stopped",
-            "created_at": (now - timedelta(days=10)).isoformat(),
-            "updated_at": (now - timedelta(days=7)).isoformat(),
-        },
-        {
-            "id": "deploy-task-004",
-            "name": "电价预测模型部署",
-            "description": "部署电力市场价格预测模型",
-            "scenario": "price-forecasting",
-            "source_type": "template",
-            "source_id": "price_forecast_v1",
-            "source_name": "电价预测模型v1",
-            "backtest_task_id": None,
-            "backtest_rank": None,
-            "deploy_config": {
-                "cpu": "1核", "memory": "2GB", "gpu": "无",
-                "replicas": 1, "endpoint": "/api/predict/price",
-                "timeout_ms": 5000, "env_vars": {}
-            },
-            "release_strategy": {
-                "type": "full", "canary_percent": 0,
-                "auto_promote": False, "promote_after_minutes": 0
-            },
-            "status": "draft",
-            "created_at": (now - timedelta(hours=2)).isoformat(),
-            "updated_at": (now - timedelta(hours=2)).isoformat(),
-        },
-    ]
-    _save_json(_tasks_path(), tasks)
-
-    # Mock services for running tasks
-    services = [
-        {
-            "id": "svc-001",
-            "task_id": "deploy-task-001",
-            "name": "负荷预测LSTM服务",
-            "endpoint": "http://localhost:8080/api/predict/load-forecast",
-            "version": "v1.2",
-            "replicas": {"desired": 2, "running": 2, "ready": 2},
-            "health": "healthy",
-            "qps": 45.2,
-            "avg_latency_ms": 128,
-            "error_rate": 0.02,
-            "uptime": "5d 3h 20m",
-            "created_at": (now - timedelta(days=5)).isoformat(),
-            "versions": [
-                {"version": "v1.0", "published_at": (now - timedelta(days=10)).isoformat(), "status": "inactive"},
-                {"version": "v1.1", "published_at": (now - timedelta(days=7)).isoformat(), "status": "inactive"},
-                {"version": "v1.2", "published_at": (now - timedelta(days=5)).isoformat(), "status": "active"},
-            ],
-        },
-        {
-            "id": "svc-002",
-            "task_id": "deploy-task-002",
-            "name": "光伏发电预测服务",
-            "endpoint": "http://localhost:8080/api/predict/pv-power",
-            "version": "v2.0",
-            "replicas": {"desired": 3, "running": 3, "ready": 2},
-            "health": "warning",
-            "qps": 120.5,
-            "avg_latency_ms": 256,
-            "error_rate": 0.05,
-            "uptime": "3d 0h 15m",
-            "created_at": (now - timedelta(days=3)).isoformat(),
-            "versions": [
-                {"version": "v1.0", "published_at": (now - timedelta(days=8)).isoformat(), "status": "inactive"},
-                {"version": "v2.0", "published_at": (now - timedelta(days=3)).isoformat(), "status": "active"},
-            ],
-        },
-        {
-            "id": "svc-003",
-            "task_id": "deploy-task-003",
-            "name": "故障诊断服务",
-            "endpoint": "http://localhost:8080/api/predict/fault-diagnosis",
-            "version": "v1.0",
-            "replicas": {"desired": 1, "running": 0, "ready": 0},
-            "health": "stopped",
-            "qps": 0,
-            "avg_latency_ms": 0,
-            "error_rate": 0,
-            "uptime": "0",
-            "created_at": (now - timedelta(days=10)).isoformat(),
-            "versions": [
-                {"version": "v1.0", "published_at": (now - timedelta(days=10)).isoformat(), "status": "inactive"},
-            ],
-        },
-    ]
-    _save_json(_services_path(), services)
-
-    # Mock alert rules and history
-    alerts = {
-        "rules": [
-            {"id": "rule-001", "service_id": "svc-001", "metric_name": "latency_p99", "operator": "gt", "threshold": 500, "severity": "warning", "enabled": True},
-            {"id": "rule-002", "service_id": "svc-001", "metric_name": "error_rate", "operator": "gt", "threshold": 0.05, "severity": "critical", "enabled": True},
-            {"id": "rule-003", "service_id": "svc-002", "metric_name": "cpu_usage", "operator": "gt", "threshold": 80, "severity": "warning", "enabled": True},
-            {"id": "rule-004", "service_id": "svc-002", "metric_name": "error_rate", "operator": "gt", "threshold": 0.05, "severity": "critical", "enabled": True},
-        ],
-        "history": [
-            {"id": "alert-001", "rule_id": "rule-003", "service_id": "svc-002", "metric_name": "cpu_usage", "triggered_value": 85.3, "severity": "warning", "status": "recovered", "triggered_at": (now - timedelta(hours=12)).isoformat(), "recovered_at": (now - timedelta(hours=11)).isoformat()},
-            {"id": "alert-002", "rule_id": "rule-004", "service_id": "svc-002", "metric_name": "error_rate", "triggered_value": 0.068, "severity": "critical", "status": "triggered", "triggered_at": (now - timedelta(hours=2)).isoformat(), "recovered_at": None},
-        ],
-    }
-    _save_json(_alerts_path(), alerts)
-
-
-_init_mock_data()
-
-
-# ==================== 部署任务 API ====================
-
-@router.get("/stats")
-async def get_deployment_stats():
-    """全局部署统计"""
-    tasks = _load_json(_tasks_path())
-    services = _load_json(_services_path())
-    running = [s for s in services if s["health"] != "stopped"]
-    stopped = [s for s in services if s["health"] == "stopped"]
-    health_scores = [100 if s["health"] == "healthy" else 80 if s["health"] == "warning" else 50 if s["health"] == "unhealthy" else 0 for s in services]
-    avg_health = round(sum(health_scores) / len(health_scores), 1) if health_scores else 0
+    与 design.md 的示例对齐：包含 `latest_mape`（语义等同 accuracy_score）。
+    None 时返回 None（前端展示"当前无生产模型"占位）。
+    """
+    if model is None:
+        return None
     return {
-        "total_deployments": len(tasks),
-        "running_services": len(running),
-        "stopped_services": len(stopped),
-        "avg_health_score": avg_health,
+        "workflow_id": model.workflow_id,
+        "version_tag": model.version_tag,
+        "status": model.status,
+        "deployed_at": model.deployed_at,
+        # design.md 中 production 字段名为 latest_mape
+        "latest_mape": model.accuracy_score,
+        # 保留原字段名便于前端复用
+        "accuracy_score": model.accuracy_score,
+        "consecutive_better_days": model.consecutive_better_days,
+        "source_run_id": model.source_run_id,
+        "source_candidate_id": model.source_candidate_id,
     }
 
 
-@router.post("/tasks")
-async def create_task(body: dict):
-    """创建部署任务"""
-    tasks = _load_json(_tasks_path())
-    now = datetime.now()
-    task_id = f"deploy-task-{now.strftime('%Y%m%d%H%M%S')}-{random.randint(1000,9999)}"
-    task = {
-        "id": task_id,
-        "name": body.get("name", ""),
-        "description": body.get("description", ""),
-        "scenario": body.get("scenario", ""),
-        "source_type": body.get("source_type", "template"),
-        "source_id": body.get("source_id", ""),
-        "source_name": body.get("source_name", ""),
-        "backtest_task_id": body.get("backtest_task_id"),
-        "backtest_rank": body.get("backtest_rank"),
-        "deploy_config": body.get("deploy_config", {}),
-        "release_strategy": body.get("release_strategy", {"type": "full"}),
-        "status": "draft",
-        "created_at": now.isoformat(),
-        "updated_at": now.isoformat(),
+def _shadow_view(model: ModelVersion) -> Dict[str, Any]:
+    """
+    序列化 shadow_model 到前端展示格式。
+
+    同时暴露 `accuracy_score` 和 `latest_mape`，两者含义相同 —— 便于前端
+    在 shadow / production 卡片间共用渲染逻辑。
+    """
+    return {
+        "workflow_id": model.workflow_id,
+        "version_tag": model.version_tag,
+        "status": model.status,
+        "deployed_at": model.deployed_at,
+        "accuracy_score": model.accuracy_score,
+        "latest_mape": model.accuracy_score,
+        "consecutive_better_days": model.consecutive_better_days,
+        "source_run_id": model.source_run_id,
+        "source_candidate_id": model.source_candidate_id,
     }
-    tasks.append(task)
-    _save_json(_tasks_path(), tasks)
-    return task
 
 
-@router.get("/tasks")
-async def list_tasks(
-    scenario: Optional[str] = None,
+def _prelaunch_view(model: ModelVersion) -> Dict[str, Any]:
+    """
+    序列化 prelaunch_model 到前端展示格式。
+
+    Prelaunch 语义：每个独立跟生产比较，MAPE ≤ production*(1 + tolerance)
+    且观察期满则毕业为 shadow。返回体额外包含 `prelaunch_meta` 展示观察进度。
+    """
+    meta = model.prelaunch_meta
+    return {
+        "workflow_id": model.workflow_id,
+        "version_tag": model.version_tag,
+        "status": model.status,
+        "deployed_at": model.deployed_at,
+        "accuracy_score": model.accuracy_score,
+        "latest_mape": model.accuracy_score,
+        "source_run_id": model.source_run_id,
+        "source_candidate_id": model.source_candidate_id,
+        # 预上线专属字段（meta 为 None 时前端展示为占位）
+        "prelaunch_meta": meta.model_dump() if meta is not None else None,
+    }
+
+
+def _slot_view(slot: DeploymentSlot) -> Dict[str, Any]:
+    """
+    序列化 DeploymentSlot 到前端展示格式。
+
+    - shadow_models 只包含 status='shadow' 的条目（retired 通过 /versions 端点单独返回）
+    - shadow_models 已由 store 按 accuracy_score 降序（Requirement 3.4 / Property 3）
+    - prelaunch_models 只包含 status='prelaunch' 的条目
+    - 响应体同时暴露 `switch_observation_days`（新字段名）和 `evaluation_window_days`
+      （已废弃 alias，值相同），便于前端在改名期间兼容
+    """
+    active_shadows = [m for m in slot.shadow_models if m.status == "shadow"]
+    active_prelaunches = [m for m in slot.prelaunch_models if m.status == "prelaunch"]
+    return {
+        "slot": slot.slot,
+        "production_model": _production_view(slot.production_model),
+        "shadow_models": [_shadow_view(m) for m in active_shadows],
+        "prelaunch_models": [_prelaunch_view(m) for m in active_prelaunches],
+        # 决策参数
+        "auto_switch_enabled": slot.auto_switch_enabled,
+        "switch_observation_days": slot.switch_observation_days,
+        # 兼容旧字段名（已废弃，前端应改用 switch_observation_days）
+        "evaluation_window_days": slot.switch_observation_days,
+        "cooldown_hours": slot.cooldown_hours,
+        "threshold_mape": slot.threshold_mape,
+        # 训练参数
+        "training_window_days": slot.training_window_days,
+        # 资源上限
+        "max_shadow_slots": slot.max_shadow_slots,
+        "max_prelaunch_slots": slot.max_prelaunch_slots,
+        "updated_at": slot.updated_at,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 错误翻译：SwitchDecisionError.code -> HTTPException
+# ---------------------------------------------------------------------------
+
+_ERROR_CODE_TO_HTTP: Dict[str, int] = {
+    "slot_not_found": 404,
+    "target_not_found": 404,
+    "invalid_state_transition": 400,
+    "cooldown_active": 409,
+    "no_previous_version": 400,
+    "no_current_production": 400,
+}
+
+
+def _raise_from_decision_error(exc: SwitchDecisionError) -> None:
+    """将 SwitchDecisionError 翻译为 HTTPException 并抛出。"""
+    status = _ERROR_CODE_TO_HTTP.get(exc.code, 400)
+    raise HTTPException(
+        status_code=status,
+        detail={"code": exc.code, "message": exc.message},
+    )
+
+
+def _require_slot(slot: str) -> DeploymentSlot:
+    """
+    获取指定 slot，不存在时抛 404 slot_not_found。
+
+    用于 versions / config 端点前置校验（switch/rollback 在 engine 内自校验）。
+    """
+    slot_obj = _slot_store.get(slot)
+    if slot_obj is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "slot_not_found", "message": f"槽位不存在：slot={slot!r}"},
+        )
+    return slot_obj
+
+
+# ---------------------------------------------------------------------------
+# 端点实现
+# ---------------------------------------------------------------------------
+
+@router.get("/slots")
+def list_slots() -> Dict[str, Any]:
+    """
+    列出所有部署槽位及各自的 production / shadow 模型。
+
+    用途：前端 "算法部署页面 → 模型管理 Tab" 首屏拉数据；shadow 已按精度降序。
+    无槽位时返回 `{"slots": {}}`（空 dict，非 null）。
+    """
+    slots = _slot_store.load_all()
+    return {"slots": {name: _slot_view(s) for name, s in slots.items()}}
+
+
+@router.get("/slots/{slot}/versions")
+def list_versions(slot: str) -> Dict[str, Any]:
+    """
+    获取某槽位的版本历史列表（production + shadow + retired）。
+
+    每一条记录会额外附带 `role` 字段，方便前端渲染状态标签：
+      - role='production' — 当前生产模型
+      - role='shadow'     — 在测的影子模型
+      - role='retired'    — 历史退役模型（可能来自切换降级或回滚降级）
+    """
+    slot_obj = _require_slot(slot)
+    versions: List[Dict[str, Any]] = []
+    if slot_obj.production_model is not None:
+        versions.append({**_production_view(slot_obj.production_model), "role": "production"})
+    for m in slot_obj.shadow_models:
+        # status 里可能是 'shadow' 或 'retired'，直接透传作为 role
+        versions.append({**_shadow_view(m), "role": m.status})
+    return {"slot": slot, "versions": versions}
+
+
+@router.post("/slots/{slot}/switch")
+def switch_model(slot: str, req: SwitchRequest) -> Dict[str, Any]:
+    """
+    执行切换：将目标 shadow 提升为 production，原 production 降级为 retired，
+    并追加 SwitchEvent。
+
+    错误映射：
+      - 目标不存在（slot 或 target_workflow_id）→ 404
+      - 目标非 shadow / trigger_type 非法 → 400
+      - 冷却期内（force=false）→ 409
+    """
+    try:
+        event = _engine.execute_switch(
+            slot=slot,
+            target_workflow_id=req.target_workflow_id,
+            trigger_type=req.trigger_type,
+            reason=req.reason,
+            pre_switch_mape=req.pre_switch_mape,
+            force=req.force,
+        )
+    except SwitchDecisionError as exc:
+        _raise_from_decision_error(exc)
+
+    return {"event": event.model_dump()}
+
+
+@router.post("/slots/{slot}/rollback")
+def rollback_model(slot: str, req: RollbackRequest) -> Dict[str, Any]:
+    """
+    回滚到前一 production 版本。
+
+    错误映射：
+      - slot 不存在 → 404
+      - 无历史事件 / 前版本已被清理 → 400 no_previous_version
+      - 当前无 production → 400 no_current_production
+    """
+    try:
+        event = _engine.execute_rollback(slot=slot, reason=req.reason)
+    except SwitchDecisionError as exc:
+        _raise_from_decision_error(exc)
+
+    return {"event": event.model_dump()}
+
+
+@router.get("/slots/{slot}/switch-log")
+def get_switch_log(slot: str) -> Dict[str, Any]:
+    """
+    获取某槽位的切换事件日志。
+
+    - 按追加顺序返回（最早在前）
+    - append-only：日志条目一旦写入永不修改
+    - slot 不存在时不抛 404 —— 返回空列表（因为日志本身独立于槽位快照，
+      即便槽位被删除，历史事件仍具审计价值）
+    """
+    events = _event_log.list_by_slot(slot)
+    return {"slot": slot, "events": [e.model_dump() for e in events]}
+
+
+def _config_view(slot_obj: DeploymentSlot) -> Dict[str, Any]:
+    """
+    序列化 slot 配置到前端展示格式（GET/PUT /config 共用）。
+
+    返回体同时提供 `switch_observation_days`（新字段名）和 `evaluation_window_days`
+    （已废弃 alias，值相同），前端过渡期两个都能读到。
+    """
+    return {
+        "slot": slot_obj.slot,
+        "auto_switch_enabled": slot_obj.auto_switch_enabled,
+        # 切换资格判定
+        "switch_observation_days": slot_obj.switch_observation_days,
+        # 兼容旧字段名（已废弃）
+        "evaluation_window_days": slot_obj.switch_observation_days,
+        "cooldown_hours": slot_obj.cooldown_hours,
+        "threshold_mape": slot_obj.threshold_mape,
+        # 训练参数
+        "training_window_days": slot_obj.training_window_days,
+        # 资源上限
+        "max_shadow_slots": slot_obj.max_shadow_slots,
+        "max_prelaunch_slots": slot_obj.max_prelaunch_slots,
+        "updated_at": slot_obj.updated_at,
+    }
+
+
+@router.get("/slots/{slot}/config")
+def get_slot_config(slot: str) -> Dict[str, Any]:
+    """获取槽位配置（切换参数 + 训练参数 + 资源上限）。slot 不存在时返回 404。"""
+    slot_obj = _require_slot(slot)
+    return _config_view(slot_obj)
+
+
+@router.put("/slots/{slot}/config")
+def update_slot_config(slot: str, cfg: SlotConfigUpdate) -> Dict[str, Any]:
+    """
+    局部更新槽位配置 —— 仅设置传入的非 None 字段。
+
+    支持字段：
+      - auto_switch_enabled       — 是否启用自动切换
+      - switch_observation_days   — 切换观察天数（新名字）
+      - evaluation_window_days    — 已废弃 alias，若传入将映射到 switch_observation_days
+      - cooldown_hours            — 切换冷却时长（小时）
+      - threshold_mape            — 精度阈值
+      - training_window_days      — 训练窗口天数
+      - max_shadow_slots          — 影子池上限
+      - max_prelaunch_slots       — 预上线池上限
+
+    slot 不存在时返回 404。写入后返回最新配置。
+    """
+    slot_obj = _require_slot(slot)
+
+    if cfg.auto_switch_enabled is not None:
+        slot_obj.auto_switch_enabled = cfg.auto_switch_enabled
+
+    # 优先取新字段名 switch_observation_days，未传时再看旧字段名 evaluation_window_days
+    # 两个都传时，新字段名优先（一致性以新为准）
+    if cfg.switch_observation_days is not None:
+        slot_obj.switch_observation_days = cfg.switch_observation_days
+    elif cfg.evaluation_window_days is not None:
+        slot_obj.switch_observation_days = cfg.evaluation_window_days
+
+    if cfg.cooldown_hours is not None:
+        slot_obj.cooldown_hours = cfg.cooldown_hours
+    if cfg.threshold_mape is not None:
+        slot_obj.threshold_mape = cfg.threshold_mape
+
+    if cfg.training_window_days is not None:
+        slot_obj.training_window_days = cfg.training_window_days
+    if cfg.max_shadow_slots is not None:
+        slot_obj.max_shadow_slots = cfg.max_shadow_slots
+    if cfg.max_prelaunch_slots is not None:
+        slot_obj.max_prelaunch_slots = cfg.max_prelaunch_slots
+
+    slot_obj.updated_at = datetime.now().isoformat()
+
+    _slot_store.upsert(slot_obj)
+
+    return _config_view(slot_obj)
+
+
+# ---------------------------------------------------------------------------
+# 预上线池 API（/slots/{slot}/prelaunches）
+# ---------------------------------------------------------------------------
+
+# @AI_GENERATED: 阶段 2 — prelaunch API
+
+class PrelaunchEnterBody(BaseModel):
+    """
+    POST /slots/{slot}/prelaunches 请求体 —— 将一个候选加入预上线观察池。
+
+    字段说明（英文 — 中文）：
+      - candidate_id            — 来源候选 ID（复验通过的候选，用于溯源）
+      - workflow_id             — 要观察的工作流模板 ID
+      - version_tag             — 版本标签（人类可读，可选，默认由 candidate_id 前缀生成）
+      - observation_days        — 观察期天数，[1, 90]，默认 7
+      - graduate_tolerance_pct  — 毕业容差百分比，[0, 50]，默认 5
+      - source_run_id           — 来源 AutoResearch run ID（可选，审计）
+      - note                    — 人工备注（可选）
+    """
+
+    candidate_id: str = Field(..., description="candidate_id — 来源候选 ID")
+    workflow_id: str = Field(..., description="workflow_id — 要观察的工作流模板 ID")
+    version_tag: Optional[str] = Field(
+        default=None,
+        description="version_tag — 版本标签（留空则用 prelaunch-{candidate_id[:12]}）",
+    )
+    observation_days: int = Field(
+        default=7, ge=1, le=90,
+        description="observation_days — 观察期天数",
+    )
+    graduate_tolerance_pct: float = Field(
+        default=5.0, ge=0.0, le=50.0,
+        description="graduate_tolerance_pct — 毕业容差百分比",
+    )
+    source_run_id: Optional[str] = Field(
+        default=None,
+        description="source_run_id — 来源 AutoResearch run ID（可选）",
+    )
+    note: str = Field(default="", description="note — 人工备注")
+
+
+def _prelaunch_model_view(model: ModelVersion) -> Dict[str, Any]:
+    """序列化单条 prelaunch 模型到 API 响应格式（含完整 prelaunch_meta）。"""
+    meta = model.prelaunch_meta
+    return {
+        "workflow_id": model.workflow_id,
+        "version_tag": model.version_tag,
+        "status": model.status,
+        "deployed_at": model.deployed_at,
+        "accuracy_score": model.accuracy_score,
+        "source_run_id": model.source_run_id,
+        "source_candidate_id": model.source_candidate_id,
+        "prelaunch_meta": meta.model_dump() if meta is not None else None,
+    }
+
+
+@router.get("/slots/{slot}/prelaunches")
+def list_prelaunches(
+    slot: str,
     status: Optional[str] = None,
-    source_type: Optional[str] = None,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-):
-    """获取部署任务列表"""
-    tasks = _load_json(_tasks_path())
-    if scenario:
-        tasks = [t for t in tasks if t.get("scenario") == scenario]
+) -> Dict[str, Any]:
+    """
+    获取指定槽位的预上线模型列表。
+
+    用途：前端「算法部署 → 预上线 Tab」首屏加载；精度运营侧历史查询。
+
+    Query params:
+      - status（可选）— 按状态过滤：prelaunch | graduated | failed | cancelled
+                        不传则返回全部（含历史 retired 条目）
+
+    返回体：
+      - slot          — 槽位名称
+      - prelaunches   — 预上线模型列表（按 started_at 降序，最新在前）
+      - active_count  — 当前 status=prelaunch 的数量
+    """
+    slot_obj = _require_slot(slot)
+    all_items = slot_obj.prelaunch_models
+
     if status:
-        tasks = [t for t in tasks if t.get("status") == status]
-    if source_type:
-        tasks = [t for t in tasks if t.get("source_type") == source_type]
-    tasks.sort(key=lambda t: t.get("created_at", ""), reverse=True)
-    total = len(tasks)
-    start = (page - 1) * page_size
-    return {"total": total, "items": tasks[start:start + page_size]}
+        # "graduated" 和 "failed" 对应 status=retired，需要额外从 shadow_models 里捞历史
+        if status in ("graduated", "failed"):
+            all_items = [
+                m for m in slot_obj.shadow_models
+                if m.status == "retired" and m.prelaunch_meta is not None
+            ]
+        else:
+            all_items = [m for m in all_items if m.status == status]
 
+    # 按 started_at 降序（最新在前）
+    def _started_at_key(m: ModelVersion) -> str:
+        return m.prelaunch_meta.started_at if m.prelaunch_meta else ""
 
-@router.get("/tasks/{task_id}")
-async def get_task(task_id: str):
-    """获取部署任务详情"""
-    tasks = _load_json(_tasks_path())
-    for t in tasks:
-        if t["id"] == task_id:
-            return t
-    return {"error": "Task not found"}
+    sorted_items = sorted(all_items, key=_started_at_key, reverse=True)
+    active_count = sum(1 for m in slot_obj.prelaunch_models if m.status == "prelaunch")
 
-
-@router.delete("/tasks/{task_id}")
-async def delete_task(task_id: str):
-    """删除部署任务"""
-    tasks = _load_json(_tasks_path())
-    tasks = [t for t in tasks if t["id"] != task_id]
-    _save_json(_tasks_path(), tasks)
-    return {"success": True}
-
-
-@router.post("/tasks/{task_id}/clone")
-async def clone_task(task_id: str):
-    """克隆部署任务"""
-    tasks = _load_json(_tasks_path())
-    source = None
-    for t in tasks:
-        if t["id"] == task_id:
-            source = t
-            break
-    if not source:
-        return {"error": "Task not found"}
-    now = datetime.now()
-    cloned = copy.deepcopy(source)
-    cloned["id"] = f"deploy-task-{now.strftime('%Y%m%d%H%M%S')}-{random.randint(1000,9999)}"
-    cloned["name"] = f"{source['name']} (副本)"
-    cloned["status"] = "draft"
-    cloned["created_at"] = now.isoformat()
-    cloned["updated_at"] = now.isoformat()
-    tasks.append(cloned)
-    _save_json(_tasks_path(), tasks)
-    return cloned
-
-
-@router.post("/tasks/{task_id}/deploy")
-async def deploy_task(task_id: str):
-    """执行部署，生成服务实例"""
-    tasks = _load_json(_tasks_path())
-    services = _load_json(_services_path())
-    task = None
-    for t in tasks:
-        if t["id"] == task_id:
-            task = t
-            break
-    if not task:
-        return {"error": "Task not found"}
-    now = datetime.now()
-    task["status"] = "running"
-    task["updated_at"] = now.isoformat()
-    _save_json(_tasks_path(), tasks)
-
-    svc_id = f"svc-{now.strftime('%Y%m%d%H%M%S')}-{random.randint(100,999)}"
-    cfg = task.get("deploy_config", {})
-    svc = {
-        "id": svc_id,
-        "task_id": task_id,
-        "name": task["name"].replace("部署", "服务") if "部署" in task["name"] else task["name"] + " 服务",
-        "endpoint": f"http://localhost:8080{cfg.get('endpoint', '/api/predict/unknown')}",
-        "version": "v1.0",
-        "replicas": {"desired": cfg.get("replicas", 1), "running": cfg.get("replicas", 1), "ready": cfg.get("replicas", 1)},
-        "health": "healthy",
-        "qps": round(random.uniform(10, 100), 1),
-        "avg_latency_ms": round(random.uniform(50, 300), 0),
-        "error_rate": round(random.uniform(0, 0.05), 3),
-        "uptime": "0d 0h 0m",
-        "created_at": now.isoformat(),
-        "versions": [{"version": "v1.0", "published_at": now.isoformat(), "status": "active"}],
+    return {
+        "slot": slot,
+        "prelaunches": [_prelaunch_model_view(m) for m in sorted_items],
+        "active_count": active_count,
     }
-    services.append(svc)
-    _save_json(_services_path(), services)
-    return {"success": True, "service_id": svc_id}
 
 
-# ==================== 服务管理 API ====================
+@router.post("/slots/{slot}/prelaunches")
+def enter_prelaunch(slot: str, body: PrelaunchEnterBody) -> Dict[str, Any]:
+    """
+    将候选加入预上线观察池。
 
-@router.get("/services")
-async def list_services():
-    """获取服务列表"""
-    return _load_json(_services_path())
+    前置检查：
+      - slot 存在
+      - 当前 active prelaunch 数量 < slot.max_prelaunch_slots
+      - 同一 workflow_id 不重复入池（status=prelaunch 时）
 
+    入池后：
+      - 创建 ModelVersion（status="prelaunch"）+ PrelaunchMeta
+      - 写入 slot.prelaunch_models
+      - 下一次 lf_daily_rolling cron 会把它纳入训练+预测
 
-@router.get("/services/{svc_id}")
-async def get_service(svc_id: str):
-    """获取服务详情"""
-    services = _load_json(_services_path())
-    for s in services:
-        if s["id"] == svc_id:
-            return s
-    return {"error": "Service not found"}
+    错误映射：
+      - slot 不存在 → 404
+      - 超出 max_prelaunch_slots 上限 → 409 prelaunch_quota_exceeded
+      - 同 workflow_id 已在观察 → 409 already_in_prelaunch
+    """
+    slot_obj = _require_slot(slot)
 
+    # 检查配额
+    active = [m for m in slot_obj.prelaunch_models if m.status == "prelaunch"]
+    if len(active) >= slot_obj.max_prelaunch_slots:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "prelaunch_quota_exceeded",
+                "message": (
+                    f"预上线池已满（{len(active)}/{slot_obj.max_prelaunch_slots}），"
+                    "请等现有预上线观察结束后再入池"
+                ),
+            },
+        )
 
-@router.post("/services/{svc_id}/start")
-async def start_service(svc_id: str):
-    """启动服务"""
-    services = _load_json(_services_path())
-    for s in services:
-        if s["id"] == svc_id:
-            s["health"] = "healthy"
-            desired = s["replicas"]["desired"]
-            s["replicas"]["running"] = desired
-            s["replicas"]["ready"] = desired
-            s["qps"] = round(random.uniform(10, 80), 1)
-            s["avg_latency_ms"] = round(random.uniform(50, 200), 0)
-            s["error_rate"] = round(random.uniform(0, 0.03), 3)
-            _save_json(_services_path(), services)
-            return {"success": True}
-    return {"error": "Service not found"}
+    # 检查重复
+    dup = next(
+        (m for m in active if m.workflow_id == body.workflow_id),
+        None,
+    )
+    if dup is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "already_in_prelaunch",
+                "message": f"workflow_id={body.workflow_id!r} 已在预上线观察中，不可重复入池",
+            },
+        )
 
+    # 创建 PrelaunchMeta + ModelVersion
+    from services.deployment.models import PrelaunchMeta
 
-@router.post("/services/{svc_id}/stop")
-async def stop_service(svc_id: str):
-    """停止服务"""
-    services = _load_json(_services_path())
-    for s in services:
-        if s["id"] == svc_id:
-            s["health"] = "stopped"
-            s["replicas"]["running"] = 0
-            s["replicas"]["ready"] = 0
-            s["qps"] = 0
-            s["avg_latency_ms"] = 0
-            s["error_rate"] = 0
-            s["uptime"] = "0"
-            _save_json(_services_path(), services)
-            return {"success": True}
-    return {"error": "Service not found"}
+    now_iso = datetime.now().isoformat()
+    baseline_mape: Optional[float] = None
+    if slot_obj.production_model is not None:
+        baseline_mape = slot_obj.production_model.accuracy_score
 
+    version_tag = body.version_tag or f"prelaunch-{body.candidate_id[:12]}"
+    meta = PrelaunchMeta(
+        candidate_id=body.candidate_id,
+        started_at=now_iso,
+        observation_days=body.observation_days,
+        graduate_tolerance_pct=body.graduate_tolerance_pct,
+        baseline_mape_at_entry=baseline_mape,
+        source_run_id=body.source_run_id,
+        note=body.note,
+    )
+    new_model = ModelVersion(
+        workflow_id=body.workflow_id,
+        version_tag=version_tag,
+        status="prelaunch",
+        deployed_at=now_iso,
+        prelaunch_meta=meta,
+        source_candidate_id=body.candidate_id,
+        source_run_id=body.source_run_id,
+    )
+    slot_obj.prelaunch_models.append(new_model)
+    slot_obj.updated_at = now_iso
+    _slot_store.upsert(slot_obj)
 
-@router.post("/services/{svc_id}/restart")
-async def restart_service(svc_id: str):
-    """重启服务"""
-    services = _load_json(_services_path())
-    for s in services:
-        if s["id"] == svc_id:
-            s["health"] = "healthy"
-            desired = s["replicas"]["desired"]
-            s["replicas"]["running"] = desired
-            s["replicas"]["ready"] = desired
-            s["qps"] = round(random.uniform(10, 80), 1)
-            s["avg_latency_ms"] = round(random.uniform(50, 200), 0)
-            s["error_rate"] = round(random.uniform(0, 0.02), 3)
-            _save_json(_services_path(), services)
-            return {"success": True}
-    return {"error": "Service not found"}
-
-
-@router.put("/services/{svc_id}/scale")
-async def scale_service(svc_id: str, body: dict):
-    """扩缩容"""
-    services = _load_json(_services_path())
-    target = body.get("replicas", 1)
-    for s in services:
-        if s["id"] == svc_id:
-            s["replicas"]["desired"] = target
-            s["replicas"]["running"] = target
-            s["replicas"]["ready"] = target
-            _save_json(_services_path(), services)
-            return {"success": True}
-    return {"error": "Service not found"}
-
-
-@router.post("/services/{svc_id}/rollback")
-async def rollback_service(svc_id: str, body: dict):
-    """回滚到指定版本"""
-    services = _load_json(_services_path())
-    target_version = body.get("version", "")
-    for s in services:
-        if s["id"] == svc_id:
-            for v in s.get("versions", []):
-                v["status"] = "active" if v["version"] == target_version else "inactive"
-            s["version"] = target_version
-            _save_json(_services_path(), services)
-            return {"success": True}
-    return {"error": "Service not found"}
-
-
-@router.get("/services/{svc_id}/versions")
-async def get_service_versions(svc_id: str):
-    """获取版本历史"""
-    services = _load_json(_services_path())
-    for s in services:
-        if s["id"] == svc_id:
-            return s.get("versions", [])
-    return []
-
-
-@router.put("/services/{svc_id}/canary")
-async def update_canary(svc_id: str, body: dict):
-    """调整灰度比例"""
-    # Mock: just return success
-    return {"success": True, "canary_percent": body.get("canary_percent", 0)}
-
-
-# ==================== 服务监控 API ====================
-
-@router.get("/services/{svc_id}/metrics")
-async def get_service_metrics(svc_id: str, time_range: str = Query("1h")):
-    """获取服务指标时序数据"""
-    hours_map = {"1h": 1, "6h": 6, "24h": 24, "7d": 168}
-    hours = hours_map.get(time_range, 1)
-    points = min(hours * 6, 200)  # ~10min intervals
-    now = datetime.now()
-    data = []
-    for i in range(points):
-        ts = now - timedelta(minutes=(points - i) * (hours * 60 / points))
-        data.append({
-            "timestamp": ts.isoformat(),
-            "qps": round(random.uniform(20, 150) + 10 * math.sin(i / 10), 1),
-            "latency_p50": round(random.uniform(50, 120), 1),
-            "latency_p90": round(random.uniform(100, 250), 1),
-            "latency_p95": round(random.uniform(150, 350), 1),
-            "latency_p99": round(random.uniform(200, 500), 1),
-            "error_rate": round(max(0, random.gauss(0.02, 0.015)), 4),
-            "cpu_usage": round(random.uniform(30, 75) + 10 * math.sin(i / 8), 1),
-            "memory_usage": round(random.uniform(40, 70), 1),
-            "gpu_usage": round(random.uniform(0, 60), 1),
-        })
-    return data
-
-
-@router.get("/services/{svc_id}/logs")
-async def get_service_logs(svc_id: str, page: int = 1, page_size: int = 50):
-    """获取访问日志"""
-    now = datetime.now()
-    statuses = [200, 200, 200, 200, 200, 200, 200, 200, 400, 500]
-    logs = []
-    for i in range(page_size):
-        ts = now - timedelta(seconds=i * random.randint(1, 10))
-        status = random.choice(statuses)
-        logs.append({
-            "timestamp": ts.isoformat(),
-            "request_id": f"req-{random.randint(100000, 999999)}",
-            "input_summary": f"输入数据: {random.choice(['负荷数据', '气象数据', '历史功率', '设备参数'])} ({random.randint(10, 500)} 条)",
-            "output_summary": f"预测结果: {random.choice(['24h预测', '48h预测', '故障概率', '功率曲线'])}",
-            "latency_ms": round(random.uniform(50, 500), 0),
-            "status_code": status,
-        })
-    return {"total": 200, "items": logs}
-
-
-# ==================== 告警 API ====================
-
-@router.get("/alerts/rules")
-async def list_alert_rules():
-    """获取告警规则列表"""
-    alerts = _load_json(_alerts_path())
-    return alerts.get("rules", []) if isinstance(alerts, dict) else []
-
-
-@router.post("/alerts/rules")
-async def create_alert_rule(body: dict):
-    """创建告警规则"""
-    alerts = _load_json(_alerts_path())
-    if not isinstance(alerts, dict):
-        alerts = {"rules": [], "history": []}
-    rule = {
-        "id": f"rule-{datetime.now().strftime('%Y%m%d%H%M%S')}-{random.randint(100,999)}",
-        "service_id": body.get("service_id", ""),
-        "metric_name": body.get("metric_name", ""),
-        "operator": body.get("operator", "gt"),
-        "threshold": body.get("threshold", 0),
-        "severity": body.get("severity", "warning"),
-        "enabled": body.get("enabled", True),
+    return {
+        "success": True,
+        "item": _prelaunch_model_view(new_model),
+        "active_count": len([m for m in slot_obj.prelaunch_models if m.status == "prelaunch"]),
     }
-    alerts["rules"].append(rule)
-    _save_json(_alerts_path(), alerts)
-    return rule
 
 
-@router.put("/alerts/rules/{rule_id}")
-async def update_alert_rule(rule_id: str, body: dict):
-    """更新告警规则"""
-    alerts = _load_json(_alerts_path())
-    if not isinstance(alerts, dict):
-        return {"error": "No alerts data"}
-    for r in alerts.get("rules", []):
-        if r["id"] == rule_id:
-            for k in ["metric_name", "operator", "threshold", "severity", "enabled"]:
-                if k in body:
-                    r[k] = body[k]
-            _save_json(_alerts_path(), alerts)
-            return r
-    return {"error": "Rule not found"}
+@router.post("/slots/{slot}/prelaunches/{workflow_id}/cancel")
+def cancel_prelaunch(
+    slot: str,
+    workflow_id: str,
+    reason: str = "",
+) -> Dict[str, Any]:
+    """
+    取消预上线观察（手动）。
+
+    条目 status 改为 "retired"，prelaunch_meta.note 记录取消原因。
+    下一次 cron 不再跑该 workflow。
+
+    错误映射：
+      - slot 不存在 → 404
+      - 目标不存在或已不是 prelaunch → 400
+    """
+    slot_obj = _require_slot(slot)
+    success = _slot_store.fail_prelaunch(
+        slot,
+        workflow_id,
+        reason=reason or "manual_cancel",
+    )
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "prelaunch_not_found",
+                "message": f"未找到 slot={slot!r} workflow_id={workflow_id!r} 的活跃预上线项",
+            },
+        )
+    return {"success": True, "workflow_id": workflow_id, "status": "retired"}
 
 
-@router.delete("/alerts/rules/{rule_id}")
-async def delete_alert_rule(rule_id: str):
-    """删除告警规则"""
-    alerts = _load_json(_alerts_path())
-    if not isinstance(alerts, dict):
-        return {"error": "No alerts data"}
-    alerts["rules"] = [r for r in alerts.get("rules", []) if r["id"] != rule_id]
-    _save_json(_alerts_path(), alerts)
-    return {"success": True}
+@router.post("/slots/{slot}/prelaunches/{workflow_id}/graduate")
+def graduate_prelaunch(
+    slot: str,
+    workflow_id: str,
+) -> Dict[str, Any]:
+    """
+    手动毕业预上线模型（跳过观察期，强制提升为 shadow）。
 
+    用于：观察期数据充分但时间未到、或紧急上线场景。
+    条目从 prelaunch_models 移入 shadow_models，清空 prelaunch_meta，
+    status="shadow"，下一次 cron 参与锦标赛。
 
-@router.get("/alerts/history")
-async def list_alert_history(service_id: Optional[str] = None):
-    """获取告警历史"""
-    alerts = _load_json(_alerts_path())
-    history = alerts.get("history", []) if isinstance(alerts, dict) else []
-    if service_id:
-        history = [h for h in history if h.get("service_id") == service_id]
-    return history
+    错误映射：
+      - slot 不存在 → 404
+      - 目标不存在或已不是 prelaunch → 400
+    """
+    slot_obj = _require_slot(slot)
+    success = _slot_store.promote_prelaunch_to_shadow(slot, workflow_id)
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "prelaunch_not_found",
+                "message": f"未找到 slot={slot!r} workflow_id={workflow_id!r} 的活跃预上线项",
+            },
+        )
+    # 返回更新后的 slot 状态（前端可直接刷新视图）
+    slot_obj = _slot_store.get(slot)
+    return {
+        "success": True,
+        "workflow_id": workflow_id,
+        "status": "shadow",
+        "slot": _slot_view(slot_obj) if slot_obj else None,
+    }
 # @AI_GENERATED: end

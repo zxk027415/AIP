@@ -2,27 +2,13 @@
   "id": "workflow-pv-fault-diag-quickval-cv-v1",
   "name": "光伏故障诊断 - 无泄漏重复分层评估",
   "description": "无泄漏重复分层评估，默认跑 train_ori 真实多场景数据(单文件已含 label)。load_csv 通过 rename_columns 把 data_date→time、branch→branch_id；两个 load 指向同一 CSV，merge_label 用 label_col=label 贴回日标签；尾部 stratified_cv_eval 做 N 次重复分层留出，mRMR/SMOTE 只在训练折，测试折保持原始分布。换数据只需改两个 load 节点的 file_path。",
-  "category": "fault_diagnosis",
-  "createdAt": "2026-06-12T00:00:00",
-  "updatedAt": "2026-06-12T00:00:00",
-  "metadata": {
-    "global_config": {
-      "time_zone": "Asia/Shanghai",
-      "scene": "solar",
-      "device_type": "combinerbox",
-      "operate_status": "training",
-      "run_mode": "train"
-    },
-    "template_type": "pv_fault_diagnosis_quickval_cv",
-    "note": "无泄漏重复分层评估版：相比 workflow-pv-fault-diag-quickval-v1，尾部改为 stratified_cv_eval 单算子，解决 SMOTE 在切分之前导致的数据泄漏问题。"
-  },
   "nodes": [
     {
       "id": "qv-load_csv-n1",
       "type": "enhanced",
       "position": {
-        "x": 100,
-        "y": 80
+        "x": 100.0,
+        "y": 80.0
       },
       "data": {
         "label": "光伏源数据 (train_ori)",
@@ -34,12 +20,16 @@
             "id": "n1-out-0",
             "name": "data",
             "type": "output",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           }
         ],
         "config": {
           "functionId": "load_csv",
-          "file_path": "/Users/zxk/Desktop/project/AIP/fault-diag-algo-release-3.1/merged_train_all.parquet",
+          "operation": null,
+          "chartType": null,
+          "file_path": "../fault-diag-algo-release-3.1/relate_data/all_labeled_combined.parquet",
           "time_field": "time",
           "id_fields": [
             "site_id",
@@ -59,8 +49,8 @@
       "id": "qv-time_window_split-n4",
       "type": "enhanced",
       "position": {
-        "x": 275,
-        "y": 400
+        "x": 275.0,
+        "y": 400.0
       },
       "data": {
         "label": "时间窗口切分",
@@ -71,7 +61,9 @@
             "id": "n4-in-0",
             "name": "data",
             "type": "input",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           }
         ],
         "outputs": [
@@ -79,11 +71,15 @@
             "id": "n4-out-0",
             "name": "data",
             "type": "output",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           }
         ],
         "config": {
           "functionId": "time_window_split",
+          "operation": null,
+          "chartType": null,
           "window": "1d",
           "id_fields": [
             "site_id",
@@ -101,8 +97,8 @@
       "id": "qv-handle_missing-n5",
       "type": "enhanced",
       "position": {
-        "x": 275,
-        "y": 560
+        "x": 275.0,
+        "y": 560.0
       },
       "data": {
         "label": "缺失值处理",
@@ -113,7 +109,9 @@
             "id": "n5-in-0",
             "name": "data",
             "type": "input",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           }
         ],
         "outputs": [
@@ -121,11 +119,15 @@
             "id": "n5-out-0",
             "name": "data",
             "type": "output",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           }
         ],
         "config": {
           "functionId": "handle_missing",
+          "operation": null,
+          "chartType": null,
           "method": "drop_insufficient",
           "keep_threshold": 0.75,
           "id_fields": [
@@ -148,8 +150,8 @@
       "id": "qv-detect_outliers-n6",
       "type": "enhanced",
       "position": {
-        "x": 275,
-        "y": 720
+        "x": 275.0,
+        "y": 720.0
       },
       "data": {
         "label": "鲁棒异常裁剪",
@@ -160,7 +162,9 @@
             "id": "n6-in-0",
             "name": "data",
             "type": "input",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           }
         ],
         "outputs": [
@@ -168,11 +172,15 @@
             "id": "n6-out-0",
             "name": "data",
             "type": "output",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           }
         ],
         "config": {
           "functionId": "detect_outliers",
+          "operation": null,
+          "chartType": null,
           "method": "robust_clip",
           "id_fields": [
             "site_id",
@@ -194,8 +202,8 @@
       "id": "qv-extract_statistical_features-n7",
       "type": "enhanced",
       "position": {
-        "x": 0,
-        "y": 880
+        "x": 0.0,
+        "y": 880.0
       },
       "data": {
         "label": "统计特征提取",
@@ -206,7 +214,9 @@
             "id": "n7-in-0",
             "name": "data",
             "type": "input",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           }
         ],
         "outputs": [
@@ -214,11 +224,15 @@
             "id": "n7-out-0",
             "name": "data",
             "type": "output",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           }
         ],
         "config": {
           "functionId": "extract_statistical_features",
+          "operation": null,
+          "chartType": null,
           "mode": "groupby_aggregate",
           "id_fields": [
             "site_id",
@@ -246,8 +260,8 @@
       "id": "qv-tsfresh_extract-n8",
       "type": "enhanced",
       "position": {
-        "x": 300,
-        "y": 880
+        "x": 300.0,
+        "y": 880.0
       },
       "data": {
         "label": "tsfresh 特征",
@@ -258,7 +272,9 @@
             "id": "n8-in-0",
             "name": "data",
             "type": "input",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           }
         ],
         "outputs": [
@@ -266,11 +282,15 @@
             "id": "n8-out-0",
             "name": "data",
             "type": "output",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           }
         ],
         "config": {
           "functionId": "tsfresh_extract",
+          "operation": null,
+          "chartType": null,
           "id_fields": [
             "site_id",
             "device_id",
@@ -291,8 +311,8 @@
       "id": "qv-ts_comparison_features-n9",
       "type": "enhanced",
       "position": {
-        "x": 600,
-        "y": 880
+        "x": 600.0,
+        "y": 880.0
       },
       "data": {
         "label": "多变量对比特征",
@@ -303,7 +323,9 @@
             "id": "n9-in-0",
             "name": "data",
             "type": "input",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           }
         ],
         "outputs": [
@@ -311,11 +333,15 @@
             "id": "n9-out-0",
             "name": "data",
             "type": "output",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           }
         ],
         "config": {
           "functionId": "ts_comparison_features",
+          "operation": null,
+          "chartType": null,
           "id_fields": [
             "site_id",
             "device_id",
@@ -337,8 +363,8 @@
       "id": "qv-stratified_cv_eval-n10",
       "type": "enhanced",
       "position": {
-        "x": 275,
-        "y": 1060
+        "x": 275.0,
+        "y": 1060.0
       },
       "data": {
         "label": "分层重复评估 (无泄漏)",
@@ -349,19 +375,25 @@
             "id": "feat_stat",
             "name": "feat_stat",
             "type": "input",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           },
           {
             "id": "feat_tsfresh",
             "name": "feat_tsfresh",
             "type": "input",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           },
           {
             "id": "feat_compare",
             "name": "feat_compare",
             "type": "input",
-            "dataType": "matrix"
+            "dataType": "matrix",
+            "required": false,
+            "description": null
           }
         ],
         "outputs": [
@@ -369,11 +401,15 @@
             "id": "n10-out-0",
             "name": "metrics",
             "type": "output",
-            "dataType": "object"
+            "dataType": "object",
+            "required": false,
+            "description": null
           }
         ],
         "config": {
           "functionId": "stratified_cv_eval",
+          "operation": null,
+          "chartType": null,
           "n_repeats": 3,
           "test_ratio": 0.2,
           "k": 50,
@@ -398,15 +434,9 @@
       "targetHandle": "n5-in-0",
       "type": "smoothstep",
       "data": {
-        "data_contract": {
-          "required_columns": [
-            "time_window"
-          ],
-          "column_types": {
-            "time_window": "datetime"
-          },
-          "constraints": []
-        }
+        "sourcePort": null,
+        "targetPort": null,
+        "dataType": null
       }
     },
     {
@@ -453,7 +483,9 @@
       "targetHandle": "feat_stat",
       "type": "smoothstep",
       "data": {
-        "label": "merge_features"
+        "sourcePort": null,
+        "targetPort": null,
+        "dataType": null
       }
     },
     {
@@ -464,7 +496,9 @@
       "targetHandle": "feat_tsfresh",
       "type": "smoothstep",
       "data": {
-        "label": "merge_features"
+        "sourcePort": null,
+        "targetPort": null,
+        "dataType": null
       }
     },
     {
@@ -475,7 +509,9 @@
       "targetHandle": "feat_compare",
       "type": "smoothstep",
       "data": {
-        "label": "merge_features"
+        "sourcePort": null,
+        "targetPort": null,
+        "dataType": null
       }
     },
     {
@@ -487,5 +523,23 @@
       "type": "smoothstep",
       "data": null
     }
-  ]
+  ],
+  "metadata": {
+    "global_config": {
+      "time_zone": "Asia/Shanghai",
+      "scene": "solar",
+      "device_type": "combinerbox",
+      "operate_status": "training",
+      "run_mode": "train"
+    },
+    "template_type": "pv_fault_diagnosis_quickval_cv",
+    "note": "无泄漏重复分层评估版：相比 workflow-pv-fault-diag-quickval-v1，尾部改为 stratified_cv_eval 单算子，解决 SMOTE 在切分之前导致的数据泄漏问题。"
+  },
+  "scenario_id": "renewable-energy",
+  "source_template_id": null,
+  "version": 1,
+  "version_group_id": "vg-workflow-pv-fault-diag-quickval-cv-v1",
+  "parent_version_id": null,
+  "createdAt": "2026-06-12T00:00:00",
+  "updatedAt": "2026-06-12T00:00:00"
 }

@@ -1,0 +1,545 @@
+{
+  "id": "workflow-20260709102206008924",
+  "name": "光伏故障诊断 - 无泄漏重复分层评估",
+  "description": "无泄漏重复分层评估，默认跑 train_ori 真实多场景数据(单文件已含 label)。load_csv 通过 rename_columns 把 data_date→time、branch→branch_id；两个 load 指向同一 CSV，merge_label 用 label_col=label 贴回日标签；尾部 stratified_cv_eval 做 N 次重复分层留出，mRMR/SMOTE 只在训练折，测试折保持原始分布。换数据只需改两个 load 节点的 file_path。",
+  "nodes": [
+    {
+      "id": "qv-load_csv-n1",
+      "type": "enhanced",
+      "position": {
+        "x": 100.0,
+        "y": 80.0
+      },
+      "data": {
+        "label": "光伏源数据 (train_ori)",
+        "type": "function",
+        "icon": null,
+        "inputs": [],
+        "outputs": [
+          {
+            "id": "n1-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "load_csv",
+          "operation": null,
+          "chartType": null,
+          "file_path": "../fault-diag-algo-release-3.1/relate_data/all_labeled_combined.parquet",
+          "time_field": "time",
+          "id_fields": [
+            "site_id",
+            "device_id",
+            "branch_id"
+          ],
+          "rename_columns": "{\"data_date\": \"time\", \"branch\": \"branch_id\"}",
+          "encoding": "utf-8",
+          "delimiter": ","
+        },
+        "status": "idle",
+        "error": null,
+        "description": "加载 train_small.parquet 源时序数据（site_id/device_id/branch_id/time/value/i_cal，无 label）。标签由 n2 的 label_small.parquet 经 merge_label 按天对齐贴回"
+      }
+    },
+    {
+      "id": "qv-time_window_split-n4",
+      "type": "enhanced",
+      "position": {
+        "x": 275.0,
+        "y": 400.0
+      },
+      "data": {
+        "label": "时间窗口切分",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "n4-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "n4-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "time_window_split",
+          "operation": null,
+          "chartType": null,
+          "window": "1d",
+          "id_fields": [
+            "site_id",
+            "device_id",
+            "branch_id"
+          ],
+          "time_field": "time"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "按天切分，每条记录分配 time_window 标识"
+      }
+    },
+    {
+      "id": "qv-handle_missing-n5",
+      "type": "enhanced",
+      "position": {
+        "x": 275.0,
+        "y": 560.0
+      },
+      "data": {
+        "label": "缺失值处理",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "n5-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "n5-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "handle_missing",
+          "operation": null,
+          "chartType": null,
+          "method": "drop_insufficient",
+          "keep_threshold": 0.75,
+          "id_fields": [
+            "site_id",
+            "device_id",
+            "branch_id",
+            "time_window"
+          ],
+          "value_fields": [
+            "value",
+            "i_cal"
+          ]
+        },
+        "status": "idle",
+        "error": null,
+        "description": "丢弃有效值不足 75% 的设备×窗口组"
+      }
+    },
+    {
+      "id": "qv-detect_outliers-n6",
+      "type": "enhanced",
+      "position": {
+        "x": 275.0,
+        "y": 720.0
+      },
+      "data": {
+        "label": "鲁棒异常裁剪",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "n6-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "n6-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "detect_outliers",
+          "operation": null,
+          "chartType": null,
+          "method": "robust_clip",
+          "id_fields": [
+            "site_id",
+            "device_id",
+            "branch_id",
+            "time_window"
+          ],
+          "value_fields": [
+            "value",
+            "i_cal"
+          ]
+        },
+        "status": "idle",
+        "error": null,
+        "description": "按差分排序去除每组极端最大值和最小值"
+      }
+    },
+    {
+      "id": "qv-extract_statistical_features-n7",
+      "type": "enhanced",
+      "position": {
+        "x": 0.0,
+        "y": 880.0
+      },
+      "data": {
+        "label": "统计特征提取",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "n7-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "n7-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "extract_statistical_features",
+          "operation": null,
+          "chartType": null,
+          "mode": "groupby_aggregate",
+          "id_fields": [
+            "site_id",
+            "device_id",
+            "branch_id",
+            "time_window",
+            "label"
+          ],
+          "value_fields": [
+            "value",
+            "i_cal"
+          ],
+          "compute_diff": true,
+          "quantiles": [
+            0.25,
+            0.75
+          ]
+        },
+        "status": "idle",
+        "error": null,
+        "description": "按设备×窗口分组聚合统计特征（含差分特征），携带 label 列"
+      }
+    },
+    {
+      "id": "qv-tsfresh_extract-n8",
+      "type": "enhanced",
+      "position": {
+        "x": 300.0,
+        "y": 880.0
+      },
+      "data": {
+        "label": "tsfresh 特征",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "n8-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "n8-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "tsfresh_extract",
+          "operation": null,
+          "chartType": null,
+          "id_fields": [
+            "site_id",
+            "device_id",
+            "branch_id",
+            "time_window"
+          ],
+          "value_fields": [
+            "value",
+            "i_cal"
+          ]
+        },
+        "status": "idle",
+        "error": null,
+        "description": "按分组计算 tsfresh 特征（abs_energy/sum_values/CID 等）"
+      }
+    },
+    {
+      "id": "qv-ts_comparison_features-n9",
+      "type": "enhanced",
+      "position": {
+        "x": 600.0,
+        "y": 880.0
+      },
+      "data": {
+        "label": "多变量对比特征",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "n9-in-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "n9-out-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "ts_comparison_features",
+          "operation": null,
+          "chartType": null,
+          "id_fields": [
+            "site_id",
+            "device_id",
+            "branch_id",
+            "time_window"
+          ],
+          "value_fields": [
+            "value",
+            "i_cal"
+          ],
+          "options": "{\"compute_correlation\": true, \"compute_distance\": true, \"compute_regression\": true}"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "value 和 i_cal 之间的 Spearman/Pearson/DTW/欧氏距离/斜率"
+      }
+    },
+    {
+      "id": "qv-stratified_cv_eval-n10",
+      "type": "enhanced",
+      "position": {
+        "x": 275.0,
+        "y": 1060.0
+      },
+      "data": {
+        "label": "分层重复评估 (无泄漏)",
+        "type": "function",
+        "icon": null,
+        "inputs": [
+          {
+            "id": "feat_stat",
+            "name": "feat_stat",
+            "type": "input",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "feat_tsfresh",
+            "name": "feat_tsfresh",
+            "type": "input",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          },
+          {
+            "id": "feat_compare",
+            "name": "feat_compare",
+            "type": "input",
+            "dataType": "matrix",
+            "required": false,
+            "description": null
+          }
+        ],
+        "outputs": [
+          {
+            "id": "n10-out-0",
+            "name": "metrics",
+            "type": "output",
+            "dataType": "object",
+            "required": false,
+            "description": null
+          }
+        ],
+        "config": {
+          "functionId": "stratified_cv_eval",
+          "operation": null,
+          "chartType": null,
+          "n_repeats": 3,
+          "test_ratio": 0.2,
+          "k": 50,
+          "n_estimators": 80,
+          "random_state": 90,
+          "smote_limit": 500,
+          "average": "macro",
+          "target_col": "label"
+        },
+        "status": "idle",
+        "error": null,
+        "description": "合并三路特征后做 10 次重复分层留出评估：mRMR/SMOTE 只在训练折，测试折保持原始分布。输出 accuracy/macro-F1 均值±标准差、各类 recall、聚合混淆矩阵与分类报告"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-n4-n5",
+      "source": "qv-time_window_split-n4",
+      "target": "qv-handle_missing-n5",
+      "sourceHandle": "n4-out-0",
+      "targetHandle": "n5-in-0",
+      "type": "smoothstep",
+      "data": {
+        "sourcePort": null,
+        "targetPort": null,
+        "dataType": null
+      }
+    },
+    {
+      "id": "e-n5-n6",
+      "source": "qv-handle_missing-n5",
+      "target": "qv-detect_outliers-n6",
+      "sourceHandle": "n5-out-0",
+      "targetHandle": "n6-in-0",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "e-n6-n7",
+      "source": "qv-detect_outliers-n6",
+      "target": "qv-extract_statistical_features-n7",
+      "sourceHandle": "n6-out-0",
+      "targetHandle": "n7-in-0",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "e-n6-n8",
+      "source": "qv-detect_outliers-n6",
+      "target": "qv-tsfresh_extract-n8",
+      "sourceHandle": "n6-out-0",
+      "targetHandle": "n8-in-0",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "e-n6-n9",
+      "source": "qv-detect_outliers-n6",
+      "target": "qv-ts_comparison_features-n9",
+      "sourceHandle": "n6-out-0",
+      "targetHandle": "n9-in-0",
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "e-n7-n10",
+      "source": "qv-extract_statistical_features-n7",
+      "target": "qv-stratified_cv_eval-n10",
+      "sourceHandle": "n7-out-0",
+      "targetHandle": "feat_stat",
+      "type": "smoothstep",
+      "data": {
+        "sourcePort": null,
+        "targetPort": null,
+        "dataType": null
+      }
+    },
+    {
+      "id": "e-n8-n10",
+      "source": "qv-tsfresh_extract-n8",
+      "target": "qv-stratified_cv_eval-n10",
+      "sourceHandle": "n8-out-0",
+      "targetHandle": "feat_tsfresh",
+      "type": "smoothstep",
+      "data": {
+        "sourcePort": null,
+        "targetPort": null,
+        "dataType": null
+      }
+    },
+    {
+      "id": "e-n9-n10",
+      "source": "qv-ts_comparison_features-n9",
+      "target": "qv-stratified_cv_eval-n10",
+      "sourceHandle": "n9-out-0",
+      "targetHandle": "feat_compare",
+      "type": "smoothstep",
+      "data": {
+        "sourcePort": null,
+        "targetPort": null,
+        "dataType": null
+      }
+    },
+    {
+      "id": "e-n1-n4",
+      "source": "qv-load_csv-n1",
+      "target": "qv-time_window_split-n4",
+      "sourceHandle": "n1-out-0",
+      "targetHandle": "n4-in-0",
+      "type": "smoothstep",
+      "data": null
+    }
+  ],
+  "metadata": {
+    "global_config": {
+      "time_zone": "Asia/Shanghai",
+      "scene": "solar",
+      "device_type": "combinerbox",
+      "operate_status": "training",
+      "run_mode": "train"
+    },
+    "template_type": "pv_fault_diagnosis_quickval_cv",
+    "note": "无泄漏重复分层评估版：相比 workflow-pv-fault-diag-quickval-v1，尾部改为 stratified_cv_eval 单算子，解决 SMOTE 在切分之前导致的数据泄漏问题。"
+  },
+  "scenario_id": "renewable-energy",
+  "source_template_id": null,
+  "version": 2,
+  "version_group_id": "vg-workflow-pv-fault-diag-quickval-cv-v1",
+  "parent_version_id": "workflow-pv-fault-diag-quickval-cv-v1",
+  "createdAt": "2026-07-09T10:22:06.008924",
+  "updatedAt": "2026-07-09T10:22:06.008924"
+}

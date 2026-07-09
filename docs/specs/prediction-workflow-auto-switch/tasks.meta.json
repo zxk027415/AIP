@@ -1,0 +1,398 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 创建目录结构和基础工具模块": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612008
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766638151
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766990131
+      }
+    ],
+    "1.2 实现配置管理器 `config_manager.py`": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612034
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781767002647
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781767413316
+      }
+    ],
+    "2.1 实现 `version_registry.py` 核心逻辑": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612051
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781767429977
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781767724235
+      }
+    ],
+    "3. Checkpoint — 确保基础模块测试通过": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612067
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781767756165
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768020992
+      }
+    ],
+    "4.1 实现 `prediction_store.py`（SQLite 存储层）": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612084
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781767007515
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781767418546
+      }
+    ],
+    "5.1 实现 `accuracy_tracker.py` 核心逻辑": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612109
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768062938
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768356584
+      }
+    ],
+    "6.1 实现 `switch_log.py`（仅追加审计日志）": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612127
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768071901
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768362591
+      }
+    ],
+    "6.2 实现 `production_registry.py`（生产登记文件维护）": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612145
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768080985
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768368745
+      }
+    ],
+    "7. Checkpoint — 确保存储层和日志模块测试通过": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612162
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768375024
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768553754
+      }
+    ],
+    "8.1 实现 `switch_engine.py` 核心决策逻辑": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612186
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768562095
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768858277
+      }
+    ],
+    "9.1 实现 `shadow_dispatcher.py` 并发分发逻辑": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612201
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768567918
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768868504
+      }
+    ],
+    "10. Checkpoint — 确保核心业务逻辑测试通过": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612216
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768880765
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769155714
+      }
+    ],
+    "11.1 实现 `backend-service/api/precision_ops.py` API 路由": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612233
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769162447
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769336957
+      }
+    ],
+    "11.2 在 `backend-service/main.py` 注册精度运营路由": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612249
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769349687
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769418680
+      }
+    ],
+    "12.1 创建前端 API 客户端和类型定义": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612266
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769181485
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769343167
+      }
+    ],
+    "12.2 实现精度运营仪表盘页面主结构": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612282
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769354950
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769639342
+      }
+    ],
+    "12.3 注册前端路由": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612299
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769645160
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769760616
+      }
+    ],
+    "13.1 在 AutoResearch Promote 成功后调用 Version Registry 注册新版本": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612316
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769653418
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769837388
+      }
+    ],
+    "14. Final checkpoint — 确保全部测试通过且前端构建成功": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781766612333
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769846142
+      },
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781770734322
+      }
+    ],
+    "1. 搭建项目结构与基础设施": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781767413345
+      }
+    ],
+    "4. 实现预测结果存储（Prediction Store）": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781767418577
+      }
+    ],
+    "2. 实现版本注册表": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781767724266
+      }
+    ],
+    "5. 实现精度跟踪器": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768356627
+      }
+    ],
+    "6. 实现切换日志与生产登记": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768368776
+      }
+    ],
+    "8. 实现切换决策引擎": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768858303
+      }
+    ],
+    "9. 实现影子分发器": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781768868538
+      }
+    ],
+    "11. 实现 REST API 层": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769418713
+      }
+    ],
+    "12. 实现前端精度运营仪表盘": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769760645
+      }
+    ],
+    "13. 集成 AutoResearch Promote 与精度运营": [
+      {
+        "executionId": "1a1c1851-8b4f-4c15-8fc0-86066f365036",
+        "chatSessionId": "sess_c95ecb3a-18d7-406a-96f4-4097a605cc65",
+        "timestamp": 1781769837429
+      }
+    ]
+  }
+}

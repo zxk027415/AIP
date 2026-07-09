@@ -285,12 +285,11 @@ const IterativeLabelingReviewPage: React.FC = () => {
       if (!sessResp.ok) return;
       const sessData = await sessResp.json();
       const ctx = sessData.prediction_context || {};
-      // 训练数据路径:尝试用 label_map 里已有的训练 CSV；否则用 source_csv_path（预测数据不带标签,需要配对）
-      // 这里使用固定的训练数据路径（与预测工作流同源的训练数据）
-      const trainPath = '/Users/zxk/Desktop/project/AIP/fault-diag-algo-release-3.1/enos_fault_diag/test/train_small.parquet';
-      const labelPath = '/Users/zxk/Desktop/project/AIP/fault-diag-algo-release-3.1/enos_fault_diag/test/label_small.parquet';
+      // 训练数据路径：使用相对于项目根目录的路径（后端 _resolve_data_path 会解析）
+      // 训练数据已含 label 列，单文件模式即可
+      const trainPath = ctx.reference_train_path || 'fault-diag-algo-release-3.1/relate_data/all_labeled_combined.parquet';
       const resp = await fetch(
-        `/api/iterative-labeling/reference-waveforms?train_csv_path=${encodeURIComponent(trainPath)}&label_csv_path=${encodeURIComponent(labelPath)}`
+        `/api/iterative-labeling/reference-waveforms?train_csv_path=${encodeURIComponent(trainPath)}`
       );
       if (!resp.ok) return;
       const data = await resp.json();

@@ -6,13 +6,30 @@
     {
       "id": "tpl-load_csv-0",
       "type": "enhanced",
-      "position": { "x": 100, "y": 100 },
+      "position": {
+        "x": 100,
+        "y": 100
+      },
       "data": {
         "label": "CSV数据加载",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
         "config": {
           "functionId": "load_csv",
           "timestamp_column": "record_time",
@@ -33,14 +50,34 @@
     {
       "id": "tpl-row_filter-1",
       "type": "enhanced",
-      "position": { "x": 300, "y": 100 },
+      "position": {
+        "x": 300,
+        "y": 100
+      },
       "data": {
         "label": "行过滤",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "row_filter", "column_filters": "{}" },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "row_filter",
+          "column_filters": "{}"
+        },
         "status": "idle",
         "error": null,
         "description": "按条件过滤数据"
@@ -49,14 +86,37 @@
     {
       "id": "tpl-resample_timeseries-2",
       "type": "enhanced",
-      "position": { "x": 500, "y": 100 },
+      "position": {
+        "x": 500,
+        "y": 100
+      },
       "data": {
         "label": "时序重采样",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "resample_timeseries", "frequency": "15min", "method": "mean", "time_field": "record_time", "load_field": "value" },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "resample_timeseries",
+          "frequency": "15min",
+          "method": "mean",
+          "time_field": "record_time",
+          "load_field": "value"
+        },
         "status": "idle",
         "error": null,
         "description": "重采样与补齐时间戳"
@@ -65,14 +125,37 @@
     {
       "id": "tpl-detect_outliers-3",
       "type": "enhanced",
-      "position": { "x": 700, "y": 100 },
+      "position": {
+        "x": 700,
+        "y": 100
+      },
       "data": {
         "label": "异常值检测",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "detect_outliers", "method": "zscore", "threshold": 6.0, "load_field": "value", "window_size": 96 },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "detect_outliers",
+          "method": "zscore",
+          "threshold": 6.0,
+          "load_field": "value",
+          "window_size": 96
+        },
         "status": "idle",
         "error": null,
         "description": "异常值检测"
@@ -81,14 +164,36 @@
     {
       "id": "tpl-handle_missing-4",
       "type": "enhanced",
-      "position": { "x": 900, "y": 100 },
+      "position": {
+        "x": 900,
+        "y": 100
+      },
       "data": {
         "label": "缺失值处理",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "handle_missing", "method": "linear", "time_field": "record_time", "load_field": "value" },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "handle_missing",
+          "method": "linear",
+          "time_field": "record_time",
+          "load_field": "value"
+        },
         "status": "idle",
         "error": null,
         "description": "缺失值处理"
@@ -97,14 +202,41 @@
     {
       "id": "tpl-extract_time_features-5",
       "type": "enhanced",
-      "position": { "x": 100, "y": 300 },
+      "position": {
+        "x": 100,
+        "y": 300
+      },
       "data": {
         "label": "时间特征",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "extract_time_features", "features": ["hour", "dayofweek", "month", "day", "quarter"], "time_field": "record_time" },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "extract_time_features",
+          "features": [
+            "hour",
+            "dayofweek",
+            "month",
+            "day",
+            "quarter"
+          ],
+          "time_field": "record_time"
+        },
         "status": "idle",
         "error": null,
         "description": "时间特征提取"
@@ -113,14 +245,35 @@
     {
       "id": "tpl-holiday_features-6",
       "type": "enhanced",
-      "position": { "x": 300, "y": 300 },
+      "position": {
+        "x": 300,
+        "y": 300
+      },
       "data": {
         "label": "节假日特征",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "holiday_features", "time_field": "record_time", "remove_spring_festival": false },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "holiday_features",
+          "time_field": "record_time",
+          "remove_spring_festival": false
+        },
         "status": "idle",
         "error": null,
         "description": "节假日特征"
@@ -129,14 +282,34 @@
     {
       "id": "tpl-workday_features-7",
       "type": "enhanced",
-      "position": { "x": 500, "y": 300 },
+      "position": {
+        "x": 500,
+        "y": 300
+      },
       "data": {
         "label": "工作日特征",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "workday_features", "time_field": "record_time" },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "workday_features",
+          "time_field": "record_time"
+        },
         "status": "idle",
         "error": null,
         "description": "工作日特征"
@@ -145,14 +318,44 @@
     {
       "id": "tpl-rolling_statistics-8",
       "type": "enhanced",
-      "position": { "x": 700, "y": 300 },
+      "position": {
+        "x": 700,
+        "y": 300
+      },
       "data": {
         "label": "滚动统计",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "rolling_statistics", "target_column": "value", "window_sizes": [24, 48, 96, 168], "statistics": ["mean", "std"] },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "rolling_statistics",
+          "target_column": "value",
+          "window_sizes": [
+            24,
+            48,
+            96,
+            168
+          ],
+          "statistics": [
+            "mean",
+            "std"
+          ]
+        },
         "status": "idle",
         "error": null,
         "description": "滚动统计特征"
@@ -161,14 +364,39 @@
     {
       "id": "tpl-create_lag_features-9",
       "type": "enhanced",
-      "position": { "x": 900, "y": 300 },
+      "position": {
+        "x": 900,
+        "y": 300
+      },
       "data": {
         "label": "滞后特征",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "create_lag_features", "lags": [1, 24, 168], "target_column": "value" },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "create_lag_features",
+          "lags": [
+            1,
+            24,
+            168
+          ],
+          "target_column": "value"
+        },
         "status": "idle",
         "error": null,
         "description": "滞后特征"
@@ -177,14 +405,36 @@
     {
       "id": "tpl-sliding_window-10",
       "type": "enhanced",
-      "position": { "x": 100, "y": 500 },
+      "position": {
+        "x": 100,
+        "y": 500
+      },
       "data": {
         "label": "滑动窗口",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "sliding_window", "window_size": 96, "step": 1, "target_column": "value" },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "sliding_window",
+          "window_size": 96,
+          "step": 1,
+          "target_column": "value"
+        },
         "status": "idle",
         "error": null,
         "description": "滑动窗口切片"
@@ -193,14 +443,37 @@
     {
       "id": "tpl-train_test_split_ts-11",
       "type": "enhanced",
-      "position": { "x": 300, "y": 500 },
+      "position": {
+        "x": 300,
+        "y": 500
+      },
       "data": {
         "label": "数据切分",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "train_test_split_ts", "train_ratio": 0.8, "val_ratio": 0.1, "target_column": "value", "time_field": "record_time" },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "train_test_split_ts",
+          "train_ratio": 0.8,
+          "val_ratio": 0.1,
+          "target_column": "value",
+          "time_field": "record_time"
+        },
         "status": "idle",
         "error": null,
         "description": "时序训练验证切分"
@@ -209,14 +482,37 @@
     {
       "id": "tpl-multi_step_forecast-12",
       "type": "enhanced",
-      "position": { "x": 500, "y": 500 },
+      "position": {
+        "x": 500,
+        "y": 500
+      },
       "data": {
         "label": "多步预测配置",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "multi_step_forecast", "forecast_steps": 96, "strategy": "recursive", "step_size": 1, "forecast_start_time": "00:15" },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "multi_step_forecast",
+          "forecast_steps": 96,
+          "strategy": "recursive",
+          "step_size": 1,
+          "forecast_start_time": "00:15"
+        },
         "status": "idle",
         "error": null,
         "description": "多步预测配置"
@@ -225,14 +521,36 @@
     {
       "id": "tpl-auto_tune_xgboost-13",
       "type": "enhanced",
-      "position": { "x": 600, "y": 650 },
+      "position": {
+        "x": 600,
+        "y": 650
+      },
       "data": {
         "label": "贝叶斯超参优化",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "auto_tune_xgboost", "n_trials": 30, "cv_folds": 5, "metric": "rmse" },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "auto_tune_xgboost",
+          "n_trials": 30,
+          "cv_folds": 5,
+          "metric": "rmse"
+        },
         "status": "idle",
         "error": null,
         "description": "XGBoost超参数优化"
@@ -241,14 +559,42 @@
     {
       "id": "tpl-xgboost_forecast-14",
       "type": "enhanced",
-      "position": { "x": 750, "y": 500 },
+      "position": {
+        "x": 750,
+        "y": 500
+      },
       "data": {
         "label": "XGBoost预测",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "xgboost_forecast", "n_estimators": 200, "auto_tune": false, "mode": "train", "separate_modeling": "true", "prefer_unit_len": 2, "default_retrain": true, "sample_weight_decay": 0.99, "task_type": "D", "output_prefix": "xgb" },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "xgboost_forecast",
+          "n_estimators": 200,
+          "auto_tune": false,
+          "mode": "train",
+          "separate_modeling": "true",
+          "prefer_unit_len": 2,
+          "default_retrain": true,
+          "sample_weight_decay": 0.99,
+          "task_type": "D",
+          "output_prefix": "xgb"
+        },
         "status": "idle",
         "error": null,
         "description": "训练并输出XGBoost预测"
@@ -257,14 +603,33 @@
     {
       "id": "tpl-smape_score-15",
       "type": "enhanced",
-      "position": { "x": 900, "y": 500 },
+      "position": {
+        "x": 900,
+        "y": 500
+      },
       "data": {
         "label": "SMAPE评估",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "smape_score" },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "smape_score"
+        },
         "status": "idle",
         "error": null,
         "description": "SMAPE评估"
@@ -273,14 +638,33 @@
     {
       "id": "tpl-mse_rmse_mae-16",
       "type": "enhanced",
-      "position": { "x": 900, "y": 650 },
+      "position": {
+        "x": 900,
+        "y": 650
+      },
       "data": {
         "label": "MSE/RMSE/MAE",
         "type": "function",
         "icon": null,
-        "inputs": [{ "id": "input-0", "name": "data", "type": "input", "dataType": "any" }],
-        "outputs": [{ "id": "output-0", "name": "data", "type": "output", "dataType": "any" }],
-        "config": { "functionId": "mse_rmse_mae" },
+        "inputs": [
+          {
+            "id": "input-0",
+            "name": "data",
+            "type": "input",
+            "dataType": "any"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "output-0",
+            "name": "data",
+            "type": "output",
+            "dataType": "any"
+          }
+        ],
+        "config": {
+          "functionId": "mse_rmse_mae"
+        },
         "status": "idle",
         "error": null,
         "description": "误差评估"
@@ -288,22 +672,150 @@
     }
   ],
   "edges": [
-    { "id": "tpl-edge-0", "source": "tpl-load_csv-0", "target": "tpl-row_filter-1", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-1", "source": "tpl-row_filter-1", "target": "tpl-resample_timeseries-2", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-2", "source": "tpl-resample_timeseries-2", "target": "tpl-detect_outliers-3", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-3", "source": "tpl-detect_outliers-3", "target": "tpl-handle_missing-4", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-4", "source": "tpl-handle_missing-4", "target": "tpl-extract_time_features-5", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-5", "source": "tpl-extract_time_features-5", "target": "tpl-holiday_features-6", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-6", "source": "tpl-holiday_features-6", "target": "tpl-workday_features-7", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-7", "source": "tpl-workday_features-7", "target": "tpl-rolling_statistics-8", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-8", "source": "tpl-rolling_statistics-8", "target": "tpl-create_lag_features-9", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-9", "source": "tpl-create_lag_features-9", "target": "tpl-sliding_window-10", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-10", "source": "tpl-sliding_window-10", "target": "tpl-train_test_split_ts-11", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-11", "source": "tpl-train_test_split_ts-11", "target": "tpl-multi_step_forecast-12", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-12", "source": "tpl-multi_step_forecast-12", "target": "tpl-auto_tune_xgboost-13", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-13", "source": "tpl-auto_tune_xgboost-13", "target": "tpl-xgboost_forecast-14", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-14", "source": "tpl-xgboost_forecast-14", "target": "tpl-smape_score-15", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null },
-    { "id": "tpl-edge-15", "source": "tpl-xgboost_forecast-14", "target": "tpl-mse_rmse_mae-16", "sourceHandle": null, "targetHandle": null, "type": "smoothstep", "data": null }
+    {
+      "id": "tpl-edge-0",
+      "source": "tpl-load_csv-0",
+      "target": "tpl-row_filter-1",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-1",
+      "source": "tpl-row_filter-1",
+      "target": "tpl-resample_timeseries-2",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-2",
+      "source": "tpl-resample_timeseries-2",
+      "target": "tpl-detect_outliers-3",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-3",
+      "source": "tpl-detect_outliers-3",
+      "target": "tpl-handle_missing-4",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-4",
+      "source": "tpl-handle_missing-4",
+      "target": "tpl-extract_time_features-5",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-5",
+      "source": "tpl-extract_time_features-5",
+      "target": "tpl-holiday_features-6",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-6",
+      "source": "tpl-holiday_features-6",
+      "target": "tpl-workday_features-7",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-7",
+      "source": "tpl-workday_features-7",
+      "target": "tpl-rolling_statistics-8",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-8",
+      "source": "tpl-rolling_statistics-8",
+      "target": "tpl-create_lag_features-9",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-9",
+      "source": "tpl-create_lag_features-9",
+      "target": "tpl-sliding_window-10",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-10",
+      "source": "tpl-sliding_window-10",
+      "target": "tpl-train_test_split_ts-11",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-11",
+      "source": "tpl-train_test_split_ts-11",
+      "target": "tpl-multi_step_forecast-12",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-12",
+      "source": "tpl-multi_step_forecast-12",
+      "target": "tpl-auto_tune_xgboost-13",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-13",
+      "source": "tpl-auto_tune_xgboost-13",
+      "target": "tpl-xgboost_forecast-14",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-14",
+      "source": "tpl-xgboost_forecast-14",
+      "target": "tpl-smape_score-15",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    },
+    {
+      "id": "tpl-edge-15",
+      "source": "tpl-xgboost_forecast-14",
+      "target": "tpl-mse_rmse_mae-16",
+      "sourceHandle": null,
+      "targetHandle": null,
+      "type": "smoothstep",
+      "data": null
+    }
   ],
   "metadata": {
     "global_config": {
@@ -326,5 +838,6 @@
     "template_type": "load_forecast"
   },
   "createdAt": "2026-04-23T00:00:00",
-  "updatedAt": "2026-04-23T00:00:00"
+  "updatedAt": "2026-04-23T00:00:00",
+  "scenario_id": "renewable-energy"
 }

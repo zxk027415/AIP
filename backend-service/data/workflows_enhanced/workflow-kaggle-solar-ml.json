@@ -8,7 +8,10 @@
     {
       "id": "node-1",
       "type": "enhanced",
-      "position": { "x": 100, "y": 100 },
+      "position": {
+        "x": 100,
+        "y": 100
+      },
       "data": {
         "label": "加载Kaggle太阳能数据",
         "type": "function",
@@ -35,7 +38,10 @@
     {
       "id": "node-2",
       "type": "enhanced",
-      "position": { "x": 100, "y": 250 },
+      "position": {
+        "x": 100,
+        "y": 250
+      },
       "data": {
         "label": "描述性统计分析",
         "type": "function",
@@ -67,7 +73,10 @@
     {
       "id": "node-3",
       "type": "enhanced",
-      "position": { "x": 100, "y": 400 },
+      "position": {
+        "x": 100,
+        "y": 400
+      },
       "data": {
         "label": "时间特征提取",
         "type": "function",
@@ -102,7 +111,10 @@
     {
       "id": "node-4",
       "type": "enhanced",
-      "position": { "x": 100, "y": 550 },
+      "position": {
+        "x": 100,
+        "y": 550
+      },
       "data": {
         "label": "数据集划分",
         "type": "function",
@@ -129,7 +141,14 @@
           "test_ratio": 0.2,
           "shuffle": false,
           "target_column": "DC_POWER",
-          "feature_columns": ["IRRADIATION", "AMBIENT_TEMPERATURE", "MODULE_TEMPERATURE", "HOUR_SIN", "HOUR_COS", "TEMP_DIFF"]
+          "feature_columns": [
+            "IRRADIATION",
+            "AMBIENT_TEMPERATURE",
+            "MODULE_TEMPERATURE",
+            "HOUR_SIN",
+            "HOUR_COS",
+            "TEMP_DIFF"
+          ]
         },
         "status": "idle",
         "description": "按 80/20 比例划分训练集和测试集"
@@ -138,7 +157,10 @@
     {
       "id": "node-5",
       "type": "enhanced",
-      "position": { "x": -150, "y": 700 },
+      "position": {
+        "x": -150,
+        "y": 700
+      },
       "data": {
         "label": "线性回归",
         "type": "function",
@@ -171,7 +193,10 @@
     {
       "id": "node-6",
       "type": "enhanced",
-      "position": { "x": 100, "y": 700 },
+      "position": {
+        "x": 100,
+        "y": 700
+      },
       "data": {
         "label": "随机森林回归",
         "type": "function",
@@ -205,7 +230,10 @@
     {
       "id": "node-7",
       "type": "enhanced",
-      "position": { "x": 350, "y": 700 },
+      "position": {
+        "x": 350,
+        "y": 700
+      },
       "data": {
         "label": "XGBoost回归",
         "type": "function",
@@ -240,7 +268,10 @@
     {
       "id": "node-8",
       "type": "enhanced",
-      "position": { "x": -150, "y": 850 },
+      "position": {
+        "x": -150,
+        "y": 850
+      },
       "data": {
         "label": "线性回归评估",
         "type": "function",
@@ -272,7 +303,10 @@
     {
       "id": "node-9",
       "type": "enhanced",
-      "position": { "x": 100, "y": 850 },
+      "position": {
+        "x": 100,
+        "y": 850
+      },
       "data": {
         "label": "随机森林评估",
         "type": "function",
@@ -304,7 +338,10 @@
     {
       "id": "node-10",
       "type": "enhanced",
-      "position": { "x": 350, "y": 850 },
+      "position": {
+        "x": 350,
+        "y": 850
+      },
       "data": {
         "label": "XGBoost评估",
         "type": "function",
@@ -336,7 +373,10 @@
     {
       "id": "node-11",
       "type": "enhanced",
-      "position": { "x": 350, "y": 1000 },
+      "position": {
+        "x": 350,
+        "y": 1000
+      },
       "data": {
         "label": "预测散点图",
         "type": "visualization",
@@ -369,7 +409,10 @@
     {
       "id": "node-12",
       "type": "enhanced",
-      "position": { "x": 100, "y": 1000 },
+      "position": {
+        "x": 100,
+        "y": 1000
+      },
       "data": {
         "label": "特征重要性图",
         "type": "visualization",
@@ -489,5 +532,6 @@
       "targetHandle": "node-12-in-model",
       "type": "smoothstep"
     }
-  ]
+  ],
+  "scenario_id": "renewable-energy"
 }

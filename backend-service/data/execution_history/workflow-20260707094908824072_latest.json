@@ -1,0 +1,46 @@
+{
+  "execution_id": "exec-4c1e28b3110b",
+  "workflow_id": "workflow-20260707094908824072",
+  "status": "failed",
+  "nodeResults": {
+    "qv-load_csv-n1": {
+      "status": "failed",
+      "error": "[load_csv] FileNotFoundError: File not found: ../fault-diag-algo-release-3.1/相关数据/all_labeled_combined.parquet",
+      "executionTime": 0.0
+    }
+  },
+  "logs": [
+    {
+      "timestamp": "10:52:16",
+      "message": "流水线开始执行: 光伏故障诊断 - 无泄漏重复分层评估 (算子数: 8)",
+      "type": "start"
+    },
+    {
+      "timestamp": "10:52:16",
+      "message": "▶ 光伏源数据 (train_ori) 开始执行...",
+      "type": "start"
+    },
+    {
+      "timestamp": "10:52:16",
+      "message": "✗ 光伏源数据 (train_ori) 失败: [load_csv] FileNotFoundError: File not found: ../fault-diag-algo-release-3.1/相关数据/all_labeled_combined.parquet",
+      "type": "error"
+    }
+  ],
+  "executionTime": 0.013846397399902344,
+  "error": "节点 光伏源数据 (train_ori) 执行失败: [load_csv] FileNotFoundError: File not found: ../fault-diag-algo-release-3.1/相关数据/all_labeled_combined.parquet",
+  "created_at": "2026-07-07T10:52:16.892763",
+  "started_at": "2026-07-07T10:52:16.893763",
+  "finished_at": "2026-07-07T10:52:16.907609",
+  "forecast_timestamps": null,
+  "forecast_values": null,
+  "y_true": null,
+  "y_pred": null,
+  "ranked_candidates": null,
+  "best_recommendation": null,
+  "mode": null,
+  "metrics": null,
+  "model_id": null,
+  "nodeDurations": null,
+  "fault_predictions": null,
+  "fault_timeseries": null
+}

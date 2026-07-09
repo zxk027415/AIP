@@ -33,6 +33,7 @@ Thumbs.db
 .env.local
 !.env.example
 !.env.local.example
+.aip.local.env
 
 # Data artifacts (large files)
 *.zip
@@ -79,6 +80,9 @@ fault-diag-algo-release-3.1/evaluate_*.py
 # AutoResearch run snapshots (large JSON)
 backend-service/data/autoresearch/runs/
 backend-service/data/autoresearch/candidate_pool/
+backend-service/data/autoresearch/jobs.sqlite
+backend-service/data/autoresearch/jobs.sqlite-journal
+backend-service/data/autoresearch/jobs.sqlite-wal
 
 # AutoResearch execution history
 backend-service/data/workflows_enhanced/autoresearch_runs/

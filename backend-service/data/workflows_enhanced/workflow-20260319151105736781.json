@@ -888,5 +888,6 @@
     }
   ],
   "createdAt": "2026-03-19T15:11:05.739286",
-  "updatedAt": "2026-03-19T15:11:14.936931"
+  "updatedAt": "2026-03-19T15:11:14.936931",
+  "scenario_id": "renewable-energy"
 }

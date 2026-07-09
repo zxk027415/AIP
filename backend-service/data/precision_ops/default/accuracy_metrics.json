@@ -1,0 +1,31 @@
+{
+  "slot": "default",
+  "evaluation_window_days": 7,
+  "metrics": {
+    "xgboost-200-baseline": {
+      "rolling_mape": 1.2787,
+      "rolling_mae": 0,
+      "valid_cycle_count": 7,
+      "total_cycle_count": 7,
+      "last_evaluated_at": "2026-04-08T00:00:00",
+      "status": "active"
+    },
+    "xgboost-500-extended": {
+      "rolling_mape": 1.3139,
+      "rolling_mae": 0,
+      "valid_cycle_count": 7,
+      "total_cycle_count": 7,
+      "last_evaluated_at": "2026-04-08T00:00:00",
+      "status": "active"
+    },
+    "workflow-load-forecast-backtest-v3": {
+      "rolling_mape": 0.0,
+      "rolling_mae": 0.0,
+      "valid_cycle_count": 0,
+      "total_cycle_count": 0,
+      "last_evaluated_at": "2026-07-07T11:15:00.002716",
+      "status": "insufficient_data"
+    }
+  },
+  "updated_at": "2026-07-07T11:15:00.002716"
+}

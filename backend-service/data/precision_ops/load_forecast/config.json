@@ -1,0 +1,17 @@
+{
+  "slot": "load_forecast",
+  "evaluation_window_days": 7,
+  "degradation_threshold_pct": 15,
+  "switch_margin_pct": 10,
+  "cooldown_hours": 24,
+  "min_valid_cycles": 3,
+  "shadow_timeout_seconds": 300,
+  "production_timeout_seconds": 120,
+  "max_shadow_versions": 5,
+  "rollback_window_hours": 48,
+  "auto_switch_enabled": true,
+  "prediction_retention_days": 90,
+  "min_eval_points": 72,
+  "post_switch_observation_points": 48,
+  "eval_window_points": 168
+}

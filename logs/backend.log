@@ -1,0 +1,607 @@
+/opt/miniconda3/envs/aip_web/lib/python3.11/site-packages/pydantic/_internal/_fields.py:149: UserWarning: Field "model_id" has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/opt/miniconda3/envs/aip_web/lib/python3.11/site-packages/pydantic/_internal/_fields.py:149: UserWarning: Field "model_a_id" has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/opt/miniconda3/envs/aip_web/lib/python3.11/site-packages/pydantic/_internal/_fields.py:149: UserWarning: Field "model_a_name" has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/opt/miniconda3/envs/aip_web/lib/python3.11/site-packages/pydantic/_internal/_fields.py:149: UserWarning: Field "model_b_id" has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/opt/miniconda3/envs/aip_web/lib/python3.11/site-packages/pydantic/_internal/_fields.py:149: UserWarning: Field "model_b_name" has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/opt/miniconda3/envs/aip_web/lib/python3.11/site-packages/pydantic/_internal/_fields.py:149: UserWarning: Field "model_name" has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+/opt/miniconda3/envs/aip_web/lib/python3.11/site-packages/mlflow/pyfunc/utils/data_validation.py:187: UserWarning: [33mAdd type hints to the `predict` method to enable data validation and automatic signature inference during model logging. Check https://mlflow.org/docs/latest/model/python_model.html#type-hint-usage-in-pythonmodel for more details.[0m
+  color_warning(
+已注册的路由:
+  /openapi.json
+  /docs
+  /docs/oauth2-redirect
+  /redoc
+  /api/auth/register
+  /api/auth/login
+  /api/auth/test
+  /api/auth/user/{user_id}
+  /api/auth/user/{user_id}
+  /api/agent/workflow/scenario-match
+  /api/agent/workflow/algorithm-compose
+  /api/agent/workflow/workflow-generate
+  /api/agent/workflow/workflow-validate
+  /api/agent/workflow/domain-constraint
+  /api/agent/workflow/template-manage/create
+  /api/agent/workflow/template-manage/search
+  /api/agent/workflow/best-practice
+  /api/agent/workflow/best-practice/contribute
+  /api/agent/workflow/cross-scenario
+  /api/agent/workflow/chain
+  /api/agent/workflow/skills/status
+  /api/agent/workflow/audit-logs
+  /api/system/test
+  /api/system/metrics
+  /api/system/statistics
+  /api/system/database-info
+  /api/system/service-status
+  /api/system/service-status/{service_name}
+  /api/system/service-status
+  /api/matrix/create
+  /api/matrix/from-array
+  /api/matrix/operation
+  /api/matrix/get-element
+  /api/matrix/set-element
+  /api/matrix/decomposition/lu
+  /api/matrix/decomposition/qr
+  /api/matrix/decomposition/svd
+  /api/matrix/decomposition/eigen
+  /api/functions/
+  /api/functions/{function_id}
+  /api/functions/search/
+  /api/functions/category/{category_id}
+  /api/functions/categories/
+  /api/functions/categories/{category_id}
+  /api/functions/stats/summary
+  /api/functions/reload
+  /api/functions/execute
+  /api/workflows/enhanced/knowledge/search
+  /api/workflows/enhanced/datasets/available
+  /api/workflows/enhanced/datasets/current-for-workflow/{workflow_id}
+  /api/workflows/enhanced/datasets/switch
+  /api/workflows/enhanced/datasets/{dataset_id_or_path}/preview
+  /api/workflows/enhanced/datasets/register
+  /api/workflows/enhanced/datasets
+  /api/workflows/enhanced/datasets/{dataset_id}/profile
+  /api/workflows/enhanced/auto-research/{run_id}/research-questions
+  /api/workflows/enhanced/auto-research/{run_id}/reflections
+  /api/workflows/enhanced
+  /api/workflows/enhanced
+  /api/workflows/enhanced/summaries
+  /api/workflows/enhanced/auto-research-runs
+  /api/workflows/enhanced/auto-research-runs/{run_id}/trials
+  /api/workflows/enhanced/auto-research-runs/{run_id}/decisions
+  /api/workflows/enhanced/auto-research-stats
+  /api/workflows/enhanced/production-workflow-ref
+  /api/workflows/enhanced/production-workflow-ref
+  /api/workflows/enhanced/tuning-candidate-pool
+  /api/workflows/enhanced/tuning-candidate-pool/{candidate_id}
+  /api/workflows/enhanced/candidate-verification-queue
+  /api/workflows/enhanced/candidate-verification-queue/from-candidate/{candidate_id}
+  /api/workflows/enhanced/candidate-verification-queue/start-next
+  /api/workflows/enhanced/candidate-verification-queue/{item_id}/start
+  /api/workflows/enhanced/candidate-verification-queue/{item_id}/cancel
+  /api/workflows/enhanced/tuning-candidate-pool/{candidate_id}/promote
+  /api/workflows/enhanced/tuning-candidate-pool/{candidate_id}
+  /api/workflows/enhanced/tuning-candidate-pool
+  /api/workflows/enhanced/model-operators-available
+  /api/workflows/enhanced/auto-research-insights
+  /api/workflows/enhanced/list-search-registries
+  /api/workflows/enhanced/{workflow_id}/suggest-search-registry
+  /api/workflows/enhanced/structure-profiles
+  /api/workflows/enhanced/structure-profile-detail/{profile_id}
+  /api/workflows/enhanced/feature-recipes
+  /api/workflows/enhanced/baseline-workflow-precheck
+  /api/workflows/enhanced/{workflow_id}/params-summary
+  /api/workflows/enhanced/{workflow_id}
+  /api/workflows/enhanced/{workflow_id}
+  /api/workflows/enhanced/{workflow_id}
+  /api/workflows/enhanced/validate
+  /api/workflows/enhanced/{workflow_id}/execute
+  /api/workflows/enhanced/{workflow_id}/execute-async
+  /api/workflows/enhanced/{workflow_id}/execution-status/{execution_id}
+  /api/workflows/enhanced/{workflow_id}/latest-execution
+  /api/workflows/enhanced/{workflow_id}/cancel/{execution_id}
+  /api/workflows/enhanced/{workflow_id}/preflight
+  /api/workflows/enhanced/compare-backtest-batch-async
+  /api/workflows/enhanced/compare-backtest-status/{comparison_id}
+  /api/workflows/enhanced/compare-backtest-cancel/{comparison_id}
+  /api/workflows/enhanced/auto-research-async
+  /api/workflows/enhanced/auto-research-status/{run_id}
+  /api/workflows/enhanced/auto-research-report/{run_id}
+  /api/workflows/enhanced/auto-research/{run_id}/generate-insight
+  /api/workflows/enhanced/auto-research/proposal/generate
+  /api/workflows/enhanced/auto-research/proposal/{proposal_id}
+  /api/workflows/enhanced/auto-research/proposal/{proposal_id}/apply
+  /api/workflows/enhanced/auto-research/proposal/{proposal_id}/reject
+  /api/workflows/enhanced/auto-research-continue/{run_id}
+  /api/workflows/enhanced/auto-research-memory
+  /api/workflows/enhanced/auto-research-selfcheck/{run_id}
+  /api/workflows/enhanced/auto-research-cancel/{run_id}
+  /api/workflows/enhanced/auto-research-resume/{run_id}
+  /api/workflows/enhanced/{workflow_id}/backtest-async
+  /api/workflows/enhanced/{workflow_id}/backtest-status/{execution_id}
+  /api/workflows/enhanced/{workflow_id}/backtest-cancel/{execution_id}
+  /api/workflows/enhanced/{workflow_id}/backtest
+  /api/workflows/enhanced/{workflow_id}/backtest/cancel
+  /api/workflows/enhanced/backtest-artifacts/{run_id}/{filename}
+  /api/workflows/
+  /api/workflows/
+  /api/workflows/{workflow_id}
+  /api/workflows/{workflow_id}
+  /api/workflows/{workflow_id}
+  /api/workflows/{workflow_id}/validate
+  /api/workflows/{workflow_id}/execute
+  /api/workflows/executions/
+  /api/workflows/executions/{execution_id}
+  /api/templates/
+  /api/templates/{template_id}
+  /api/algorithm-test/tables
+  /api/algorithm-test/categories
+  /api/algorithm-test/functions
+  /api/algorithm-test/versions
+  /api/algorithm-test/consistency
+  /api/algorithm-test/audit-logs
+  /api/algorithm-test/run-all
+  /api/upload/file
+  /api/upload/file/{file_id}/preview
+  /api/upload/demo/pv-power/stats
+  /api/upload/demo/pv-power/sample
+  /api/upload/demo/pv-power/chart-data
+  /api/upload/demo/datasets
+  /api/industry/scenarios
+  /api/industry/scenarios/{scenario_id}
+  /api/industry/templates
+  /api/industry/templates/{template_id}
+  /api/industry/stats
+  /api/algorithm-solutions
+  /api/algorithm-solutions/stats
+  /api/algorithm-solutions/accuracy/ranking
+  /api/algorithm-solutions/applications/stats
+  /api/algorithm-solutions/{template_id}
+  /api/algorithm-solutions/{template_id}/accuracy
+  /api/algorithm-solutions/{template_id}/accuracy
+  /api/algorithm-solutions/{template_id}/applications
+  /api/algorithm-solutions/{solution_id}/mount
+  /api/algorithm-solutions/{solution_id}/mount/{workflow_id}
+  /api/algorithm-solutions/{solution_id}/mounts
+  /api/algorithm-solutions/{solution_id}/scenarios/{scenario_id}/mount
+  /api/algorithm-solutions/{solution_id}/scenarios/{scenario_id}/mount/{workflow_id}
+  /api/algorithm-solutions/{solution_id}/scenarios/{scenario_id}/mounts
+  /api/backtest/stats
+  /api/backtest/tasks
+  /api/backtest/tasks/{task_id}
+  /api/backtest/tasks
+  /api/backtest/tasks/{task_id}
+  /api/backtest/tasks/{task_id}/clone
+  /api/backtest/tasks/{task_id}/execute
+  /api/backtest/tasks/{task_id}/pause
+  /api/backtest/tasks/{task_id}/cancel
+  /api/backtest/tasks/{task_id}/runs
+  /api/backtest/tasks/{task_id}/runs/{run_id}
+  /api/backtest/tasks/{task_id}/runs/{run_id}/retry
+  /api/backtest/tasks/{task_id}/results
+  /api/backtest/tasks/{task_id}/results/export
+  /api/backtest/schedule/quota
+  /api/backtest/schedule/quota
+  /api/backtest/schedule/queue
+  /api/backtest/schedule/tasks/{task_id}
+  /api/backtest/schedule/tasks/{task_id}
+  /api/backtest/schedule/tasks/{task_id}
+  /api/backtest/schedule/optimize
+  /api/backtest/schedule/tasks/{task_id}/start
+  /api/backtest/schedule/tasks/{task_id}/complete
+  /api/deployment/stats
+  /api/deployment/tasks
+  /api/deployment/tasks
+  /api/deployment/tasks/{task_id}
+  /api/deployment/tasks/{task_id}
+  /api/deployment/tasks/{task_id}/clone
+  /api/deployment/tasks/{task_id}/deploy
+  /api/deployment/services
+  /api/deployment/services/{svc_id}
+  /api/deployment/services/{svc_id}/start
+  /api/deployment/services/{svc_id}/stop
+  /api/deployment/services/{svc_id}/restart
+  /api/deployment/services/{svc_id}/scaleINFO:     Started server process [11942]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+ERROR:    [Errno 48] error while attempting to bind on address ('0.0.0.0
+  /api/deployment/services/{svc_id}/rollback
+  /api/deployment/services/{svc_id}/versions
+  /api/deployment/services/{svc_id}/canary
+  /api/deployment/services/{svc_id}/metrics
+  /api/deployment/services/{svc_id}/logs
+  /api/deployment/alerts/rules
+  /api/deployment/alerts/rules
+  /api/deployment/alerts/rules/{rule_id}
+  /api/deployment/alerts/rules/{rule_id}
+  /api/deployment/alerts/history
+  /api/algorithm-ops/drift/models
+  /api/algorithm-ops/drift/stats
+  /api/algorithm-ops/drift/detect
+  /api/algorithm-ops/drift/analyze
+  /api/algorithm-ops/drift/alerts
+  /api/algorithm-ops/drift/alerts/{alert_id}/acknowledge
+  /api/algorithm-ops/abtest/tests
+  /api/algorithm-ops/abtest/stats
+  /api/algorithm-ops/abtest/tests
+  /api/algorithm-ops/abtest/tests/{test_id}
+  /api/algorithm-ops/abtest/tests/{test_id}
+  /api/algorithm-ops/abtest/tests/{test_id}/start
+  /api/algorithm-ops/abtest/tests/{test_id}/pause
+  /api/algorithm-ops/abtest/tests/{test_id}/stop
+  /api/algorithm-ops/abtest/tests/{test_id}/metrics
+  /api/algorithm-ops/abtest/tests/{test_id}/adopt
+  /api/algorithm-ops/retrain/tasks
+  /api/algorithm-ops/retrain/stats
+  /api/algorithm-ops/retrain/tasks
+  /api/algorithm-ops/retrain/tasks/{task_id}
+  /api/algorithm-ops/retrain/tasks/{task_id}/start
+  /api/algorithm-ops/retrain/tasks/{task_id}/cancel
+  /api/algorithm-ops/retrain/tasks/{task_id}/logs
+  /api/algorithm-ops/retrain/tasks/{task_id}/metrics
+  /api/algorithm-ops/retrain/tasks/{task_id}/deploy
+  /api/algorithm-ops/retrain/evaluate
+  /api/algorithm-ops/prompt/execute
+  /api/algorithm-ops/skills
+  /api/algorithm-ops/skills/{skill_id}/toggle
+  /api/skills/package
+  /api/skills/list
+  /api/skills/{skill_id}
+  /api/skills/{skill_id}
+  /api/skills/{skill_id}
+  /api/workflow-templates/list
+  /api/workflow-templates/{template_id}
+  /api/workflow-templates/create
+  /api/workflow-templates/{template_id}
+  /api/workflow-templates/{template_id}/star
+  /api/workflow-templates/{template_id}
+  /api/agent/algorithm/chat
+  /api/agent/algorithm/chat/stream
+  /api/agent/algorithm/sessions
+  /api/agent/algorithm/sessions/{session_id}
+  /api/agent/algorithm/sessions/{session_id}
+  /api/agent/algorithm/skills/algorithm-recommend
+  /api/agent/algorithm/skills/param-config
+  /api/agent/algorithm/skills/training-pipeline/start
+  /api/agent/algorithm/skills/training-pipeline/{task_id}/progress
+  /api/agent/algorithm/skills/training-pipeline/{task_id}/result
+  /api/agent/algorithm/skills/drift-detect
+  /api/agent/algorithm/skills/ab-test/create
+  /api/agent/algorithm/skills/ab-test/{test_id}
+  /api/agent/algorithm/skills/retrain-trigger/execute
+  /api/agent/algorithm/quick-commands
+  /api/agent/algorithm/llm-status
+  /llm/providers
+  /llm/configs
+  /llm/configs/{config_id}
+  /llm/configs
+  /llm/configs/{config_id}
+  /llm/configs/{config_id}
+  /llm/test
+  /llm/default
+  /api/load-forecast/train
+  /api/load-forecast/predict
+  /api/load-forecast/backtest
+  /api/load-forecast/scenarios
+  /api/load-forecast/status/{task_id}
+  /api/iterative-labeling/loops
+  /api/iterative-labeling/loops/{loop_id}/train
+  /api/iterative-labeling/loops/{loop_id}/predict
+  /api/iterative-labeling/loops/{loop_id}
+  /api/iterative-labeling/loops/{loop_id}/backfill
+  /api/iterative-labeling/review-sessions
+  /api/iterative-labeling/review-sessions
+  /api/iterative-labeling/review-sessions/from-prediction
+  /api/iterative-labeling/review-sessions/{review_id}/backfill-to-dataset
+  /api/iterative-labeling/data-preview
+  /api/iterative-labeling/reference-waveforms
+  /api/iterative-labeling/review-sessions/{review_id}/unit-timeseries
+  /api/iterative-labeling/review-sessions/{review_id}
+  /api/iterative-labeling/review-sessions/{review_id}/verdicts
+  /api/iterative-labeling/review-sessions/{review_id}/accuracy
+  /api/iterative-labeling/label-registry
+  /api/iterative-labeling/label-registry/labels
+  /api/iterative-labeling/label-registry/versions
+  /api/iterative-labeling/iterations
+  /api/precision-ops/{slot}/versions
+  /api/precision-ops/{slot}/versions
+  /api/precision-ops/{slot}/versions/{version_tag}/status
+  /api/precision-ops/{slot}/leaderboard
+  /api/precision-ops/{slot}/metrics-history
+  /api/precision-ops/{slot}/production
+  /api/precision-ops/{slot}/switch
+  /api/precision-ops/{slot}/rollback
+  /api/precision-ops/{slot}/switch-log
+  /api/precision-ops/{slot}/config
+  /api/precision-ops/{slot}/config
+  /api/precision-ops/{slot}/prelaunch
+  /api/precision-ops/{slot}/prelaunch
+  /api/precision-ops/{slot}/prelaunch/{prelaunch_id}/graduate
+  /api/precision-ops/{slot}/prelaunch/{prelaunch_id}/cancel
+  /api/precision-ops/{slot}/prelaunch-simulation
+  /api/precision-ops/{slot}/prediction-worker/start
+  /api/precision-ops/{slot}/prediction-worker/stop
+  /api/precision-ops/{slot}/prediction-worker/status
+数据库初始化完成
+✓ 后端服务状态已记录到数据库: 2026-06-24 14:14:43.283537
+✓ AutoResearch：无需标记中断 run
+✓ AutoResearch Job Queue：无死亡 worker
+INFO:     127.0.0.1:49241 - "POST /api/system/service-status HTTP/1.1" 200 OK
+(trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "/opt/miniconda3/envs/aip_web/lib/python3.11/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+INFO:     127.0.0.1:49323 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49330 - "GET /api/industry/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49331 - "GET /api/industry/scenarios HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49336 - "GET /api/industry/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49337 - "GET /api/industry/scenarios HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49342 - "GET /api/industry/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49343 - "GET /api/industry/scenarios HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49348 - "GET /api/industry/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49349 - "GET /api/industry/scenarios HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49356 - "GET /api/workflows/enhanced/summaries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49359 - "GET /api/workflows/enhanced/summaries HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49364 - "GET /api/workflows/enhanced/production-workflow-ref HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49365 - "GET /api/workflows/enhanced/workflow-pv-fault-diag-quickval-predict-v1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49368 - "GET /api/workflows/enhanced/production-workflow-ref HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49373 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49374 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49379 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49380 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49385 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49386 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49391 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49392 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49397 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49398 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49403 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49404 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49407 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49410 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49415 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49416 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49423 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49424 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49429 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49430 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49435 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49436 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49439 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49442 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49445 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49448 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49453 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49454 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49459 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49460 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49465 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49466 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49471 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49472 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49476 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49478 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49481 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49484 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49487 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49490 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49495 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49496 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49501 - "GET /api/functions/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49502 - "GET /api/functions/categories/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49505 - "POST /api/workflows/enhanced/workflow-pv-fault-diag-quickval-predict-v1/execute-async HTTP/1.1" 200 OK
+2026-06-24 14:19:43.465 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: auto_tune_catboost
+2026-06-24 14:19:43.580 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: auto_tune_lightgbm
+2026-06-24 14:19:43.580 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: auto_tune_xgboost
+2026-06-24 14:19:43.580 | DEBUG    | services.operator_execution.router:auto_discover:64 - Skipping base: missing OPERATOR_ID or execute()
+2026-06-24 14:19:43.581 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: batch_predict_classifier
+2026-06-24 14:19:43.637 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: catboost_forecast
+2026-06-24 14:19:43.637 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: confusion_matrix
+2026-06-24 14:19:43.637 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: create_lag_features
+2026-06-24 14:19:43.637 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: detect_outliers
+2026-06-24 14:19:43.638 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: diff_features
+2026-06-24 14:19:43.638 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: ensemble_forecast
+2026-06-24 14:19:44.526 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: extract_statistical_features
+2026-06-24 14:19:44.526 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: extract_time_features
+2026-06-24 14:19:44.526 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: feature_select
+2026-06-24 14:19:44.526 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: handle_missing
+2026-06-24 14:19:44.526 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: holiday_features
+2026-06-24 14:19:44.527 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: label_encode
+2026-06-24 14:19:44.527 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: lightgbm_forecast
+2026-06-24 14:19:44.527 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: load_api
+2026-06-24 14:19:44.527 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: load_csv
+2026-06-24 14:19:44.527 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: load_database
+2026-06-24 14:19:44.527 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: load_model_artifact
+2026-06-24 14:19:44.528 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: merge_label
+2026-06-24 14:19:44.528 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: mse_rmse_mae
+2026-06-24 14:19:44.528 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: multi_step_forecast
+2026-06-24 14:19:44.528 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: pct_change_features
+2026-06-24 14:19:44.528 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: peak_valley_features
+2026-06-24 14:19:44.528 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: precision_recall_f1
+2026-06-24 14:19:44.650 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: random_forest_classifier
+2026-06-24 14:19:44.651 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: resample_timeseries
+2026-06-24 14:19:44.651 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: ridge_forecast
+2026-06-24 14:19:44.651 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: rolling_statistics
+2026-06-24 14:19:44.651 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: row_filter
+2026-06-24 14:19:44.652 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: save_model_artifact
+2026-06-24 14:19:44.652 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: shift_features
+2026-06-24 14:19:44.652 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: sliding_window
+2026-06-24 14:19:44.652 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: smape_score
+2026-06-24 14:19:44.652 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: smote_oversample
+2026-06-24 14:19:44.653 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: stratified_cv_eval
+2026-06-24 14:19:44.653 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: time_window_split
+2026-06-24 14:19:44.653 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: train_test_split_ts
+INFO:     127.0.0.1:49508 - "GET /api/workflows/enhanced/workflow-pv-fault-diag-quickval-predict-v1/execution-status/exec-b49a2a1222b8 HTTP/1.1" 200 OK
+2026-06-24 14:19:44.957 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: ts_comparison_features
+2026-06-24 14:19:44.957 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: tsfresh_extract
+2026-06-24 14:19:44.958 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: workday_features
+2026-06-24 14:19:44.958 | INFO     | services.operator_execution.router:register:35 - Registered operator backend: xgboost_forecast
+2026-06-24 14:19:45.030 | INFO     | operator_backends.load_csv:execute:139 - [load_csv] Loaded 22848 rows, 7 columns from ../fault-diag-algo-release-3.1/enos_fault_diag/test/predict_small.parquet
+2026-06-24 14:19:45.030 | INFO     | operator_backends.time_window_split:execute:173 - [time_window_split] window=1d (freq=1d), id_fields=['site_id', 'device_id', 'branch_id'], time_field=time, input_rows=22848
+2026-06-24 14:19:45.058 | INFO     | operator_backends.time_window_split:execute:185 - [time_window_split] Done: output_rows=22848, unique_time_windows=7
+2026-06-24 14:19:45.062 | INFO     | operator_backends.handle_missing:_drop_insufficient:35 - [handle_missing] drop_insufficient: min_keep_len={'value': 153.0, 'i_cal': 153.0}
+2026-06-24 14:19:45.066 | INFO     | operator_backends.handle_missing:execute:142 - [handle_missing] drop_insufficient: 112 groups -> 112 groups (keep_threshold=0.75)
+2026-06-24 14:19:45.179 | INFO     | operator_backends.detect_outliers:execute:229 - [detect_outliers] robust_clip applied (id_fields=['site_id', 'device_id', 'branch_id', 'time_window'], value_fields=['value', 'i_cal'])
+2026-06-24 14:19:45.367 | INFO     | operator_backends.extract_statistical_features:_execute_groupby_aggregate:542 - [extract_statistical_features] groupby_aggregate: groups=112, features=62, id_fields=['site_id', 'device_id', 'branch_id', 'time_window'], value_fields=['value', 'i_cal'], avg_count=201.0, compute_diff=True
+INFO:     127.0.0.1:49513 - "GET /api/workflows/enhanced/workflow-pv-fault-diag-quickval-predict-v1/execution-status/exec-b49a2a1222b8 HTTP/1.1" 200 OK
+2026-06-24 14:19:47.376 | INFO     | operator_backends.ts_comparison_features:execute:292 - [ts_comparison_features] Computed 10 comparison features for 112 groups, 1 pairs from 2 value fields (id_fields=['site_id', 'device_id', 'branch_id', 'time_window'])
+2026-06-24 14:19:47.377 | INFO     | operator_backends.tsfresh_extract:execute:271 - [tsfresh_extract] Computing tsfresh features — id_fields=['site_id', 'device_id', 'branch_id', 'time_window'], value_fields=['value', 'i_cal'], n_rows=22848
+2026-06-24 14:19:47.420 | INFO     | operator_backends.tsfresh_extract:execute:279 - [tsfresh_extract] Done — output shape: (112, 20) (groups=112, features=20)
+2026-06-24 14:19:47.427 | INFO     | operator_backends.feature_select:execute:331 - [feature_select] 'latest' feature_list loaded from pv_fault_rfc_1782268515_4f3e36.pkl: 50 features
+2026-06-24 14:19:47.427 | INFO     | operator_backends.feature_select:execute:350 - [feature_select] mRMR transform: retained 50 / 50 features
+INFO:     127.0.0.1:49516 - "GET /api/workflows/enhanced/workflow-pv-fault-diag-quickval-predict-v1/execution-status/exec-b49a2a1222b8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49519 - "GET /api/iterative-labeling/review-sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49522 - "GET /api/iterative-labeling/review-sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49530 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49531 - "GET /api/iterative-labeling/label-registry HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49532 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49535 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49538 - "GET /api/iterative-labeling/label-registry HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49541 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49544 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49547 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49552 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5 HTTP/1.1" 200 OK
+2026-06-24 14:19:50.472 | INFO     | services.operator_backends.load_csv:execute:139 - [load_csv] Loaded 22848 rows, 7 columns from /Users/zxk/Desktop/project/AIP/fault-diag-algo-release-3.1/enos_fault_diag/test/predict_small.parquet
+2026-06-24 14:19:50.472 | INFO     | services.operator_backends.time_window_split:execute:173 - [time_window_split] window=1d (freq=1d), id_fields=['site_id', 'device_id', 'branch_id'], time_field=time, input_rows=22848
+2026-06-24 14:19:50.502 | INFO     | services.operator_backends.time_window_split:execute:185 - [time_window_split] Done: output_rows=22848, unique_time_windows=7
+INFO:     127.0.0.1:49553 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/unit-timeseries?unit_key=HRZzKE4v%7C3Fh2D94S%7C1%7C2021-11-18T00%3A00%3A00 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49556 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5 HTTP/1.1" 200 OK
+2026-06-24 14:19:50.698 | INFO     | services.operator_backends.load_csv:execute:139 - [load_csv] Loaded 57385 rows, 6 columns from /Users/zxk/Desktop/project/AIP/fault-diag-algo-release-3.1/enos_fault_diag/test/train_small.parquet
+2026-06-24 14:19:50.700 | INFO     | services.operator_backends.load_csv:execute:139 - [load_csv] Loaded 272 rows, 5 columns from /Users/zxk/Desktop/project/AIP/fault-diag-algo-release-3.1/enos_fault_diag/test/label_small.parquet
+2026-06-24 14:19:50.736 | INFO     | services.operator_backends.time_window_split:execute:173 - [time_window_split] window=1d (freq=1d), id_fields=['site_id', 'device_id', 'branch_id'], time_field=time, input_rows=57385
+2026-06-24 14:19:50.941 | INFO     | services.operator_backends.time_window_split:execute:185 - [time_window_split] Done: output_rows=57385, unique_time_windows=16
+INFO:     127.0.0.1:49559 - "GET /api/iterative-labeling/reference-waveforms?train_csv_path=%2FUsers%2Fzxk%2FDesktop%2Fproject%2FAIP%2Ffault-diag-algo-release-3.1%2Fenos_fault_diag%2Ftest%2Ftrain_small.parquet&label_csv_path=%2FUsers%2Fzxk%2FDesktop%2Fproject%2FAIP%2Ffault-diag-algo-release-3.1%2Fenos_fault_diag%2Ftest%2Flabel_small.parquet HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49563 - "GET /api/iterative-labeling/data-preview?file_path=%2FUsers%2Fzxk%2FDesktop%2Fproject%2FAIP%2Ffault-diag-algo-release-3.1%2Fenos_fault_diag%2Ftest%2Fpredict_small.parquet&rows=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49566 - "GET /api/iterative-labeling/reference-waveforms?train_csv_path=%2FUsers%2Fzxk%2FDesktop%2Fproject%2FAIP%2Ffault-diag-algo-release-3.1%2Fenos_fault_diag%2Ftest%2Ftrain_small.parquet&label_csv_path=%2FUsers%2Fzxk%2FDesktop%2Fproject%2FAIP%2Ffault-diag-algo-release-3.1%2Fenos_fault_diag%2Ftest%2Flabel_small.parquet HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49569 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49572 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49575 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49579 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49586 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49594 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49597 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49600 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49608 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49613 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49618 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49621 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49624 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49627 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49630 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49633 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49636 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49639 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49642 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49647 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49650 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49653 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49656 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49659 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49662 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49665 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49678 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49681 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49688 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49695 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49700 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49705 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49710 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49715 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49725 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49728 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49735 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49738 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49743 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49746 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49749 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49756 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49763 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49770 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49781 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49790 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49795 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49808 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49813 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49822 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49829 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49832 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49837 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49840 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49846 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49853 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49864 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49873 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49880 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49885 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49892 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49899 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49918 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49927 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49933 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49940 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49943 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49946 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49956 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49959 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49968 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49977 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49982 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49987 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49992 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49997 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50000 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50003 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50009 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50015 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50024 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50035 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50052 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50055 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50058 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50061 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50066 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50075 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50082 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50085 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50088 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50091 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50096 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50101 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50112 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50119 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50126 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50135 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50142 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50151 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50168 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50175 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50184 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50191 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50198 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50203 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50215 - "GET /api/iterative-labeling/review-sessions/rev-dc40c8d5/accuracy HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10280]

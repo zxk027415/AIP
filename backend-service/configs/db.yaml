@@ -1,0 +1,55 @@
+# @AI_GENERATED
+# db.yaml — 公司内网 MySQL（10.230.66.32:3306）开发配置
+#
+# 密码通过环境变量 DB_CONNECTION_URL 注入（写在 .env.local，不提交 git）。
+# 加载优先级：环境变量 DB_CONNECTION_URL > 此文件的 connection_url > 代码默认值。
+# 因此此处 connection_url 只作为"无环境变量时"的兜底，密码用占位符。
+
+engine: mysql
+
+# 兜底连接串（无密码时）— 实际密码由 .env.local 的 DB_CONNECTION_URL 覆盖
+connection_url: "mysql+pymysql://admin:admin%40123@10.230.66.32:3306/aip_algo_platform"
+
+lf_db_schema: aip_algo_platform
+pv_db_schema: aip_algo_platform
+
+max_connections: 10
+idle_timeout: 300
+connection_lifetime: 3600
+pool_wait_timeout: 30
+
+# 开启数据库功能
+db_enabled: true
+dual_write: false
+
+# ---------------------------------------------------------------------------
+# 定时调度 Cron 表达式（负荷预测）
+# 字段均被 configs/db.yaml → DBConfig 读取，作为"首次初始化种子"写入
+# data/scheduler/tasks.json；一旦写入后，以 tasks.json 为运行时唯一真源。
+# 用户可在算法部署页面"定时调度 Tab"里在线修改，改动立即生效。
+# ---------------------------------------------------------------------------
+# 每日流程（本地时间）：
+#   00:00 mock_data_feed        — 模拟公司生产库每天新增 96 行（= 1 天实测值）
+#   01:00 lf_data_pull          — 平台从"公司库"拉取新数据到 station_data（喂数据没触发时拉不到新东西）
+#   02:00 lf_daily_rolling      — 用 ≤T-1 数据训练+预测 T+1（严格 gap-1-day）
+#   04:00 lf_accuracy_backfill  — 用 T 日真值回填 T-1 预测 T 的精度
+# ---------------------------------------------------------------------------
+
+# mock_data_feed：模拟公司库每天 00:00 喂入一天新数据
+sched_mock_feed_cron: "0 0 * * *"
+
+# lf_data_pull：每天 01:00 从公司库拉到平台库（喂数据没触发前，拉不到新东西）
+sched_lf_pull_cron: "0 1 * * *"
+
+# lf_daily_rolling：每天 02:00 跑滚动训练+预测（原字段名 sched_lf_predict_cron 保持不变以向后兼容）
+sched_lf_predict_cron: "30 1 * * *"
+
+# lf_accuracy_backfill：每天 04:00 回填精度（给 T 日真值到达留 2~3 小时）
+sched_lf_backfill_cron: "0 4 * * *"
+
+# 光伏故障（保持不变）
+sched_pv_pull_cron: "0 2 * * *"
+sched_pv_predict_cron: "30 2 * * *"
+
+task_retry_delay: 60
+# @AI_GENERATED: end

@@ -866,6 +866,11 @@ class EnhancedWorkflow(BaseModel):
     nodes: List[EnhancedWorkflowNode]
     edges: List[EnhancedWorkflowEdge]
     metadata: Optional[Dict[str, Any]] = None
+    scenario_id: Optional[str] = None
+    source_template_id: Optional[str] = None  # 创建来源模板 ID（"新建"时记录溯源，空白创建时为 None）
+    version: Optional[int] = None
+    version_group_id: Optional[str] = None
+    parent_version_id: Optional[str] = None
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
 # @AI_GENERATED: end
@@ -875,6 +880,9 @@ class WorkflowSummary(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
+    scenario_id: Optional[str] = None
+    version: Optional[int] = None
+    version_group_id: Optional[str] = None
     nodeCount: int = 0
     edgeCount: int = 0
     createdAt: Optional[str] = None
@@ -913,6 +921,43 @@ def get_workflow_path(workflow_id: str) -> str:
 def generate_workflow_id() -> str:
     """生成算法模板ID"""
     return f"workflow-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+
+
+# @AI_GENERATED
+def _new_workflow_id() -> str:
+    """生成全新的 workflow_id（'wf-' 前缀 + 12 位十六进制）。
+
+    用于 spec algorithm-deployment-refactor 任务 7.1/7.2 中"统一新建"路径：
+    - `POST /`（保存新工作流）
+    - `POST /create-from-template`（从模板创建）
+    保证与已有 `workflow-<timestamp>`/自定义 slug 命名的模板不冲突。
+    """
+    return f"wf-{uuid.uuid4().hex[:12]}"
+
+
+def _new_version_group_id() -> str:
+    """生成全新的 version_group_id（'grp-' 前缀 + 12 位十六进制）。
+
+    每次"新建"（无论从模板还是空白）都要拿到独立的 version_group_id，
+    与源模板/其他工作流的版本组完全隔离（Property 8）。
+    """
+    return f"grp-{uuid.uuid4().hex[:12]}"
+
+
+def _ensure_unique_workflow_id(max_retries: int = 3) -> str:
+    """生成一个尚未在持久化存储中出现的 workflow_id。
+
+    - 依赖 `get_workflow_path(id)` 指向的 JSON 文件是否存在作为冲突判据；
+    - UUID 碰撞概率极低，但保留最多 `max_retries` 次重试以满足 design.md
+      "保存时 ID 冲突 → 重新生成 UUID 重试一次" 的错误处理约定；
+    - 极端情况下仍冲突时返回 500，避免死循环。
+    """
+    for _ in range(max(1, max_retries + 1)):
+        candidate = _new_workflow_id()
+        if not os.path.exists(get_workflow_path(candidate)):
+            return candidate
+    raise HTTPException(status_code=500, detail="生成工作流 ID 失败：多次重试仍冲突")
+# @AI_GENERATED: end
 
 
 def load_workflow_from_file(workflow_id: str) -> Optional[EnhancedWorkflow]:
@@ -986,6 +1031,9 @@ def list_all_workflow_summaries() -> List[WorkflowSummary]:
                 id=workflow_id,
                 name=data.get('name') or workflow_id,
                 description=data.get('description'),
+                scenario_id=data.get('scenario_id'),
+                version=data.get('version'),
+                version_group_id=data.get('version_group_id'),
                 nodeCount=len(nodes) if isinstance(nodes, list) else 0,
                 edgeCount=len(edges) if isinstance(edges, list) else 0,
                 createdAt=data.get('createdAt'),
@@ -1018,14 +1066,24 @@ async def save_workflow(workflow_data: dict):
         print(f"连接线数量: {len(workflow_data.get('edges', []))}")
         print(f"完整数据: {json.dumps(workflow_data, indent=2, ensure_ascii=False)}")
         
-        # 生成ID和时间戳
-        workflow_id = generate_workflow_id()
+        # @AI_GENERATED
+        # spec algorithm-deployment-refactor 任务 7.1：统一新建行为
+        # 不论从模板 / 空白画布进入，只要走 POST /，都生成独立的 workflow_id +
+        # version_group_id，version=1，parent_version_id=None；source_template_id
+        # 由前端可选传入（空白创建时应为空）。
+        workflow_id = _ensure_unique_workflow_id()
         now = datetime.now().isoformat()
-        
+
         workflow_data['id'] = workflow_id
         workflow_data['createdAt'] = now
         workflow_data['updatedAt'] = now
-        
+        workflow_data['version'] = 1
+        workflow_data['version_group_id'] = _new_version_group_id()
+        workflow_data['parent_version_id'] = None
+        # source_template_id 允许来自请求（可空），不承袭模板的 version_group_id
+        workflow_data['source_template_id'] = workflow_data.get('source_template_id') or None
+        # @AI_GENERATED: end
+
         print(f"\n开始验证数据...")
         workflow = EnhancedWorkflow(**workflow_data)
         print(f"✅ 数据验证通过")
@@ -1070,6 +1128,91 @@ async def list_workflow_summaries():
         return list_all_workflow_summaries()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取算法模板摘要失败: {str(e)}")
+
+
+# @AI_GENERATED
+class CreateFromTemplateRequest(BaseModel):
+    """POST /create-from-template 请求体。
+
+    - template_id — 源模板 workflow_id，必填
+    - name — 新工作流名称，必填，且必须与模板名称不同
+    """
+    template_id: str
+    name: str
+
+
+@router.post(
+    "/create-from-template",
+    response_model=EnhancedWorkflow,
+    summary="从模板创建独立工作流（生成新 workflow_id + 独立版本组）",
+)
+async def create_workflow_from_template(request: CreateFromTemplateRequest):
+    """spec algorithm-deployment-refactor 任务 7.1：从模板新建统一走这里。
+
+    行为：
+    - 深拷贝源模板的 nodes/edges/metadata/scenario_id
+    - 分配新的 workflow_id + 独立 version_group_id
+    - version=1, parent_version_id=None, source_template_id=<template.id>
+    - 名称必须与模板不同，否则返回 400 code="name_conflict"
+    - 模板不存在 → 404
+    """
+    template_id = (request.template_id or "").strip()
+    new_name = (request.name or "").strip()
+
+    if not template_id:
+        raise HTTPException(status_code=400, detail="template_id 不能为空")
+    if not new_name:
+        raise HTTPException(status_code=400, detail="name 不能为空")
+
+    template = load_workflow_from_file(template_id)
+    if template is None:
+        raise HTTPException(status_code=404, detail=f"源模板不存在: {template_id}")
+
+    if new_name == (template.name or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "name_conflict",
+                "message": "请输入新的工作流名称以区分模板",
+            },
+        )
+
+    try:
+        template_dict = template.dict()
+        now = datetime.now().isoformat()
+        new_id = _ensure_unique_workflow_id()
+
+        # 只继承业务结构（节点/连线/元信息/场景），版本谱系全部重置
+        new_data = {
+            "id": new_id,
+            "name": new_name,
+            "description": template_dict.get("description"),
+            "nodes": template_dict.get("nodes") or [],
+            "edges": template_dict.get("edges") or [],
+            "metadata": template_dict.get("metadata"),
+            "scenario_id": template_dict.get("scenario_id"),
+            "source_template_id": template.id,
+            "version": 1,
+            "version_group_id": _new_version_group_id(),
+            "parent_version_id": None,
+            "createdAt": now,
+            "updatedAt": now,
+        }
+
+        cloned = EnhancedWorkflow(**new_data)
+        if save_workflow_to_file(cloned):
+            print(
+                f"✅ create-from-template 成功: template={template_id} -> new={new_id}"
+                f" name={new_name!r}"
+            )
+            return cloned
+        raise HTTPException(status_code=500, detail="从模板创建工作流失败：写文件失败")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ create-from-template 失败: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"从模板创建工作流失败: {str(e)}")
+# @AI_GENERATED: end
 
 
 # 固定路径必须注册在 GET /{workflow_id} 之前，否则会被当成模板 ID（404），例如：
@@ -1490,6 +1633,43 @@ async def promote_tuning_candidate(candidate_id: str, request: Request):
         "production_slot": production_slot if set_as_production else None,
     }
     _append_promotion_log(log_row)
+    # @AI_GENERATED — 精度运营：Promote 成功后注册新版本到 Version Registry
+    try:
+        from services.precision_ops.version_registry import VersionRegistry
+        _precision_vr = VersionRegistry()
+        _reg_entry = {
+            "workflow_id": str(found.get("challenger_workflow_id", "")),
+            "version_tag": f"promoted-{candidate_id[:12]}",
+            "status": "production" if set_as_production else "shadow",
+            "slot": production_slot if set_as_production else "default",
+            "source_candidate_id": candidate_id,
+            "baseline_mape": float(found.get("summary", {}).get("challenger_mape") or 0) or None,
+        }
+        if _reg_entry["workflow_id"]:
+            _precision_vr.register(_reg_entry)
+    except Exception as _vr_exc:
+        # 精度运营注册失败不阻塞 Promote 主流程
+        import logging
+        logging.getLogger(__name__).warning(
+            "precision_ops version registry: Promote 后注册版本失败（非阻塞）: %s", _vr_exc
+        )
+    # @AI_GENERATED: end
+    # 精度运营：Promote set_as_production 时同步更新 ProductionRegistry（预测任务读此真源）
+    if set_as_production:
+        try:
+            from services.precision_ops.production_registry import ProductionRegistry
+            _prod_reg = ProductionRegistry()
+            _prod_reg.update(
+                slot=production_slot,
+                workflow_id=str(found.get("challenger_workflow_id", "")),
+                version_tag=f"promoted-{candidate_id[:12]}",
+                event_id=f"promote-{candidate_id}",
+            )
+        except Exception as _pr_exc:
+            import logging
+            logging.getLogger(__name__).warning(
+                "precision_ops ProductionRegistry: Promote 后更新失败（非阻塞）: %s", _pr_exc
+            )
     return {
         "success": True,
         "candidate": _sanitize_json_floats(found),
@@ -1783,6 +1963,118 @@ async def load_workflow(workflow_id: str):
         raise HTTPException(status_code=404, detail=f"算法模板不存在: {workflow_id}")
     
     return workflow
+
+
+# @AI_GENERATED
+@router.post(
+    "/{workflow_id}/save",
+    response_model=EnhancedWorkflow,
+    summary="保存已有工作流（编辑已有模式，版本号自增）",
+)
+async def save_existing_workflow(workflow_id: str, workflow_data: dict):
+    """spec algorithm-deployment-refactor 任务 7.2：编辑已有 → 版本递增。
+
+    - URL 带已有 workflow_id 时视为"编辑已有"模式，从存储加载后覆盖节点/连线/元信息；
+    - `version = existing.version + 1`；
+    - `parent_version_id = "{workflow_id}@v{old_version}"`（同一 workflow_id 内的
+      逻辑父版本指针，避免与"跨记录克隆"的 parent_version_id 语义冲突）；
+    - 保留 `version_group_id`、`source_template_id`、`createdAt` 与 id；
+    - 不改动其他工作流或源模板的任何字段（Property 9：工作流版本隔离）。
+    """
+    existing_workflow = load_workflow_from_file(workflow_id)
+    if existing_workflow is None:
+        raise HTTPException(status_code=404, detail=f"工作流不存在: {workflow_id}")
+
+    try:
+        existing_dict = existing_workflow.dict()
+        old_version = int(existing_dict.get("version") or 1)
+
+        merged = dict(existing_dict)
+
+        # 覆盖客户端可修改的业务字段（与 update_workflow 保持一致的字段白名单）
+        for field in ("name", "description", "nodes", "edges", "metadata", "scenario_id"):
+            if field in workflow_data:
+                merged[field] = workflow_data[field]
+
+        # 版本谱系
+        merged["id"] = workflow_id
+        merged["version"] = old_version + 1
+        merged["parent_version_id"] = f"{workflow_id}@v{old_version}"
+        # version_group_id / source_template_id / createdAt 全部沿用旧值
+        merged["version_group_id"] = existing_dict.get("version_group_id")
+        merged["source_template_id"] = existing_dict.get("source_template_id")
+        merged["createdAt"] = existing_dict.get("createdAt")
+        merged["updatedAt"] = datetime.now().isoformat()
+
+        workflow = EnhancedWorkflow(**merged)
+        if save_workflow_to_file(workflow):
+            print(
+                f"✅ save workflow {workflow_id}: v{old_version} -> v{workflow.version}"
+            )
+            return workflow
+        raise HTTPException(status_code=500, detail="保存工作流失败：写文件失败")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ save workflow {workflow_id} 失败: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"保存工作流失败: {str(e)}")
+# @AI_GENERATED: end
+
+
+@router.post("/{workflow_id}/clone", response_model=EnhancedWorkflow, summary="克隆模板为新版本")
+async def clone_workflow(workflow_id: str):
+    """
+    基于现有模板创建新版本（深拷贝）。
+
+    行为：
+    - 生成新 id
+    - 继承源模板的 scenario_id、version_group_id
+    - version 在源模板基础上 +1
+    - parent_version_id 指向源模板 id
+    - 若源模板没有 version_group_id，则生成一个并回写源模板
+    """
+    source = load_workflow_from_file(workflow_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail=f"源模板不存在: {workflow_id}")
+
+    source_dict = source.dict()
+    now = datetime.now().isoformat()
+    new_id = generate_workflow_id()
+
+    # Ensure source has version_group_id; if not, create one and persist back
+    version_group_id = source_dict.get('version_group_id')
+    if not version_group_id:
+        version_group_id = f"vg-{workflow_id}"
+        source_dict['version_group_id'] = version_group_id
+        source_dict['version'] = source_dict.get('version') or 1
+        try:
+            patched_source = EnhancedWorkflow(**source_dict)
+            save_workflow_to_file(patched_source)
+        except Exception:
+            pass  # best-effort backfill
+
+    source_version = source_dict.get('version') or 1
+
+    # Build cloned workflow
+    clone_data = {
+        **source_dict,
+        'id': new_id,
+        'version_group_id': version_group_id,
+        'version': source_version + 1,
+        'parent_version_id': workflow_id,
+        'createdAt': now,
+        'updatedAt': now,
+    }
+
+    try:
+        cloned = EnhancedWorkflow(**clone_data)
+        if save_workflow_to_file(cloned):
+            return cloned
+        raise HTTPException(status_code=500, detail="克隆保存失败")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"克隆失败: {str(e)}")
 
 
 @router.put("/{workflow_id}", response_model=EnhancedWorkflow, summary="更新算法模板")
@@ -7655,6 +7947,9 @@ def _commit_v3_successful_batch_plans(state: Dict[str, Any], batch_group_records
 def _save_candidate_pool_list(candidates: List[Dict[str, Any]]) -> None:
     with _AUTO_RESEARCH_FILE_LOCK:
         _atomic_write_json(_CANDIDATE_POOL_JSON, {"candidates": candidates})
+    # @AI_GENERATED: Phase 1 双写 — 候选池全量同步到 MySQL candidate_pool
+    _dual_write_candidate_pool_to_db(candidates)
+    # @AI_GENERATED: end
 
 
 def _load_verification_queue() -> List[Dict[str, Any]]:
@@ -7666,6 +7961,98 @@ def _load_verification_queue() -> List[Dict[str, Any]]:
 def _save_verification_queue(items: List[Dict[str, Any]]) -> None:
     with _AUTO_RESEARCH_FILE_LOCK:
         _atomic_write_json(_VERIFICATION_QUEUE_JSON, {"items": items})
+    # @AI_GENERATED: Phase 1 双写 — 复验队列全量同步到 MySQL candidate_verification
+    _dual_write_verification_queue_to_db(items)
+    # @AI_GENERATED: end
+
+
+# @AI_GENERATED: Phase 1 双写辅助 — 候选池 / 复验队列 → MySQL
+def _dual_write_candidate_pool_to_db(candidates: List[Dict[str, Any]]) -> None:
+    """把候选池逐条 upsert 到 MySQL candidate_pool 表。失败降级 warning。
+
+    字段映射与 scripts/migrate_autoresearch_storage_to_db.py::migrate_candidates 保持一致：
+      - id / slot / run_id(comparison_id) / workflow_id / patch_signature / best_mape / evidence / status
+    """
+    try:
+        from services.db.repositories import get_autoresearch_repo, is_dual_write_enabled
+        if not is_dual_write_enabled():
+            return
+        repo = get_autoresearch_repo()
+        if repo is None:
+            return
+        for c in candidates or []:
+            if not isinstance(c, dict):
+                continue
+            cid = c.get("id") or c.get("candidate_id")
+            if not cid:
+                continue
+            summary = c.get("summary") or {}
+            best_mape = None
+            for key in ("aggregate_baseline_score", "challenger_score", "mape_improvement"):
+                v = summary.get(key) if isinstance(summary, dict) else None
+                v = v if v is not None else c.get(key)
+                if isinstance(v, (int, float)):
+                    best_mape = float(v)
+                    break
+            try:
+                repo.upsert_candidate({
+                    "id": str(cid)[:64],
+                    "slot": str(c.get("slot") or "default")[:64],
+                    "run_id": str(c.get("run_id") or c.get("comparison_id") or "")[:64],
+                    "workflow_id": str(c.get("baseline_workflow_id") or c.get("challenger_workflow_id") or "")[:128],
+                    "patch_signature": str(c.get("applied_patch_fingerprint") or c.get("patch_signature") or "")[:256],
+                    "best_mape": best_mape,
+                    "evidence": c.get("evidence_records") or c.get("evidence") or {},
+                    "status": str(c.get("status") or "candidate")[:32],
+                })
+            except Exception as _e:
+                logger.warning("candidate_pool dual-write (id=%s) failed: %s", cid, _e)
+    except Exception as exc:
+        logger.warning("candidate_pool dual-write batch failed (non-fatal): %s", exc)
+
+
+def _dual_write_verification_queue_to_db(items: List[Dict[str, Any]]) -> None:
+    """把复验队列逐条 upsert 到 MySQL candidate_verification 表。失败降级 warning。"""
+    try:
+        from services.db.repositories import get_autoresearch_repo, is_dual_write_enabled
+        if not is_dual_write_enabled():
+            return
+        repo = get_autoresearch_repo()
+        if repo is None:
+            return
+        for item in items or []:
+            if not isinstance(item, dict):
+                continue
+            iid = item.get("id")
+            if not iid:
+                continue
+
+            def _dt(v):
+                if not v:
+                    return None
+                try:
+                    return datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+                except Exception:
+                    return None
+
+            try:
+                repo.upsert_verification({
+                    "id": str(iid)[:64],
+                    "candidate_id": str(item.get("candidate_id") or "")[:64],
+                    "slot": str(item.get("slot") or "default")[:64],
+                    "source_run_id": (str(item.get("source_run_id"))[:64] if item.get("source_run_id") else None),
+                    "source_iteration": item.get("source_iteration"),
+                    "status": str(item.get("status") or "queued")[:32],
+                    "config_json": item.get("config") or item.get("verification_config") or {},
+                    "evidence_json": item.get("evidence") or {},
+                    "started_at": _dt(item.get("started_at")),
+                    "finished_at": _dt(item.get("finished_at")),
+                })
+            except Exception as _e:
+                logger.warning("candidate_verification dual-write (id=%s) failed: %s", iid, _e)
+    except Exception as exc:
+        logger.warning("candidate_verification dual-write batch failed (non-fatal): %s", exc)
+# @AI_GENERATED: end
 
 
 def _verification_default_windows(candidate: Dict[str, Any]) -> List[Dict[str, str]]:
@@ -8319,6 +8706,25 @@ def _append_promotion_log(record: Dict[str, Any]) -> None:
         rows = prev["log"]
     rows.append(record)
     _atomic_write_json(_PROMOTIONS_LOG_JSON, rows)
+    # @AI_GENERATED: Phase 1 双写 — promotion 审计同步到 MySQL candidate_promotion_log
+    try:
+        from services.db.repositories import get_autoresearch_repo, is_dual_write_enabled
+        if is_dual_write_enabled():
+            _promo_repo = get_autoresearch_repo()
+            if _promo_repo is not None:
+                cid = record.get("candidate_id")
+                if cid:
+                    _promo_repo.append_promotion(
+                        slot=str(record.get("production_slot") or "default")[:64],
+                        candidate_id=str(cid)[:64],
+                        action="force_promoted" if record.get("force") else "promoted",
+                        actor="user",
+                        reason=str(record.get("note") or "")[:2048],
+                        payload=record,
+                    )
+    except Exception as _promo_exc:
+        logger.warning("candidate_promotion_log dual-write failed (non-fatal): %s", _promo_exc)
+    # @AI_GENERATED: end
 
 
 async def _run_compare_backtest_batch_task(
@@ -13017,13 +13423,30 @@ async def resume_auto_research(run_id: str, payload: dict = None):
         raise HTTPException(status_code=400, detail="该 run 标记为不可恢复（recoverable=false）")
 
     # 3. 确定恢复起始轮次
-    trials = _auto_research_persister.list_trials(run_id, limit=10000)
+    # @AI_GENERATED: Phase 2 — 读开关开启时优先走 SQL 取 completed_iterations
     completed_iterations = set()
-    for trial in trials:
-        it_no = trial.get("iteration_no")
-        trial_status = str(trial.get("status") or "").lower()
-        if it_no is not None and trial_status in ("success", "failed", "pruned"):
-            completed_iterations.add(int(it_no))
+    _used_db_for_completed = False
+    try:
+        from services.db.repositories import get_autoresearch_repo, is_db_read_enabled
+        if is_db_read_enabled():
+            _resume_repo = get_autoresearch_repo()
+            if _resume_repo is not None:
+                completed_iterations = _resume_repo.get_completed_iterations(run_id)
+                _used_db_for_completed = True
+    except Exception as _db_exc:
+        logger.warning("resume: DB get_completed_iterations failed (fallback to trials): %s", _db_exc)
+        completed_iterations = set()
+        _used_db_for_completed = False
+
+    if not _used_db_for_completed:
+        # 兜底：走原来 trials 列表逻辑
+        trials = _auto_research_persister.list_trials(run_id, limit=10000)
+        for trial in trials:
+            it_no = trial.get("iteration_no")
+            trial_status = str(trial.get("status") or "").lower()
+            if it_no is not None and trial_status in ("success", "failed", "pruned"):
+                completed_iterations.add(int(it_no))
+    # @AI_GENERATED: end
 
     max_completed = max(completed_iterations) if completed_iterations else 0
     resume_from_iteration = max_completed + 1

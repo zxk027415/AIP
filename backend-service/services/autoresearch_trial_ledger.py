@@ -26,6 +26,9 @@ class AutoResearchTrialLedger:
         row.setdefault("study_id", study_id)
         row.setdefault("created_at", datetime.now().isoformat())
         self._append_jsonl(self._path(study_id, "trials.jsonl"), row)
+        # @AI_GENERATED: Phase 1 双写 — 写完 trials.jsonl 后同步 insert experiment_trial
+        self._dual_write_trial_to_db(study_id, row)
+        # @AI_GENERATED: end
         return row
 
     def append_decision(self, study_id: str, decision: Dict[str, Any]) -> Dict[str, Any]:
@@ -38,9 +41,99 @@ class AutoResearchTrialLedger:
         row.setdefault("study_id", study_id)
         row.setdefault("created_at", datetime.now().isoformat())
         self._append_jsonl(self._path(study_id, "decisions.jsonl"), row)
+        # @AI_GENERATED: Phase 1 双写 — 写完 decisions.jsonl 后同步 insert experiment_decision
+        self._dual_write_decision_to_db(study_id, row)
+        # @AI_GENERATED: end
         return row
 
+    # @AI_GENERATED: Phase 1 双写 — experiment_trial / experiment_decision
+    def _dual_write_trial_to_db(self, run_id: str, row: Dict[str, Any]) -> None:
+        """把 trial 行同步 insert 到 MySQL experiment_trial 表。
+
+        字段映射：
+          - run_id            ← study_id（AutoResearch 里 study_id 即 run_id）
+          - iteration_no      ← row.iteration_no / row.iteration
+          - status            ← row.status
+          - override_json     ← row.override / row.global_config_patch
+          - evidence_json     ← 从 windows_* / failure_reason / score_advantage 等抽取
+          - mape_improvement / baseline_mape / challenger_mape ← 同名字段
+
+        失败降级 warning，不阻塞 JSON 写入。
+        """
+        try:
+            from services.db.repositories import get_autoresearch_repo, is_dual_write_enabled
+            if not is_dual_write_enabled():
+                return
+            repo = get_autoresearch_repo()
+            if repo is None:
+                return
+
+            iter_no = row.get("iteration_no")
+            if iter_no is None:
+                iter_no = row.get("iteration")
+            if iter_no is None:
+                return  # 无 iteration_no 的 trial 不入 experiment_trial（唯一约束需要）
+
+            override = row.get("override") or row.get("global_config_patch") or {}
+            evidence = {
+                k: row.get(k)
+                for k in ("windows_total", "windows_comparable", "windows_challenger_better",
+                          "failure_reason", "score_advantage", "hypothesis_verification")
+                if row.get(k) is not None
+            }
+
+            def _f(v):
+                return float(v) if isinstance(v, (int, float)) else None
+
+            repo.append_trial(run_id, {
+                "iteration_no": int(iter_no),
+                "status": str(row.get("status") or "success")[:32],
+                "override_json": override if isinstance(override, dict) else {},
+                "evidence_json": evidence,
+                "mape_improvement": _f(row.get("mape_improvement")),
+                "baseline_mape": _f(row.get("baseline_mape")),
+                "challenger_mape": _f(row.get("challenger_mape")),
+            })
+        except Exception as exc:
+            self._warn_dual_write("experiment_trial", exc)
+
+    def _dual_write_decision_to_db(self, run_id: str, row: Dict[str, Any]) -> None:
+        """把 decision 行同步 insert 到 MySQL experiment_decision 表。"""
+        try:
+            from services.db.repositories import get_autoresearch_repo, is_dual_write_enabled
+            if not is_dual_write_enabled():
+                return
+            repo = get_autoresearch_repo()
+            if repo is None:
+                return
+
+            decision_type = str(row.get("decision_type") or "unknown")[:64]
+            actor = str(row.get("actor") or "system")[:64]
+            payload = {
+                k: v for k, v in row.items()
+                if k not in ("decision_type", "actor", "created_at", "id", "study_id")
+            }
+            repo.append_decision(run_id, decision_type, payload, actor=actor)
+        except Exception as exc:
+            self._warn_dual_write("experiment_decision", exc)
+
+    @staticmethod
+    def _warn_dual_write(table: str, exc: Exception) -> None:
+        try:
+            import logging
+            logging.getLogger(__name__).warning(
+                "AutoResearchTrialLedger dual-write to %s failed (non-fatal): %s", table, exc
+            )
+        except Exception:
+            pass
+    # @AI_GENERATED: end
+
     def list_trials(self, study_id: str, limit: int = 200) -> List[Dict[str, Any]]:
+        # @AI_GENERATED: Phase 2 读切换 — DB 优先
+        db_rows = self._list_trials_from_db(study_id, limit)
+        if db_rows is not None:
+            return db_rows
+        # @AI_GENERATED: end
         rows = self._read_jsonl(self._path(study_id, "trials.jsonl"), limit=limit)
         if rows:
             return rows
@@ -48,11 +141,88 @@ class AutoResearchTrialLedger:
         return self._read_jsonl(legacy, limit=limit) if legacy else []
 
     def list_decisions(self, study_id: str, limit: int = 200) -> List[Dict[str, Any]]:
+        # @AI_GENERATED: Phase 2 读切换 — DB 优先
+        db_rows = self._list_decisions_from_db(study_id, limit)
+        if db_rows is not None:
+            return db_rows
+        # @AI_GENERATED: end
         rows = self._read_jsonl(self._path(study_id, "decisions.jsonl"), limit=limit)
         if rows:
             return rows
         legacy = self._legacy_path(study_id, "decisions.jsonl")
         return self._read_jsonl(legacy, limit=limit) if legacy else []
+
+    # @AI_GENERATED: Phase 2 读切换 — 从 experiment_trial / experiment_decision 读
+    def _list_trials_from_db(self, run_id: str, limit: int) -> Optional[List[Dict[str, Any]]]:
+        try:
+            from services.db.repositories import get_autoresearch_repo, is_db_read_enabled
+            if not is_db_read_enabled():
+                return None
+            repo = get_autoresearch_repo()
+            if repo is None:
+                return None
+            trials = repo.list_trials(run_id, limit=limit)
+            if not trials:
+                return None  # DB 里没有则退回 JSON（可能是双写前的老 run）
+            out: List[Dict[str, Any]] = []
+            for t in trials:
+                row = {
+                    "id": f"{run_id}:trial-{t.iteration_no}",
+                    "study_id": run_id,
+                    "iteration_no": t.iteration_no,
+                    "status": t.status,
+                    "override": t.override_json or {},
+                    "mape_improvement": t.mape_improvement,
+                    "baseline_mape": t.baseline_mape,
+                    "challenger_mape": t.challenger_mape,
+                    "created_at": (t.created_at.isoformat() if t.created_at else None),
+                }
+                if isinstance(t.evidence_json, dict):
+                    row.update(t.evidence_json)
+                out.append(row)
+            return out
+        except Exception as exc:
+            self._warn_read_fallback("experiment_trial", exc)
+            return None
+
+    def _list_decisions_from_db(self, run_id: str, limit: int) -> Optional[List[Dict[str, Any]]]:
+        try:
+            from services.db.repositories import get_autoresearch_repo, is_db_read_enabled
+            if not is_db_read_enabled():
+                return None
+            repo = get_autoresearch_repo()
+            if repo is None:
+                return None
+            decisions = repo.list_decisions(run_id, limit=limit)
+            if not decisions:
+                return None
+            out: List[Dict[str, Any]] = []
+            for d in decisions:
+                row = {
+                    "id": f"{run_id}:{d.decision_type}:{d.seq}",
+                    "study_id": run_id,
+                    "decision_type": d.decision_type,
+                    "actor": d.actor,
+                    "created_at": (d.created_at.isoformat() if d.created_at else None),
+                }
+                if isinstance(d.payload_json, dict):
+                    row.update(d.payload_json)
+                out.append(row)
+            return out
+        except Exception as exc:
+            self._warn_read_fallback("experiment_decision", exc)
+            return None
+
+    @staticmethod
+    def _warn_read_fallback(table: str, exc: Exception) -> None:
+        try:
+            import logging
+            logging.getLogger(__name__).warning(
+                "AutoResearchTrialLedger read from %s failed (fallback to JSON): %s", table, exc
+            )
+        except Exception:
+            pass
+    # @AI_GENERATED: end
 
     def stats(self) -> Dict[str, Any]:
         total_trials = 0

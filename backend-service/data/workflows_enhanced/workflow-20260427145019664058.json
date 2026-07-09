@@ -1413,6 +1413,11 @@
     },
     "template_type": "load_forecast"
   },
+  "scenario_id": "renewable-energy",
+  "source_template_id": null,
+  "version": 1,
+  "version_group_id": "vg-workflow-20260427145019664058",
+  "parent_version_id": null,
   "createdAt": "2026-04-27T14:50:19.664082",
   "updatedAt": "2026-04-27T14:50:19.664082"
 }

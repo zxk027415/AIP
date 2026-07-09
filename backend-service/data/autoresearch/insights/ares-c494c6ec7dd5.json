@@ -1,0 +1,99 @@
+{
+  "run_id": "ares-c494c6ec7dd5",
+  "created_at": "2026-06-24T10:40:33.644787",
+  "baseline_workflow_id": "workflow-20260511-optimal-505",
+  "registry_id": "load_forecast_v3",
+  "scenario_fingerprint": {
+    "granularity": "intraday",
+    "weekend_sensitivity": "normal",
+    "backtest_mode": "rolling_retrain",
+    "train_days": 30,
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v3"
+  },
+  "scenario_fingerprint_inputs": {
+    "baseline_workflow_id": "workflow-20260511-optimal-505",
+    "registry_id": "load_forecast_v3",
+    "evaluation_contract": {
+      "auto_tune_n_trials": 15,
+      "backtest_apply_window_filter": true,
+      "backtest_mask_target_values": true,
+      "backtest_mode": "rolling_retrain",
+      "daily_horizon": 96,
+      "train_days": 30
+    },
+    "scenario_tags": [
+      "general"
+    ],
+    "windows": [
+      {
+        "end_date": "2026-03-08",
+        "start_date": "2026-03-01"
+      }
+    ]
+  },
+  "scenario_condition_hash_fields": [
+    "granularity",
+    "weekend_sensitivity",
+    "backtest_mode",
+    "train_days",
+    "baseline_workflow_id",
+    "registry_id"
+  ],
+  "total_iterations": 1,
+  "best_mape_improvement": null,
+  "best_candidate_config": {
+    "override": {},
+    "global_config_patch": {}
+  },
+  "data_profile": {
+    "granularity_minutes": null,
+    "span_days": null,
+    "weekend_weekday_gap": -0.015036,
+    "outlier_ratio": 0.0,
+    "profile_quality": {
+      "source": "full_training_dataset",
+      "point_count": 3649,
+      "valid_point_count": 3649,
+      "source_days": 39,
+      "is_empty": false,
+      "has_real_load_curve": true,
+      "has_periodicity_signal": true,
+      "has_weekday_weekend_signal": true
+    },
+    "periodicity_strength": {
+      "daily_autocorr": 0.8266294520805822,
+      "weekly_autocorr": 0.6519722063075548
+    }
+  },
+  "exploration_summary": {
+    "phases": [
+      "feature_exploration"
+    ],
+    "hypotheses_tested": 0,
+    "hypotheses_verified": 0,
+    "hypotheses_disproved": 0,
+    "total_iterations": 1,
+    "completed_iterations": 1,
+    "success_iterations": 0,
+    "improved_iterations": 0,
+    "failed_iterations": 1,
+    "cancelled_iterations": 0,
+    "success_iterations_legacy_note": "success_iterations counts completed successful executions; use improved_iterations for positive MAPE gains"
+  },
+  "error_diagnostics": [
+    {
+      "iteration": 1,
+      "status": "failed",
+      "error": "all_batch_groups_failed: 3/3 groups failed_or_cancelled",
+      "sampled_layers": [
+        "training",
+        "feature"
+      ]
+    }
+  ],
+  "learned_rules": [],
+  "ineffective_attempts": [],
+  "open_questions": [],
+  "recommended_starting_config_for_similar": {}
+}

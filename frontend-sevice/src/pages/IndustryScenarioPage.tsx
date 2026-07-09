@@ -2,16 +2,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Card, Typography, Spin, Tag, Space, Breadcrumb, Tabs, Row, Col,
+  Alert, Card, Typography, Spin, Tag, Space, Breadcrumb, Tabs, Row, Col,
   Button, Grid,
 } from 'antd';
 import {
   AppstoreOutlined,
+  ApartmentOutlined,
   ExperimentOutlined,
   NodeIndexOutlined,
   RocketOutlined,
   BranchesOutlined,
-  PlayCircleOutlined,
 } from '@ant-design/icons';
 import { industryApi } from '../services/industryApi';
 import { useTranslation } from 'react-i18next';
@@ -167,7 +167,13 @@ const IndustryScenarioPage: React.FC = () => {
   const layers = LAYER_DATA[scenario.id] || DEFAULT_LAYERS;
 
   return (
-    <div style={{ padding: isMobile ? 12 : 24 }}>
+    <div
+      style={{
+        padding: isMobile ? 12 : 24,
+        minHeight: '100%',
+        background: '#f3f5f8',
+      }}
+    >
       <Breadcrumb
         items={[
           { title: <a onClick={() => navigate('/industry')}>{t('industry.industryScenarios')}</a> },
@@ -176,8 +182,19 @@ const IndustryScenarioPage: React.FC = () => {
         style={{ marginBottom: 16 }}
       />
 
-      <Card style={{ marginBottom: 24 }}>
+      <Card
+        style={{
+          marginBottom: 24,
+          borderRadius: 12,
+          boxShadow: '0 12px 32px rgba(15, 23, 42, 0.06)',
+        }}
+        bordered={false}
+      >
         <Space direction="vertical" size={8} style={{ width: '100%' }}>
+          <Space wrap>
+            <Tag color="blue">行业服务 / 场景详情</Tag>
+            <Tag color="purple">第七代入口收敛版</Tag>
+          </Space>
           <Space>
             <span style={{ fontSize: 32 }}>{scenario.icon}</span>
             <Title level={3} style={{ margin: 0 }}>{td(scenario.name)}</Title>
@@ -188,6 +205,12 @@ const IndustryScenarioPage: React.FC = () => {
               <Tag key={cap} color="blue">{td(cap)}</Tag>
             ))}
           </Space>
+          <Alert
+            type="info"
+            showIcon
+            message="第一阶段说明"
+            description="当前页面已向第七代结构收敛：场景模板仍从现有行业接口读取，但主要动作入口会优先导向新的算法开发路由。"
+          />
         </Space>
       </Card>
 
@@ -209,7 +232,7 @@ const IndustryScenarioPage: React.FC = () => {
                         key={category}
                         title={<span><ExperimentOutlined /> {td(category)}</span>}
                         size="small"
-                        style={{ marginBottom: 16 }}
+                        style={{ marginBottom: 16, borderRadius: 12 }}
                       >
                         <Row gutter={[12, 12]}>
                           {tpls.map((tpl) => (
@@ -217,6 +240,13 @@ const IndustryScenarioPage: React.FC = () => {
                               <Card
                                 size="small"
                                 hoverable
+                                bordered={false}
+                                style={{
+                                  cursor: 'pointer',
+                                  borderRadius: 10,
+                                  background: '#fafcff',
+                                  boxShadow: '0 8px 20px rgba(15, 23, 42, 0.05)',
+                                }}
                                 title={
                                   <span
                                     style={{ cursor: 'pointer' }}
@@ -228,12 +258,11 @@ const IndustryScenarioPage: React.FC = () => {
                                 extra={
                                   tpl.default_workflows?.length ? (
                                     <Tag color="green">
-                                      <BranchesOutlined /> {tpl.default_workflows.length} 模板
+                                      <BranchesOutlined /> {tpl.default_workflows.length} 工作流模板
                                     </Tag>
                                   ) : null
                                 }
                                 onClick={() => navigate(`/algorithm-solutions?template=${encodeURIComponent(tpl.id)}`)}
-                                style={{ cursor: 'pointer' }}
                               >
                                 <Text type="secondary" style={{ fontSize: 12 }}>
                                   {td(tpl.description) || t('industry.noDescription')}
@@ -260,16 +289,28 @@ const IndustryScenarioPage: React.FC = () => {
                                     size="small"
                                     type="primary"
                                     icon={<RocketOutlined />}
-                                    onClick={() => navigate(`/workflow/editor?template=${encodeURIComponent(tpl.id)}`)}
+                                    onClick={() =>
+                                      navigate(
+                                        `/algorithm-dev/workflow-editor?template=${encodeURIComponent(tpl.id)}&scenario=${encodeURIComponent(
+                                          scenario.id,
+                                        )}`,
+                                      )
+                                    }
                                   >
-                                    {t('industry.useTemplate')}
+                                    进入工作流编排
                                   </Button>
                                   <Button
                                     size="small"
-                                    icon={<PlayCircleOutlined />}
-                                    onClick={() => navigate(`/functions?q=${encodeURIComponent(tpl.name)}&execute=true`)}
+                                    icon={<ApartmentOutlined />}
+                                    onClick={() =>
+                                      navigate(
+                                        `/algorithm-dev/management?scenario=${encodeURIComponent(scenario.id)}&template=${encodeURIComponent(
+                                          tpl.id,
+                                        )}`,
+                                      )
+                                    }
                                   >
-                                    {t('industry.executeAlone')}
+                                    查看算法管理
                                   </Button>
                                   {/* @AI_GENERATED */}
                                   {(tpl.id === 'load_forecast' || tpl.name.includes('负荷预测')) && (
@@ -278,9 +319,15 @@ const IndustryScenarioPage: React.FC = () => {
                                       type="primary"
                                       ghost
                                       icon={<ExperimentOutlined />}
-                                      onClick={() => navigate('/workflow/editor/workflow-load-forecast-training-v2')}
+                                      onClick={() =>
+                                        navigate(
+                                          `/algorithm-dev/autoresearch?challenger=${encodeURIComponent(
+                                            'workflow-load-forecast-training-v2',
+                                          )}`,
+                                        )
+                                      }
                                     >
-                                      {t('industry.triggerTraining')}
+                                      自动化回测
                                     </Button>
                                   )}
                                   {/* @AI_GENERATED: end */}
@@ -316,11 +363,13 @@ const IndustryScenarioPage: React.FC = () => {
                     <Card
                       title={<Tag color={l.color}>{td(l.layer)}</Tag>}
                       size="small"
+                      bordered={false}
+                      style={{ borderRadius: 12 }}
                       extra={
                         <Button
                           type="link"
                           size="small"
-                          onClick={() => navigate(`/functions?layer=${encodeURIComponent(l.layer)}`)}
+                          onClick={() => navigate(`/algorithm-dev/operators?layer=${encodeURIComponent(l.layer)}`)}
                         >
                           {t('industry.viewMore')}
                         </Button>
@@ -330,7 +379,7 @@ const IndustryScenarioPage: React.FC = () => {
                         <Tag
                           key={m}
                           style={{ marginBottom: 4, cursor: 'pointer' }}
-                          onClick={() => navigate(`/functions?q=${encodeURIComponent(m)}`)}
+                          onClick={() => navigate(`/algorithm-dev/operators?q=${encodeURIComponent(m)}`)}
                         >
                           {td(m)}
                         </Tag>

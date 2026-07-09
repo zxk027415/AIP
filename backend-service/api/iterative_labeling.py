@@ -58,6 +58,85 @@ from services.iterative_labeling.storage.file_backend import (
 router = APIRouter(prefix="/api/iterative-labeling", tags=["iterative-labeling"])
 logger = logging.getLogger(__name__)
 
+# ============================================================================
+# 路径解析工具：所有文件路径统一相对项目根目录解析
+# ============================================================================
+
+import os as _os
+
+# 项目根目录（backend-service 的父目录）
+# __file__ = backend-service/api/iterative_labeling.py
+# dirname x3 → AIP/ (项目根)
+_PROJECT_ROOT = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+
+
+# 兼容旧中文路径：老 session 里可能存了 '相关数据'（现在目录名是 'relate_data'）
+_LEGACY_PATH_ALIASES = {
+    '/相关数据/': '/relate_data/',
+    '\\相关数据\\': '\\relate_data\\',
+}
+
+
+def _apply_legacy_alias(path: str) -> str:
+    """把老 session 里的中文目录名替换为当前实际目录名。"""
+    if not path:
+        return path
+    for old, new in _LEGACY_PATH_ALIASES.items():
+        if old in path:
+            return path.replace(old, new)
+    return path
+
+
+def _resolve_data_path(path: str) -> str:
+    """
+    将前端传入的文件路径解析为可访问的绝对路径。
+
+    路径约定（跨环境安全）：
+      - 相对路径：相对于项目根 AIP/ 解析（如 `fault-diag-algo-release-3.1/xxx.parquet`）
+      - `../` 前缀相对路径：相对于 backend-service/ 解析（如 `../fault-diag-algo-release-3.1/xxx.parquet`）
+        —— 这是 load_csv 算子历史约定：工作流里 file_path 相对 CWD=backend-service
+      - 绝对路径：优先直接使用；失效时尝试提取相对部分回退到项目根
+
+    修复：老 session 可能存了 `../fault-diag-algo-release-3.1/...`，
+    这里统一映射到 _PROJECT_ROOT 下的对应文件。
+    """
+    if not path:
+        return path
+
+    # 兼容旧中文目录名：'相关数据' → 'relate_data'
+    path = _apply_legacy_alias(path)
+
+    # 1. 相对路径：分两类处理
+    if not _os.path.isabs(path):
+        # 1a. `../` 前缀 → 相对 backend-service（load_csv 算子约定）
+        if path.startswith('../') or path.startswith('..\\'):
+            # backend-service = AIP/backend-service, 其父目录就是 _PROJECT_ROOT (AIP/)
+            # 所以 ../fault-diag-algo-release-3.1/x == AIP/fault-diag-algo-release-3.1/x
+            # 直接去掉 `../` 前缀，接到 _PROJECT_ROOT 后
+            stripped = path[3:] if path.startswith('../') else path[3:]
+            candidate = _os.path.join(_PROJECT_ROOT, stripped)
+            if _os.path.exists(candidate):
+                return candidate
+            # 兜底：还是按原样拼接（供其他 backend-service/xxx 场景）
+            backend_dir = _os.path.join(_PROJECT_ROOT, 'backend-service')
+            return _os.path.normpath(_os.path.join(backend_dir, path))
+        # 1b. 普通相对路径 → 相对项目根 AIP/
+        return _os.path.join(_PROJECT_ROOT, path)
+
+    # 2. 绝对路径：优先直接使用
+    if _os.path.exists(path):
+        return path
+
+    # 3. 绝对路径但不存在（部署到新机器路径失效）：尝试提取相对部分回退到项目根
+    for marker in ('backend-service/', 'fault-diag-algo-release', 'data/'):
+        idx = path.find(marker)
+        if idx != -1:
+            relative = path[idx:]
+            candidate = _os.path.join(_PROJECT_ROOT, relative)
+            if _os.path.exists(candidate):
+                return candidate
+    return path
+
 
 # ============================================================================
 # Pydantic 模型定义（请求/响应体）
@@ -618,7 +697,7 @@ async def backfill_to_dataset(review_id: str, request: BackfillToDatasetRequest)
         result = bf.backfill_to_raw_dataset(
             review_id=review_id,
             merge_base=request.merge_base if request.merge_base is not None else True,
-            base_csv_path=request.base_csv_path
+            base_csv_path=_resolve_data_path(request.base_csv_path) if request.base_csv_path else None
         )
         return BackfillToDatasetResponse(**result)
     except KeyError:
@@ -636,7 +715,7 @@ async def data_preview(file_path: str, rows: int = 20):
     读取 CSV/Parquet 文件前 N 行用于前端数据预览
 
     参数：
-    - file_path: 文件绝对路径
+    - file_path: 文件路径（相对于项目根目录，或绝对路径兼容旧调用）
     - rows: 返回行数,默认 20
 
     返回：{columns: [列名], rows: [{col:val}]}
@@ -644,13 +723,14 @@ async def data_preview(file_path: str, rows: int = 20):
     try:
         import pandas as pd
         import os
-        if not os.path.exists(file_path):
+        resolved = _resolve_data_path(file_path)
+        if not os.path.exists(resolved):
             raise HTTPException(status_code=404, detail=f"文件不存在: {file_path}")
-        ext = os.path.splitext(file_path)[1].lower()
+        ext = os.path.splitext(resolved)[1].lower()
         if ext == '.parquet':
-            df = pd.read_parquet(file_path).head(rows)
+            df = pd.read_parquet(resolved).head(rows)
         else:
-            df = pd.read_csv(file_path, nrows=rows)
+            df = pd.read_csv(resolved, nrows=rows)
         # 转 datetime 为字符串
         for col in df.select_dtypes(include=['datetime64']).columns:
             df[col] = df[col].astype(str)
@@ -691,7 +771,11 @@ async def get_reference_waveforms(
         from services.operator_backends import load_csv as load_csv_op
         from services.operator_backends import time_window_split as tws_op
 
-        cache_key = f"{train_csv_path}|{label_csv_path or ''}"
+        # 解析相对路径
+        resolved_train = _resolve_data_path(train_csv_path)
+        resolved_label = _resolve_data_path(label_csv_path) if label_csv_path else None
+
+        cache_key = f"{resolved_train}|{resolved_label or ''}"
         if cache_key in _reference_waveform_cache:
             cats = _reference_waveform_cache[cache_key]
             registry = _label_registry_service.get_current()
@@ -706,14 +790,14 @@ async def get_reference_waveforms(
             return {'categories': result}
 
         # 加载训练数据
-        df = load_csv_op.execute({'file_path': train_csv_path}, {}).get('data')
+        df = load_csv_op.execute({'file_path': resolved_train}, {}).get('data')
         if df is None or len(df) == 0:
             return {'categories': []}
 
         # 两文件模式:需要 merge_label
-        if label_csv_path and 'label' not in df.columns:
+        if resolved_label and 'label' not in df.columns:
             from services.operator_backends import merge_label as ml_op
-            lbl = load_csv_op.execute({'file_path': label_csv_path}, {}).get('data')
+            lbl = load_csv_op.execute({'file_path': resolved_label}, {}).get('data')
             if lbl is not None:
                 merged = ml_op.execute(
                     {'id_fields': ['site_id', 'device_id', 'branch_id'], 'time_field': 'time',
@@ -827,6 +911,8 @@ async def get_unit_timeseries(review_id: str, unit_key: str):
         source_csv_path = ctx.get('source_csv_path')
         if not source_csv_path:
             raise HTTPException(status_code=422, detail="会话缺少原始 CSV 路径，无法展示波形")
+        # 解析相对路径
+        source_csv_path = _resolve_data_path(source_csv_path)
         load_config = ctx.get('load_config') or {}
         window_config = ctx.get('window_config') or {}
 

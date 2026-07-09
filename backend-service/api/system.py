@@ -12,6 +12,12 @@ from pydantic import BaseModel
 from typing import Optional
 import os
 
+# @AI_GENERATED
+# 数据库连通性验证器 — 用于 GET /api/system/db-health 端点
+# 依赖：services/db/connectivity_validator.py（任务 12.1 已实现，返回结构化 ValidationResult）
+from services.db.connectivity_validator import DBConnectivityValidator
+# @AI_GENERATED: end
+
 # 尝试导入psutil，如果失败则使用模拟数据
 try:
     import psutil
@@ -278,3 +284,44 @@ async def get_all_service_status(db: Session = Depends(get_db)):
         return {
             "error": f"查询服务状态失败: {str(e)}"
         }
+
+
+# @AI_GENERATED
+@router.get("/db-health", summary="数据库连通性健康检查")
+async def get_db_health():
+    """
+    数据库连通性健康检查（GET /api/system/db-health）— 供前端"系统健康"面板与
+    运维探针（human-readable + machine-readable）消费。
+
+    行为矩阵：
+      - ``DB_ENABLED=false``            → 200 + ``status='skipped'``（跳过连接验证）
+      - 必需环境变量缺失               → 200 + ``status='config_error'``，
+                                          附 ``missing_vars`` 列表（如 ``["DB_CONNECTION_URL"]``）
+      - 连接失败                       → 200 + ``status='unhealthy'``，
+                                          ``error_type`` ∈ {``connection_timeout``,
+                                          ``auth_failure``, ``database_not_found``, ``unknown``}
+      - 连接成功                       → 200 + ``status='healthy'``，
+                                          附 ``latency_ms``（探测耗时，毫秒）与
+                                          ``connection_url_masked``（密码脱敏后的连接串）
+
+    重要约定：
+      - 本端点**不抛出异常**：所有失败均被 ``DBConnectivityValidator`` 内部分类为
+        ValidationResult；上层健康探针应基于响应体 ``status`` 字段决策，**不要**
+        依赖 HTTP 状态码判断数据库是否可用。
+      - 与主入口 ``main.py`` 的启动阶段致命校验解耦：本端点是"运行时探针"，
+        启动阶段的强制报错由 ``validate_at_startup(fatal_on_missing_vars=True)`` 负责。
+
+    响应字段（``ValidationResult.to_dict()``）：
+      - ``status`` — 状态：healthy / unhealthy / config_error / skipped
+      - ``error_type`` — 错误类型枚举，成功或跳过时为 None
+      - ``message`` — 面向 UI/日志的中文可读消息
+      - ``missing_vars`` — 缺失的必需环境变量名列表（仅 config_error 时非空）
+      - ``latency_ms`` — SELECT 1 探测耗时（毫秒），仅 healthy 时填充
+      - ``engine`` — 数据库引擎（如 "mysql"），非 config_error 时填充
+      - ``connection_url_masked`` — 已脱敏（密码替换为 ``***``）的连接串
+
+    Requirements: 8.4, 8.5, 8.6
+    """
+    result = DBConnectivityValidator().validate_config()
+    return result.to_dict()
+# @AI_GENERATED: end

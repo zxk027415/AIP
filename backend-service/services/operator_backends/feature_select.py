@@ -219,6 +219,15 @@ def execute(params: dict, inputs: dict) -> dict:
 
     if extra_dfs and isinstance(data, pd.DataFrame):
         # Merge extra feature matrices on shared index (id_fields columns or default RangeIndex)
+        # First: reset named MultiIndex on any extra frame so id_fields become columns
+        for i, extra in enumerate(extra_dfs):
+            if extra.index.names and any(n is not None for n in extra.index.names):
+                extra_dfs[i] = extra.reset_index()
+
+        # Also reset on data if it has a named index
+        if data.index.names and any(n is not None for n in data.index.names):
+            data = data.reset_index()
+
         for extra in extra_dfs:
             try:
                 if data.index.equals(extra.index):
@@ -227,7 +236,7 @@ def execute(params: dict, inputs: dict) -> dict:
                     if new_cols:
                         data = pd.concat([data, extra[new_cols]], axis=1)
                 else:
-                    # Try merge on common columns (id fields)
+                    # Try merge on common non-numeric columns (id fields)
                     common_cols = [c for c in extra.columns if c in data.columns and not pd.api.types.is_numeric_dtype(data[c])]
                     if common_cols:
                         new_cols = [c for c in extra.columns if c not in data.columns]
@@ -294,23 +303,38 @@ def execute(params: dict, inputs: dict) -> dict:
         if not feature_list or (isinstance(feature_list, list) and len(feature_list) == 1
                                 and str(feature_list[0]).strip().lower() == "latest"):
             import os as _os, pickle as _pickle
-            _models_dir = _os.path.join(
-                _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
-                "data", "models"
-            )
-            pkls = sorted([f for f in _os.listdir(_models_dir) if f.endswith(".pkl")],
-                          reverse=True) if _os.path.isdir(_models_dir) else []
-            if pkls:
-                with open(_os.path.join(_models_dir, pkls[0]), "rb") as _f:
+            # 优先使用 model_path 参数
+            _model_path = params.get("model_path") or ""
+            if _model_path and _model_path.strip():
+                _model_path = _model_path.strip()
+                if not _os.path.exists(_model_path):
+                    raise OperatorExecutionError(
+                        OPERATOR_ID, "ParameterError",
+                        f"指定的模型路径不存在: {_model_path}"
+                    )
+                with open(_model_path, "rb") as _f:
                     _payload = _pickle.load(_f)
                 feature_list = _payload.get("feature_list", [])
-                logger.info(f"[{OPERATOR_ID}] 'latest' feature_list loaded from {pkls[0]}: "
+                logger.info(f"[{OPERATOR_ID}] feature_list loaded from explicit path: "
                             f"{len(feature_list)} features")
             else:
-                raise OperatorExecutionError(
-                    OPERATOR_ID, "ParameterError",
-                    "feature_list='latest' but no saved models found. Run training first."
+                _models_dir = _os.path.join(
+                    _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
+                    "data", "models"
                 )
+                pkls = sorted([f for f in _os.listdir(_models_dir) if f.endswith(".pkl")],
+                              reverse=True) if _os.path.isdir(_models_dir) else []
+                if pkls:
+                    with open(_os.path.join(_models_dir, pkls[0]), "rb") as _f:
+                        _payload = _pickle.load(_f)
+                    feature_list = _payload.get("feature_list", [])
+                    logger.info(f"[{OPERATOR_ID}] 'latest' feature_list loaded from {pkls[0]}: "
+                                f"{len(feature_list)} features")
+                else:
+                    raise OperatorExecutionError(
+                        OPERATOR_ID, "ParameterError",
+                        "feature_list='latest' but no saved models found. Run training first."
+                    )
         if not feature_list:
             raise OperatorExecutionError(
                 OPERATOR_ID, "ParameterError",

@@ -40,6 +40,12 @@ bayesian-optimization>=1.4.3
 optuna>=3.5.0
 chinese-calendar>=1.9.0
 
+# 时序建模 / 检验（依赖 arima / prophet / stationarity_test / ts_comparison_features 算子）
+statsmodels>=0.14.0
+prophet>=1.1.5
+tslearn>=0.6.3
+openpyxl>=3.1.0  # export_excel 算子
+
 # 数据库
 SQLAlchemy==2.0.25
 greenlet==3.2.4
@@ -54,6 +60,9 @@ pyasn1==0.6.2
 rsa==4.9.1
 cffi==2.0.0
 pycparser==2.23
+
+# 调度
+apscheduler>=3.10.0
 
 # 工具库
 python-multipart==0.0.6

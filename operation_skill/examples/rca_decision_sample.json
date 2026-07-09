@@ -1,0 +1,29 @@
+{
+  "_comment": "@AI_GENERATED",
+  "rca": {
+    "analyzer": "kiro_llm",
+    "root_cause": "D-1 整天负荷数据丢失导致 lag_1d(→D-1) 全 NaN，模型失去最关键的量级锚点，精度跌 26.31pp",
+    "confidence": 0.94,
+    "reasoning": "1) D-1 全天 96 点缺失 → lag_1d 完全失效; 2) lag 组重要性 0.451 排名第一，是模型命门; 3) 精度跌幅 26.31pp 与 lag 失效的预期影响一致; 4) 前几天基线稳定 97-98%，排除渐进退化; 5) 气象数据正常，排除外部因素",
+    "supporting_evidence": [
+      "D-1 全天 96 点 load = NaN",
+      "lag 组重要性 0.451，排名第一",
+      "精度跌幅 26.31pp，级联影响 rolling 短窗",
+      "基线前3天稳定 97-98%，非渐进退化",
+      "气象数据完整且无异常"
+    ],
+    "checked_items": [
+      "原始负荷完整性: D-1 全天缺失",
+      "缺失时间范围: D-1 00:00 ~ D 00:00 共96点",
+      "级联特征影响: lag_1d 全 NaN, rolling 短窗被污染",
+      "气象数据: 正常无异常",
+      "模型状态: 前3天稳定，非模型衰退"
+    ],
+    "undetermined": false
+  },
+  "strategy": {
+    "selected_strategy_id": "pred_fill_dm1",
+    "decision_reasoning": "pred_fill_dm1 实测精度 91.54% 优于 extra_gap 的 89.31%（高 2.23pp）。D-1 是 gap 一天模式下 lag_1d 的直接锚点，预测回填能保住该位置的近期量级信息；基线对 D-1 的预测精度 97%+，代理误差可控。"
+  },
+  "_comment_end": "@AI_GENERATED: end"
+}

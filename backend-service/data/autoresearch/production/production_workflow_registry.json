@@ -1,0 +1,10 @@
+{
+  "slots": {
+    "default": {
+      "workflow_id": "workflow-load-forecast-backtest-v2",
+      "updated_at": "2026-06-18T18:18:48.643860",
+      "note": "promote:cand-ddc75028b875",
+      "source_candidate_id": "cand-ddc75028b875"
+    }
+  }
+}

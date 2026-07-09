@@ -1,0 +1,5 @@
+[Worker] 启动，PID=10282，模式=loop
+[Worker] Job DB: /Users/zxk/Desktop/project/AIP/backend-service/data/autoresearch/jobs.sqlite
+
+[Worker] 收到信号 15，准备退出...
+[Worker] 退出

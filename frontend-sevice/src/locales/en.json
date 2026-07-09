@@ -242,7 +242,12 @@
     "foundFunction": "Found function: {{name}}",
     "notFound": "No function matching \"{{keyword}}\" found",
     "knowledgeGraph": "Knowledge Graph",
-    "allLayers": "All"
+    "allLayers": "All",
+    "badgeReady": "Ready",
+    "badgeDefinitionOnly": "Definition Only",
+    "filterAll": "All",
+    "filterReady": "Ready Only",
+    "filterDefinitionOnly": "Definition Only"
   },
   "operatorDesc": {
     "load_csv": "Load time-series data from CSV/Excel files. Supports specifying timestamp column, value columns, encoding, and filtering by parent/child node IDs.",
@@ -737,8 +742,24 @@
     "updatedAt": "Updated:",
     "confirmDelete": "Confirm Delete",
     "confirmDeleteMsg": "Are you sure you want to delete template \"{{name}}\"?",
+    "confirmDeleteMessage": "Are you sure you want to delete template",
     "irreversible": "This action cannot be undone.",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "createBlank": "Create Blank Workflow",
+    "createFromTemplate": "Create from Template",
+    "createFromTemplateTitle": "Create Workflow from Template",
+    "createFromTemplateSuccess": "Workflow created from template",
+    "createFromTemplateFailed": "Failed to create workflow from template",
+    "selectTemplate": "Select Source Template",
+    "selectTemplatePlaceholder": "Please select a source template",
+    "templateRequired": "Please select a source template",
+    "newWorkflowName": "New Workflow Name",
+    "newWorkflowNamePlaceholder": "Enter a new name (must differ from the template)",
+    "nameRequired": "Please enter a workflow name",
+    "nameConflict": "Please enter a name different from the template",
+    "templateNotFound": "Source template does not exist"
   },
   "solutionLibrary": {
     "title": "Algorithm Solution Library",
@@ -2952,7 +2973,9 @@
     "newConversation": "New Chat",
     "accuracyChange": "Accuracy Change",
     "actions": "Actions",
-    "deploy": "Deploy"
+    "deploy": "Deploy",
+    "goToDeployment": "Go to Algorithm Deployment",
+    "deploymentRedirectHint": "Need to switch production/shadow models, schedule pipelines, or trigger retraining? Please use the Algorithm Deployment page."
   },
   "agentSkillStatus": {
     "title": "Agent & Skill Development Status",

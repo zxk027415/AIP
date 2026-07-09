@@ -300,6 +300,69 @@ class KnowledgeLayer:
         filename = self._filename(claim)
         path = os.path.join(self.root_dir, subdir, filename)
         self._atomic_write(path, claim.to_dict())
+        # @AI_GENERATED: Phase 1 双写 — 写完 JSON 后同步 upsert 到 MySQL knowledge_claim 表
+        self._dual_write_claim_to_db(claim, filename)
+        # @AI_GENERATED: end
+
+    # @AI_GENERATED: Phase 1 双写 — knowledge_claim 表 upsert
+    def _dual_write_claim_to_db(self, claim: KnowledgeClaim, filename: str) -> None:
+        """把 KnowledgeClaim 同步 upsert 到 MySQL knowledge_claim 表。
+
+        字段映射：
+          - id                    ← filename 去 .json 后缀（复用文件名 hash，跟 JSON 保持一致）
+          - slot                  ← condition.slot / baseline_workflow_id / "default" 兜底
+          - scenario_fingerprint  ← claim.scenario_condition_hash
+          - claim_type            ← claim.knowledge_type
+          - claim_data            ← claim.to_dict() 整体
+          - confidence            ← claim.confidence
+          - source_run_id         ← claim.evidence[0]（第一条证据的 run_id）
+          - decayed_at            ← status='stale' 时设置为当前时间，否则 None
+
+        失败降级：只 warning 不抛，保证 JSON 写入成功后主流程继续。
+        """
+        try:
+            from services.db.repositories import get_autoresearch_repo, is_dual_write_enabled
+            if not is_dual_write_enabled():
+                return
+            repo = get_autoresearch_repo()
+            if repo is None:
+                return
+
+            claim_dict = claim.to_dict()
+            condition = claim.condition or {}
+            slot = (
+                condition.get("slot")
+                or condition.get("baseline_workflow_id")
+                or "default"
+            )
+            source_run_id = None
+            if claim.evidence:
+                source_run_id = str(claim.evidence[0])[:64]
+
+            decayed_at = None
+            if str(claim.status).lower() == "stale":
+                decayed_at = datetime.utcnow()
+
+            repo.upsert_claim({
+                "id": filename[:-5] if filename.endswith(".json") else filename,
+                "slot": str(slot)[:64],
+                "scenario_fingerprint": (claim.scenario_condition_hash or "")[:256],
+                "claim_type": str(claim.knowledge_type)[:64],
+                "claim_data": claim_dict,
+                "confidence": float(claim.confidence or 0.0),
+                "source_run_id": source_run_id,
+                "decayed_at": decayed_at,
+            })
+        except Exception as exc:
+            # 只 warning 不 raise —— DB 写入失败不能阻塞 JSON 写入路径
+            try:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "KnowledgeLayer dual-write to knowledge_claim failed (non-fatal): %s", exc
+                )
+            except Exception:
+                pass
+    # @AI_GENERATED: end
 
     def _claim_from_insight(
         self,

@@ -1,0 +1,23 @@
+[
+  {
+    "id": "prelaunch-worker-sim-roll",
+    "candidate_id": "sim-rolling-forecast-001",
+    "workflow_id": "xgboost-500-extended",
+    "version_tag": "prelaunch-xgb500-ext",
+    "slot": "default",
+    "status": "graduated",
+    "started_at": "2026-04-01T00:00:00",
+    "observation_days": 7,
+    "graduate_tolerance_pct": 5.0,
+    "source_run_id": null,
+    "baseline_mape_at_entry": null,
+    "current_rolling_mape": 1.3139,
+    "production_rolling_mape": 1.2787,
+    "evaluated_cycles": 7,
+    "graduated_at": "2026-06-24T02:37:33.997050+00:00",
+    "failed_at": null,
+    "cancelled_at": null,
+    "note": "定时滚动预测: 每 15.0s 推进一天, 共 7 天",
+    "graduate_reason": "auto: 7d 观察完成, prelaunch_mape=1.3139% ≤ threshold=1.3426%"
+  }
+]

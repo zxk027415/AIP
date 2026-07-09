@@ -1,0 +1,6 @@
+{
+  "workflow_id": "workflow-load-forecast-backtest-v3",
+  "version_tag": "v1.0-initial",
+  "updated_at": "2026-07-07T11:15:00.002716",
+  "source_event_id": "sync-evt-2026-07-07"
+}

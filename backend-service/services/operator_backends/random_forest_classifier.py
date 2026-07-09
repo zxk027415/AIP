@@ -52,11 +52,27 @@ def _save_model(clf, feature_list: list, metrics: dict = None) -> str:
     return model_id
 
 
-def _load_model(model_id: str):
+def _load_model(model_id: str, model_path: str = ""):
     """从磁盘加载模型，返回 (clf, feature_list)。
 
-    特殊值 "latest" 自动加载最新保存的模型。
+    优先级：
+      1. model_path 非空 → 直接加载该路径的 pkl 文件
+      2. model_id == "latest" → 自动加载 data/models/ 下最新的模型
+      3. model_id 为具体 ID → 加载 data/models/{model_id}.pkl
     """
+    # 优先使用显式路径
+    if model_path and model_path.strip():
+        path = model_path.strip()
+        if not os.path.exists(path):
+            raise OperatorExecutionError(
+                OPERATOR_ID, "FileNotFoundError",
+                f"指定的模型路径不存在: {path}"
+            )
+        with open(path, "rb") as f:
+            payload = pickle.load(f)
+        logger.info(f"[{OPERATOR_ID}] Model loaded from explicit path: {path}")
+        return payload["model"], payload.get("feature_list", [])
+
     _ensure_models_dir()
     if model_id.strip().lower() == "latest":
         pkls = sorted(
@@ -160,6 +176,7 @@ def execute(params: dict, inputs: dict) -> dict:
 
     save_model_flag = str(params.get("save_model", "true")).lower() not in ("false", "0", "no")
     model_id_param = params.get("model_id") or ""
+    model_path_param = params.get("model_path") or ""
 
     # ── 训练模式 ──────────────────────────────────────────────────────────────
     if mode == "train":
@@ -266,8 +283,8 @@ def execute(params: dict, inputs: dict) -> dict:
 
         # 优先从 model_id 加载（跨流水线持久化场景）
         resolved_model_id = model_id_param
-        if model is None and model_id_param:
-            model, loaded_feature_list = _load_model(model_id_param)
+        if model is None and (model_id_param or model_path_param):
+            model, loaded_feature_list = _load_model(model_id_param or "latest", model_path_param)
             # _load_model 内部会 resolve "latest" 为实际 ID
             if model_id_param.strip().lower() == "latest":
                 _ensure_models_dir()

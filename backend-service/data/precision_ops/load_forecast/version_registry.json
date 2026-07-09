@@ -1,0 +1,36 @@
+{
+  "slot": "load_forecast",
+  "versions": [
+    {
+      "workflow_id": "workflow-20260511-optimal-505",
+      "version_tag": "optimal-505-production",
+      "status": "production",
+      "slot": "load_forecast",
+      "baseline_mape": 5.6616,
+      "source_run_id": null,
+      "source_candidate_id": null,
+      "registered_at": "2026-07-09T09:37:35.115308+00:00"
+    },
+    {
+      "workflow_id": "workflow-20260511-optimal-505",
+      "version_tag": "shadow-run43-mape4109",
+      "status": "shadow",
+      "slot": "load_forecast",
+      "baseline_mape": 4.1093,
+      "source_run_id": "AutoResearch第43轮",
+      "source_candidate_id": "cand-3647f99d2f77",
+      "registered_at": "2026-07-09T09:37:35.115308+00:00"
+    },
+    {
+      "workflow_id": "workflow-20260511-optimal-505",
+      "version_tag": "shadow-run7-generic-mape4109",
+      "status": "shadow",
+      "slot": "load_forecast",
+      "baseline_mape": 4.1093,
+      "source_run_id": "AutoResearch第7轮(通用算子版)",
+      "source_candidate_id": "cand-439b04179c12",
+      "registered_at": "2026-07-09T09:37:35.115308+00:00"
+    }
+  ],
+  "max_shadow_versions": 5
+}

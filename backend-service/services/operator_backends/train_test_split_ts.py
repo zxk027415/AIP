@@ -5,6 +5,15 @@ train_test_split_ts operator backend — Splits time series data into train/test
 Maintains time order (no shuffle). Supports split_date (takes priority over ratio).
 Params: train_ratio (default 0.8), val_ratio (default 0.1), split_date (optional).
 Advanced params: time_field, target_column, task_type, forecast_horizon.
+
+新增参数（mode）：
+  - mode = "split"（默认）— 按 train_ratio/split_date 切分，返回 train + test
+  - mode = "all_train"   — 不做任何切分，全部数据当训练集，test_features/test_target 返回空。
+                           生产 cron `lf_daily_rolling` 触发时使用此模式：
+                           训练窗口已由 `compute_training_window` 从外部确定，
+                           无需再在 workflow 内部切分测试集（避免浪费 20% 数据）。
+
+向后兼容：不传 mode 或传 mode="split" 时行为与旧版完全相同。
 """
 import json
 
@@ -58,6 +67,10 @@ def execute(params: dict, inputs: dict) -> dict:
 
     Args:
         params: Operator parameters including:
+            - mode (str, optional): 执行模式。
+                "split"（默认）— 按 train_ratio/split_date 切分训练集和测试集。
+                "all_train"     — 全部数据作为训练集，test_features/test_target 返回空。
+                                  生产 cron 使用：训练窗口由外部 compute_training_window 确定。
             - train_ratio (float, optional): Training set ratio. Default 0.8.
             - val_ratio (float, optional): Validation set ratio. Default 0.1.
             - split_date (str, optional): Date to split on. Takes priority over ratios.
@@ -86,6 +99,10 @@ def execute(params: dict, inputs: dict) -> dict:
             options = {}
     elif not isinstance(options, dict):
         options = {}
+
+    # @AI_GENERATED: mode 参数 — all_train 模式下跳过切分
+    mode = str(params.get("mode") or options.get("mode") or "split").strip().lower()
+    # @AI_GENERATED: end
 
     train_ratio = float(params.get("train_ratio") or options.get("train_ratio") or 0.8)
     val_ratio = float(params.get("val_ratio") or options.get("val_ratio") or 0.1)
@@ -134,6 +151,32 @@ def execute(params: dict, inputs: dict) -> dict:
     if time_field in df.columns:
         df[time_field] = pd.to_datetime(df[time_field], errors="coerce")
         df = df.sort_values(by=time_field).reset_index(drop=True)
+
+    # @AI_GENERATED: mode="all_train" 快速路径 — 全部数据当训练集，不切分测试集
+    if mode == "all_train":
+        import numpy as np
+        train_target_series = pd.to_numeric(df[target_column], errors="coerce")
+        train_target = train_target_series.fillna(0).values.astype(float)
+        exclude_cols = list(DEFAULT_EXCLUDE_FEATURE_COLUMNS)
+        exclude_cols.extend(_parse_column_list(params.get("exclude_feature_columns")))
+        exclude_cols.extend(_parse_column_list(options.get("exclude_feature_columns")))
+        if isinstance(gcfg, dict):
+            exclude_cols.extend(_parse_column_list(gcfg.get("exclude_feature_columns")))
+        exclude_cols = sorted(set(exclude_cols) - {time_field})
+        train_features = df.drop(columns=[target_column])
+        drop_cols = [c for c in exclude_cols if c in train_features.columns]
+        if drop_cols:
+            train_features = train_features.drop(columns=drop_cols)
+        logger.info(
+            f"[{OPERATOR_ID}] mode=all_train: 使用全部 {len(df)} 行作为训练集，test 置空"
+        )
+        return {
+            "train_features": train_features,
+            "train_target": train_target,
+            "test_features": pd.DataFrame(columns=train_features.columns),
+            "test_target": np.array([], dtype=float),
+        }
+    # @AI_GENERATED: end
 
     n = len(df)
 

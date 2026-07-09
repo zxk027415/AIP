@@ -31,9 +31,8 @@ import DatasetPage from './pages/DatasetPage';
 import AlgorithmSolutionLibraryPage from './pages/AlgorithmSolutionLibraryPage';
 import TemplateAccuracyPage from './pages/TemplateAccuracyPage';
 import TemplateApplicationPage from './pages/TemplateApplicationPage';
-import DeploymentTaskPage from './pages/DeploymentTaskPage';
-import ServiceManagementPage from './pages/ServiceManagementPage';
-import ServiceMonitorPage from './pages/ServiceMonitorPage';
+// @AI_GENERATED: algorithm-deployment-refactor 14 — 三个旧部署页 (DeploymentTaskPage/ServiceManagementPage/ServiceMonitorPage) 已被 AlgorithmDeploymentPage 取代，路由改为重定向；不再导入旧页面组件。
+// @AI_GENERATED: end
 import DriftMonitorPage from './pages/DriftMonitorPage';
 import ABTestPage from './pages/ABTestPage';
 import AutoRetrainPage from './pages/AutoRetrainPage';
@@ -63,6 +62,15 @@ import IndustryScenarioPage from './pages/IndustryScenarioPage';
 // @AI_GENERATED: end
 import IterativeLabelingReviewPage from './pages/IterativeLabelingReviewPage';
 import IterativeLabelingListPage from './pages/IterativeLabelingListPage';
+// @AI_GENERATED
+import PrecisionOpsDashboardPage from './pages/PrecisionOpsDashboardPage';
+// @AI_GENERATED: end
+import AlgorithmManagementPage from './pages/AlgorithmManagementPage';
+// @AI_GENERATED: algorithm-deployment-refactor 10.2 — 新算法部署页面（模型管理 / 数据管线 / 定时调度 三个 Tab）
+import AlgorithmDeploymentPage from './pages/AlgorithmDeploymentPage';
+// @AI_GENERATED: end
+// @AI_GENERATED: algorithm-deployment-refactor 14 — DataPipelineManagementPage 已迁入 AlgorithmDeploymentPage → 数据管线 Tab；旧路由 /industry-data/pipelines 走 Navigate 重定向，不再需要直接导入组件。
+// @AI_GENERATED: end
 import MainLayout from './components/MainLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
@@ -149,6 +157,17 @@ function App() {
           <Route path="/workflow/baseline-compare" element={<WorkflowBaselineComparePage />} />
           <Route path="/workflow/list" element={<WorkflowListPage />} />
           <Route path="/templates" element={<TemplateGalleryPage />} />
+
+          {/* 第七代算法开发路由 */}
+          <Route path="/algorithm-dev" element={<Navigate to="/algorithm-dev/management" replace />} />
+          <Route path="/algorithm-dev/management" element={<AlgorithmManagementPage />} />
+          <Route path="/algorithm-dev/workflows" element={<WorkflowListPage />} />
+          <Route path="/algorithm-dev/workflow-editor" element={<WorkflowEditorPage />} />
+          <Route path="/algorithm-dev/workflow-editor/:id" element={<WorkflowEditorPage />} />
+          <Route path="/algorithm-dev/operators" element={<FunctionLibraryPage />} />
+          <Route path="/algorithm-dev/autoresearch" element={<WorkflowBaselineComparePage />} />
+          <Route path="/algorithm-dev/ops" element={<PrecisionOpsDashboardPage />} />
+          <Route path="/algorithm-dev/deployment" element={<AlgorithmDeploymentPage />} />
           
           {/* 模板测试页面 */}
           <Route path="/workflow-reference" element={<WorkflowReferencePage />} />
@@ -159,8 +178,17 @@ function App() {
           <Route path="/workflow-agent/history" element={<WorkflowAgentHistoryPage />} />
           <Route path="/data-sources" element={<DataSourcePage />} />
           <Route path="/datasets" element={<DatasetPage />} />
+          {/* @AI_GENERATED: algorithm-deployment-refactor 10.2 — 旧数据管线入口重定向到算法部署页面的数据管线 Tab（Requirements 1.3） */}
+          <Route
+            path="/industry-data/pipelines"
+            element={<Navigate to="/algorithm-deployment?tab=pipeline" replace />}
+          />
+          {/* @AI_GENERATED: end */}
           <Route path="/iterative-labeling" element={<IterativeLabelingListPage />} />
           <Route path="/iterative-labeling/review" element={<IterativeLabelingReviewPage />} />
+          {/* @AI_GENERATED */}
+          <Route path="/precision-ops" element={<PrecisionOpsDashboardPage />} />
+          {/* @AI_GENERATED: end */}
           <Route path="/algorithm-solutions" element={<AlgorithmSolutionLibraryPage />} />
           <Route path="/algorithm-solutions/accuracy" element={<TemplateAccuracyPage />} />
           <Route path="/algorithm-solutions/applications" element={<TemplateApplicationPage />} />
@@ -170,13 +198,22 @@ function App() {
           <Route path="/backtest/monitor" element={<Navigate to="/backtest/unified/monitor" replace />} />
           <Route path="/backtest/results" element={<Navigate to="/backtest/unified/results" replace />} />
           {/* @AI_GENERATED: end */}
-          <Route path="/deployment" element={<DeploymentTaskPage />} />
-          <Route path="/deployment/services" element={<ServiceManagementPage />} />
-          <Route path="/deployment/monitor" element={<ServiceMonitorPage />} />
+          {/* @AI_GENERATED: algorithm-deployment-refactor 14 — 旧部署入口统一重定向到新算法部署页（Requirements 1.3 语义扩展） */}
+          <Route path="/deployment" element={<Navigate to="/algorithm-deployment" replace />} />
+          <Route path="/deployment/services" element={<Navigate to="/algorithm-deployment" replace />} />
+          <Route path="/deployment/monitor" element={<Navigate to="/algorithm-deployment" replace />} />
+          {/* @AI_GENERATED: end */}
           <Route path="/ops" element={<AlgorithmOpsPage />} />
           <Route path="/ops/drift" element={<DriftMonitorPage />} />
           <Route path="/ops/ab-test" element={<ABTestPage />} />
           <Route path="/ops/retrain" element={<AutoRetrainPage />} />
+          {/* @AI_GENERATED: algorithm-deployment-refactor 10.2 — 算法部署新入口 + 旧调度入口重定向（Requirements 1.3） */}
+          <Route path="/algorithm-deployment" element={<AlgorithmDeploymentPage />} />
+          <Route
+            path="/algorithm-ops/scheduler"
+            element={<Navigate to="/algorithm-deployment?tab=scheduler" replace />}
+          />
+          {/* @AI_GENERATED: end */}
           {/* @AI_GENERATED: Kiro v1.0 */}
           <Route path="/algorithm-agent" element={<AlgorithmAgentPage />} />
           <Route path="/agent-skill-status" element={<AgentSkillStatusPage />} />

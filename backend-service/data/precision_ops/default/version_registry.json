@@ -1,0 +1,36 @@
+{
+  "slot": "default",
+  "versions": [
+    {
+      "workflow_id": "xgboost-200-baseline",
+      "version_tag": "production-xgb200",
+      "status": "shadow",
+      "slot": "default",
+      "baseline_mape": null,
+      "registered_at": "2026-03-25T00:00:00",
+      "source_run_id": null,
+      "source_candidate_id": null
+    },
+    {
+      "workflow_id": "xgboost-500-extended",
+      "version_tag": "prelaunch-xgb500-ext",
+      "status": "shadow",
+      "slot": "default",
+      "baseline_mape": null,
+      "registered_at": "2026-04-01T00:00:00",
+      "source_run_id": null,
+      "source_candidate_id": "sim-rolling-forecast-001"
+    },
+    {
+      "workflow_id": "workflow-load-forecast-backtest-v3",
+      "version_tag": "v1.0-initial",
+      "status": "production",
+      "slot": "default",
+      "baseline_mape": null,
+      "registered_at": "2026-07-07T11:15:00.002716",
+      "source_run_id": null,
+      "source_candidate_id": null
+    }
+  ],
+  "max_shadow_versions": 5
+}

@@ -1,0 +1,78 @@
+<h2>新建算法工作流向导</h2>
+<p class="subtitle">目标是把“场景选择 -> 推荐模板 -> 创建方式 -> 进入编辑器”做清楚，不走营销化流程。</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">向导主流程</div>
+    <div class="mockup-body">
+      <div class="mock-nav">算法开发 / 工作流编排 / 新建算法工作流</div>
+
+      <div style="display:flex; gap:8px; margin:14px 0;">
+        <div class="placeholder" style="flex:1;">1 选择行业场景</div>
+        <div class="placeholder" style="flex:1;">2 选择推荐模板</div>
+        <div class="placeholder" style="flex:1;">3 创建方式</div>
+        <div class="placeholder" style="flex:1;">4 进入编辑器</div>
+      </div>
+
+      <div class="placeholder" style="height:38px; margin-bottom:10px;">顶部说明：先选场景，再决定基于模板创建还是空白创建</div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:12px;">
+        <div class="placeholder" style="height:112px;">负荷预测<br>训练 / 预测 / 回测</div>
+        <div class="placeholder" style="height:112px;">光伏故障诊断<br>quickval / 标注闭环</div>
+        <div class="placeholder" style="height:112px;">储能管理<br>SOC / 调度 / 健康诊断</div>
+      </div>
+
+      <div class="placeholder" style="height:168px; margin-bottom:12px;">
+        推荐模板区<br><br>
+        模板 A：负荷预测训练主线（适用负荷预测）<br>
+        模板 B：负荷预测回测主线（适用回测验证）<br>
+        模板 C：空白起步（从基础算法库拖拽）
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div class="placeholder" style="height:94px;">基于模板创建<br>复制模板，带初始节点与默认参数</div>
+        <div class="placeholder" style="height:94px;">空白创建<br>进入编辑器，自行拖拽算子</div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;">
+        <button class="mock-button">取消</button>
+        <button class="mock-button">上一步</button>
+        <button class="mock-button">下一步</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">交互原则</div>
+    <div class="mockup-body">
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>为什么这样设计</h4>
+          <ul>
+            <li>先锁定行业场景，推荐模板才有意义</li>
+            <li>把“空白创建”保留，但不是主入口</li>
+            <li>模板卡片直接说明适用场景和主用途</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>实现注意</h4>
+          <ul>
+            <li>不要让步骤过多，控制在 3-4 步</li>
+            <li>模板选择和创建方式不要混成一屏的复杂表单</li>
+            <li>进入编辑器后要能带上场景和模板上下文</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>推荐默认行为</h3>
+        <p class="subtitle">有模板就优先基于模板创建；无匹配模板时自动强调空白创建。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:28px;">
+  <h3>下一步</h3>
+  <p class="subtitle">如果这两屏方向成立，下一步就可以把原型规约写入文档，并准备 image2 高保真打磨输入。</p>
+</div>

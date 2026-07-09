@@ -3,7 +3,17 @@ AutoResearch runtime self-heal rules.
 
 These rules patch only the in-memory runtime_patch of a run. They do not write
 back workflow templates.
+
+设计约定（Strategy C：训练窗口天数走"手动运营决策"）：
+  - `train_days` 属于**结构参数**（改动语义大、影响 baseline 缓存、跨 run 可比性），
+    不自动进入 search_space，即便 plateau 也不自动扩展。
+  - 若 plateau 检测触发，只在 `state["latest_suggestions"]` 里追加一条
+    「建议尝试探索 train_days」的建议，供前端展示，用户可决定是否手动
+    在 AutoResearch 启动 UI 上勾选「探索训练窗口天数」重新开始 run。
+  - 相关字段：`slot.training_window_days`（部署侧）由人工在算法部署页面调，
+    Promote 不自动改。
 """
+# @AI_GENERATED
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -13,6 +23,29 @@ def _safe_int(value: Any, default: int) -> int:
         return int(value)
     except Exception:
         return default
+
+
+def _append_suggestion(state: Dict[str, Any], suggestion: Dict[str, Any]) -> None:
+    """
+    向 state["latest_suggestions"] 追加一条建议记录（去重 by suggestion["key"]）。
+
+    建议记录仅供前端展示，绝不影响 runtime_patch / search_space。
+    调用方保证 suggestion 含 `key`、`type`、`message` 字段。
+    """
+    suggestions = state.get("latest_suggestions")
+    if not isinstance(suggestions, list):
+        suggestions = []
+    key = suggestion.get("key")
+    if key is not None:
+        # 已存在同 key 的建议 → 更新时间戳，不重复追加
+        for existing in suggestions:
+            if isinstance(existing, dict) and existing.get("key") == key:
+                existing.update(suggestion)
+                state["latest_suggestions"] = suggestions
+                return
+    suggestions.append(suggestion)
+    state["latest_suggestions"] = suggestions
+# @AI_GENERATED: end
 
 
 class AutoResearchSelfHeal:
@@ -76,6 +109,8 @@ class AutoResearchSelfHeal:
                     "message": f"检测到训练数据不足，已下调 train_days/backtest_train_days 到 {td1}/{btd1}",
                 }
 
+        # @AI_GENERATED: Strategy C — plateau 时只扩展 n_trials（模型层参数），
+        # 不再自动扩展 train_days（结构参数，走手动运营决策）；仅追加一条建议。
         success_rows = [c for c in all_candidates if str(c.get("status") or "") == "success"]
         if not action and len(success_rows) >= 3 and not bool(stats.get("plateau_expanded_once")):
             vals: List[float] = []
@@ -86,31 +121,39 @@ class AutoResearchSelfHeal:
                 except Exception:
                     pass
             if len(vals) == 3 and (max(vals) - min(vals)) <= 0.05:
+                # 只扩展 n_trials（属于调参深度，模型层，可自动）
                 trials = search_patch.get("auto_tune_n_trials")
                 base_trials = 8
                 if isinstance(trials, list) and trials:
                     base_trials = _safe_int(trials[-1], 8)
                 expanded_trials = sorted(list(set([3, 5, 8, base_trials, min(16, base_trials + 4), 16])))
                 search_patch["auto_tune_n_trials"] = expanded_trials
-                train_days = search_patch.get("train_days")
-                if not isinstance(train_days, list) or len(train_days) == 0:
-                    train_days = [30, 45, 60]
-                td_vals: List[int] = []
-                for value in train_days:
-                    try:
-                        td_vals.append(int(value))
-                    except Exception:
-                        pass
-                if td_vals:
-                    search_patch["train_days"] = sorted(
-                        list(set(td_vals + [max(21, min(td_vals)), max(td_vals), max(td_vals) + 15]))
-                    )
-                    search_patch["backtest_train_days"] = list(search_patch["train_days"])
+
+                # train_days 不再自动扩展 —— 追加建议给前端展示
+                _append_suggestion(state, {
+                    "key": "plateau_consider_train_days",
+                    "type": "explore_train_days",
+                    "iteration": current_iteration,
+                    "message": (
+                        "连续 3 轮改善进入平台期。当前不自动探索训练窗口天数（train_days）。"
+                        "如需探索，请人工在启动新 AutoResearch run 时勾选「探索训练窗口天数」，"
+                        "或到算法部署页面手动调整 slot 的 training_window_days。"
+                    ),
+                    "current_train_days": (
+                        (state.get("evaluation_contract") or {}).get("train_days")
+                    ),
+                    "suggested_at": applied_at or datetime.now().isoformat(),
+                })
+
                 stats["plateau_expanded_once"] = True
                 action = {
                     "type": "plateau_expand_search",
-                    "message": "连续 3 轮改善进入平台期，已自动扩展搜索空间（n_trials/train_days）",
+                    "message": (
+                        "连续 3 轮改善进入平台期，已自动扩展 n_trials；"
+                        "train_days 属于结构参数不自动改，见 latest_suggestions"
+                    ),
                 }
+        # @AI_GENERATED: end
 
         if not action:
             return None

@@ -242,7 +242,12 @@
     "foundFunction": "已找到函数: {{name}}",
     "notFound": "未找到匹配 \"{{keyword}}\" 的函数",
     "knowledgeGraph": "知识图谱",
-    "allLayers": "全部"
+    "allLayers": "全部",
+    "badgeReady": "可执行",
+    "badgeDefinitionOnly": "仅定义",
+    "filterAll": "全部",
+    "filterReady": "仅可执行",
+    "filterDefinitionOnly": "仅定义"
   },
   "operatorDesc": {
     "load_csv": "从 CSV/Excel 文件加载时序数据。支持指定时间戳列、数值列、编码格式，可按父子节点 ID 过滤数据行。",
@@ -737,8 +742,24 @@
     "updatedAt": "更新时间:",
     "confirmDelete": "确认删除",
     "confirmDeleteMsg": "确定要删除算法模板 \"{{name}}\" 吗？",
+    "confirmDeleteMessage": "确定要删除算法模板",
     "irreversible": "此操作不可恢复。",
-    "unknown": "未知"
+    "unknown": "未知",
+    "cancel": "取消",
+    "confirm": "确认",
+    "createBlank": "创建空白工作流",
+    "createFromTemplate": "从模板创建",
+    "createFromTemplateTitle": "从模板创建新工作流",
+    "createFromTemplateSuccess": "已从模板创建新工作流",
+    "createFromTemplateFailed": "从模板创建工作流失败",
+    "selectTemplate": "选择源模板",
+    "selectTemplatePlaceholder": "请选择一个源模板",
+    "templateRequired": "请选择源模板",
+    "newWorkflowName": "新工作流名称",
+    "newWorkflowNamePlaceholder": "请输入新工作流名称（不能与模板同名）",
+    "nameRequired": "请输入新工作流名称",
+    "nameConflict": "请输入新的工作流名称以区分模板",
+    "templateNotFound": "源模板不存在"
   },
   "solutionLibrary": {
     "title": "算法方案库",
@@ -1605,7 +1626,9 @@
     "newConversation": "新对话",
     "accuracyChange": "精度变化",
     "actions": "操作",
-    "deploy": "部署"
+    "deploy": "部署",
+    "goToDeployment": "前往算法部署",
+    "deploymentRedirectHint": "需要切换生产/影子模型、编排定时调度或触发重训？请前往「算法部署」页面完成。"
   },
   "deployment": {
     "loadFailed": "加载数据失败",

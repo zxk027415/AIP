@@ -1,8 +1,8 @@
 // @AI_GENERATED: Kiro v1.0
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Button, Space, Input, message, Modal, List, Drawer, Descriptions, Tag, Collapse, Typography, Tabs, Spin } from 'antd';
-import { PlayCircleOutlined, SaveOutlined, FolderOpenOutlined, CheckCircleOutlined, CloseCircleOutlined, BarChartOutlined, SettingOutlined, StopOutlined } from '@ant-design/icons';
+import { Layout, Button, Space, Input, message, Modal, List, Drawer, Descriptions, Tag, Collapse, Typography, Tabs, Spin, Dropdown } from 'antd';
+import { PlayCircleOutlined, SaveOutlined, FolderOpenOutlined, CheckCircleOutlined, CloseCircleOutlined, BarChartOutlined, SettingOutlined, StopOutlined, CopyOutlined } from '@ant-design/icons';
 // @AI_GENERATED: end
 import { useWorkflowEditorStore } from '../stores/workflowEditorStore';
 import EnhancedCanvas from '../components/workflow-enhanced/EnhancedCanvas';
@@ -73,6 +73,13 @@ const WorkflowEditorPage: React.FC = () => {
     setExecutionResult,
     loadWorkflow,
     addNode,
+    // @AI_GENERATED
+    // 从模板新建溯源信息 + 空白模式重置动作
+    sourceTemplateId,
+    sourceTemplateName,
+    setSourceTemplateInfo,
+    clearWorkflow,
+    // @AI_GENERATED: end
   } = useWorkflowEditorStore();
 
   const [openModalVisible, setOpenModalVisible] = useState(false);
@@ -178,6 +185,18 @@ const WorkflowEditorPage: React.FC = () => {
   // 路由参数自动加载算法模板（用 ref 防止重复加载）
   const loadedRouteIdRef = React.useRef<string | null>(null);
   useEffect(() => {
+    // @AI_GENERATED
+    // 需求 7.3：无 ID 参数时展示空白画布，不携带已有 ID/节点。
+    // 从"编辑已有"路径切回"/workflow/editor"（无 :id）时，需要清空 store，
+    // 否则 Zustand 会保留上一次编辑的工作流内容。
+    if (!effectiveId) {
+      if (loadedRouteIdRef.current !== null || workflowId) {
+        clearWorkflow();
+        loadedRouteIdRef.current = null;
+      }
+      return;
+    }
+    // @AI_GENERATED: end
     if (effectiveId && effectiveId !== loadedRouteIdRef.current) {
       loadedRouteIdRef.current = effectiveId;
       enhancedWorkflowApi.loadWorkflow(effectiveId).then((wf) => {
@@ -186,6 +205,25 @@ const WorkflowEditorPage: React.FC = () => {
           type: 'enhanced',
         }));
         loadWorkflow(wf.id!, fixedNodes, wf.edges, wf.name, wf.description || '');
+        // @AI_GENERATED
+        // 需求 7.6：记录模板来源，以便在保存前校验"未改名"场景。
+        // - 若工作流带有 source_template_id，则异步拉取模板的当前名称快照，
+        //   如果 workflowName 与模板名一致，保存前会弹窗提示用户改名。
+        const srcTplId = wf.source_template_id || null;
+        if (srcTplId) {
+          setSourceTemplateInfo(srcTplId, null);
+          enhancedWorkflowApi
+            .loadWorkflow(srcTplId)
+            .then((tpl) => {
+              setSourceTemplateInfo(srcTplId, tpl.name || null);
+            })
+            .catch(() => {
+              // 拉取失败不阻塞加载：仅意味着无法执行前置改名校验
+            });
+        } else {
+          setSourceTemplateInfo(null, null);
+        }
+        // @AI_GENERATED: end
         applyBacktestModeIfNeeded(`${wf.id || ''} ${wf.name || ''}`);
         message.success(t('workflow.templateLoaded', { name: td(wf.name) }));
       }).catch(() => {
@@ -193,7 +231,11 @@ const WorkflowEditorPage: React.FC = () => {
         message.error(t('workflow.templateLoadFailed'));
       });
     }
-  }, [effectiveId, loadWorkflow, applyBacktestModeIfNeeded, t]);
+  // @AI_GENERATED
+  // 依赖增加 workflowId/clearWorkflow/setSourceTemplateInfo：
+  // 从 :id 模式回到无 :id 模式时依赖 workflowId 触发清空
+  }, [effectiveId, loadWorkflow, applyBacktestModeIfNeeded, t, workflowId, clearWorkflow, setSourceTemplateInfo]);
+  // @AI_GENERATED: end
   // @AI_GENERATED: end
 
   // 处理节点变化
@@ -287,6 +329,31 @@ const WorkflowEditorPage: React.FC = () => {
       return;
     }
 
+    // @AI_GENERATED
+    // 需求 7.6：从模板新建、未改名就保存 → 保存前提示输入新名称，不下发请求。
+    // 触发条件：本工作流带 source_template_id，且当前 workflowName 与源模板名完全一致（去空白）。
+    // sourceTemplateName 由加载时异步补齐；未补齐时不阻塞（避免误伤）。
+    if (
+      sourceTemplateId &&
+      sourceTemplateName &&
+      workflowName.trim() === sourceTemplateName.trim()
+    ) {
+      Modal.warning({
+        title: '请为工作流设置一个新名称',
+        content: (
+          <div>
+            <div>当前工作流由模板「{sourceTemplateName}」创建，名称仍与模板一致。</div>
+            <div style={{ marginTop: 8, color: '#8c8c8c' }}>
+              请先修改顶部的工作流名称，与源模板区分后再保存。
+            </div>
+          </div>
+        ),
+        okText: '知道了',
+      });
+      return;
+    }
+    // @AI_GENERATED: end
+
     try {
       setSaving(true);
       
@@ -319,15 +386,43 @@ const WorkflowEditorPage: React.FC = () => {
       console.log('清理后的连接线数据:', JSON.stringify(cleanedEdges, null, 2));
       
       if (workflowId) {
-        // 更新现有算法模板
-        await enhancedWorkflowApi.updateWorkflow(workflowId, {
+        // @AI_GENERATED
+        // 需求 7.4 / 7.5：编辑已有工作流 → POST /api/workflows/enhanced/{id}/save
+        // 后端会 version = existing.version + 1 并写入 parent_version_id，
+        // 不影响其他工作流或源模板的版本号。
+        const savedWorkflow = await enhancedWorkflowApi.saveExistingWorkflow(workflowId, {
           name: workflowName,
           nodes: cleanedNodes,
           edges: cleanedEdges,
         });
-        message.success(t('workflow.templateUpdated'));
+        // 用后端返回的最新结果刷新 store（含新 version），保持 UI 与服务端一致
+        const savedNodes = (savedWorkflow.nodes || cleanedNodes).map((n: any) => ({
+          ...n,
+          type: n?.type || 'enhanced',
+        }));
+        loadWorkflow(
+          savedWorkflow.id!,
+          savedNodes,
+          savedWorkflow.edges || cleanedEdges,
+          savedWorkflow.name || workflowName,
+          savedWorkflow.description || ''
+        );
+        // 恢复模板来源信息（loadWorkflow 会重置这两个字段）
+        if (savedWorkflow.source_template_id) {
+          setSourceTemplateInfo(savedWorkflow.source_template_id, sourceTemplateName);
+        }
+        message.success(
+          savedWorkflow.version
+            ? `${t('workflow.templateUpdated')}（v${savedWorkflow.version}）`
+            : t('workflow.templateUpdated'),
+        );
+        // @AI_GENERATED: end
       } else {
-        // 保存新算法模板
+        // @AI_GENERATED
+        // 需求 7.3 / 7.4：首次保存新工作流 → POST /api/workflows/enhanced
+        // 后端会分配新的 workflow_id + version_group_id 且 version=1，
+        // 之后 workflowId 存在，再次保存会走上面的 /save 分支递增版本。
+        // @AI_GENERATED: end
         const savedWorkflow = await enhancedWorkflowApi.saveWorkflow({
           name: workflowName,
           nodes: cleanedNodes,
@@ -356,6 +451,46 @@ const WorkflowEditorPage: React.FC = () => {
       } else {
         message.error(t('workflow.templateSaveFailed'));
       }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 保存为新版本（clone + 更新内容）
+  const handleSaveAsNewVersion = async () => {
+    if (!workflowId) {
+      message.warning('请先保存当前工作流，再使用"保存为新版本"');
+      return;
+    }
+    if (nodes.length === 0) {
+      message.warning(t('workflow.noNodes'));
+      return;
+    }
+    try {
+      setSaving(true);
+      // 1. Clone to create new version
+      const cloned = await enhancedWorkflowApi.cloneWorkflow(workflowId);
+      // 2. Update the cloned version with current editor content
+      const cleanedNodes = nodes.map(node => ({
+        id: node.id, type: node.type, position: node.position, data: node.data
+      }));
+      const cleanedEdges = edges.map((edge, index) => ({
+        id: edge.id || `edge-${index}`,
+        source: edge.source, target: edge.target,
+        sourceHandle: edge.sourceHandle || null, targetHandle: edge.targetHandle || null,
+        type: edge.type || 'smoothstep', data: edge.data || undefined
+      }));
+      await enhancedWorkflowApi.updateWorkflow(cloned.id!, {
+        name: workflowName,
+        nodes: cleanedNodes,
+        edges: cleanedEdges,
+      });
+      // 3. Switch editor to new version
+      loadWorkflow(cloned.id!, cleanedNodes as any, cleanedEdges as any, workflowName, '');
+      message.success(`已保存为新版本 v${cloned.version || '?'}`);
+    } catch (error) {
+      console.error('Save as new version error:', error);
+      message.error('保存为新版本失败');
     } finally {
       setSaving(false);
     }
@@ -859,13 +994,24 @@ const WorkflowEditorPage: React.FC = () => {
                 <Button icon={<FolderOpenOutlined />} onClick={handleOpen}>
                   {t('workflow.open')}
                 </Button>
-                <Button 
-                  icon={<SaveOutlined />} 
+                <Dropdown.Button
+                  icon={<SaveOutlined />}
                   onClick={handleSave}
                   loading={saving}
+                  menu={{
+                    items: [
+                      {
+                        key: 'save-as-new',
+                        icon: <CopyOutlined />,
+                        label: '保存为新版本',
+                        disabled: !workflowId,
+                        onClick: handleSaveAsNewVersion,
+                      },
+                    ],
+                  }}
                 >
                   {t('workflow.save')}
-                </Button>
+                </Dropdown.Button>
                 <Button
                   type="primary"
                   icon={<PlayCircleOutlined />}

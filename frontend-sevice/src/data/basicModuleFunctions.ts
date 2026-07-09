@@ -1040,6 +1040,9 @@ const BASIC_MODULE_FUNCTIONS: BasicModuleFunctionMap = {
         { id: 'precision_recall_f1', name: '精确率/召回率/F1', description: '分类综合指标' },
         { id: 'confusion_matrix_eval', name: '混淆矩阵', description: '分类混淆矩阵' },
         { id: 'roc_auc_score', name: 'ROC-AUC', description: '分类排序能力' },
+        // @AI_GENERATED
+        { id: 'classification_report', name: '分类完整报告', description: '每类P/R/F1 + macro/weighted一表出' },
+        // @AI_GENERATED: end
         { id: 'mse_rmse_mae', name: 'MSE/RMSE/MAE', description: '回归误差指标' },
         { id: 'r2_score', name: 'R²决定系数', description: '回归拟合优度' },
         { id: 'mape_score', name: 'MAPE平均百分比误差', description: '回归百分比误差' },

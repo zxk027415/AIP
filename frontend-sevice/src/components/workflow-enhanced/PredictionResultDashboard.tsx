@@ -64,7 +64,10 @@ const PredictionResultDashboard: React.FC<PredictionResultDashboardProps> = ({ r
         value: d.count,
         itemStyle: d.label === '7' || d.label === '0' ? { color: '#52c41a' } : undefined,
       })),
-      label: { show: true, formatter: '{b}\n{d}%', fontSize: 11 },
+      label: { show: true, formatter: '{b}\n{d}%', fontSize: 11, minMargin: 5 },
+      labelLine: { length: 15, length2: 10 },
+      labelLayout: { hideOverlap: true },
+      minShowLabelAngle: 5,
       emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } },
     }],
   } : null;

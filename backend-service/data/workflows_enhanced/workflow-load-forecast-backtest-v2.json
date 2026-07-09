@@ -1421,5 +1421,6 @@
     "template_type": "load_forecast"
   },
   "createdAt": "2026-04-17T14:58:44.558228",
-  "updatedAt": "2026-04-19T15:21:29.221088"
+  "updatedAt": "2026-04-19T15:21:29.221088",
+  "scenario_id": "renewable-energy"
 }

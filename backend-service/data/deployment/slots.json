@@ -1,0 +1,26 @@
+{
+  "default": {
+    "slot": "default",
+    "production_model": {
+      "workflow_id": "workflow-load-forecast-backtest-v3",
+      "version_tag": "v1.0-initial",
+      "status": "production",
+      "deployed_at": "2026-07-07T10:49:08.763514",
+      "accuracy_score": null,
+      "consecutive_better_days": 0,
+      "prelaunch_meta": null,
+      "source_run_id": null,
+      "source_candidate_id": null
+    },
+    "shadow_models": [],
+    "prelaunch_models": [],
+    "max_shadow_slots": 3,
+    "max_prelaunch_slots": 2,
+    "auto_switch_enabled": false,
+    "switch_observation_days": 7,
+    "cooldown_hours": 48,
+    "threshold_mape": null,
+    "training_window_days": 730,
+    "updated_at": "2026-07-07T11:20:43.956581"
+  }
+}

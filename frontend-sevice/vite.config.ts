@@ -22,12 +22,12 @@ function serverStartTimePlugin() {
       console.log('✓ 前端服务器启动时间已记录到文件:', startTime.start_time);
       
       // 延迟并重试记录到后端数据库
-      const recordToDatabase = async (retries = 8, initialDelay = 3000) => {
+      // @AI_GENERATED: 增大等待时间——后端 startup 含 DB 迁移/sync/断点标记，Windows 可能要 60-90s
+      const recordToDatabase = async (retries = 20, initialDelay = 8000) => {
         for (let i = 0; i < retries; i++) {
           try {
-            // 等待一段时间，让后端完全启动
-            // 第一次等待更长时间，后续逐渐减少
-            const delay = i === 0 ? initialDelay : 2000;
+            // 第一次等待较长时间让后端完全启动，后续每 5 秒重试一次
+            const delay = i === 0 ? initialDelay : 5000;
             
             if (i === 0) {
               console.log(`⏳ 等待 ${delay/1000} 秒让后端完全初始化（数据库、路由等）...`);

@@ -607,29 +607,97 @@ AccuracyOperationsPage (pages/AccuracyOperationsPage.tsx)
 
 ## Correctness Properties（可执行正确性属性）
 
-### Property 1: RecoveryDecision 必引用已存在 RCAReport
-`∀ d ∈ RecoveryDecision: store.get_rca(d.rca_report_id) is not None`
+*A property is a characteristic or behavior that should hold true across all valid executions of a system—essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
 
-### Property 2: 通道A（影子切换）只对达标影子有效
-`channel_A(shadow) ⟹ shadow in version_registry.list_shadows(slot) ∧ margin >= switch_margin_pct ∧ valid_cycles >= min_valid_cycles`
+### Property 1: 告警仅限 production/shadow 形态
 
-### Property 3: 同一 alert 冷却期内不重复 RCA
-`count(RCAReport where alert_id=a ∧ created_at in cooldown_window) ≤ 1`
+*For any* AccuracyAlert 实例, 其 model_form 字段必须属于 {"production", "shadow"}；对于任何 prelaunch 或 AutoResearch 形态的输入，AccuracyMonitor 不会产出 AccuracyAlert。
 
-### Property 4: 通道A/B 不可对同一 slot 同时写
-`¬∃ d1,d2: same_slot ∧ both_status ∈ {pending,executing} ∧ both_write`
+**Validates: Requirements 1.4, 1.5**
 
-### Property 5: 告警关闭必须有 recovery evidence
-`∀ a where a.status="closed": a.recovery_evidence.type ∈ {"passed","manual_close"}`
+### Property 2: 退化阈值触发正确性
 
-### Property 6: 持久化路径均为相对路径
-`∀ p ∈ persisted_paths: not os.path.isabs(p)`
+*For any* slot 配置（含 baseline_mape、current_rolling_mape、degradation_threshold_pct），当且仅当 (current_rolling_mape - baseline_mape) / baseline_mape * 100 >= degradation_threshold_pct 时，AccuracyMonitor 产出告警；否则不产出。
 
-### Property 7: 仲裁器不读候选池/复验池
-`RecoveryArbitrator` 的依赖注入中不包含 `candidate_pool` / `verification_queue` 的任何引用。
+**Validates: Requirement 1.2**
 
-### Property 8: 预上线/AutoResearch 不触发 RCA
-`∀ alert ∈ AccuracyAlert: alert.model_form ∈ {"production", "shadow"}`
+### Property 3: 告警去重（幂等性）
+
+*For any* 已存在 open 状态 AccuracyAlert 的 (slot, model_form, workflow_id) 组合，再次调用 evaluate 不会产生新的重复告警，告警总数不增加。
+
+**Validates: Requirement 1.3**
+
+### Property 4: RCA 冷却期幂等性
+
+*For any* AccuracyAlert 处于 cooldown_until 冷却期内，重复触发 RCA 请求应幂等返回既有 RCAReport，同一 alert 在冷却窗口内的 RCAReport 数量 ≤ 1。
+
+**Validates: Requirements 2.2, 7.2**
+
+### Property 5: 仲裁决策树正确性
+
+*For any* 合法的 (RCAReport, 影子池状态) 组合：
+- confidence < 0.6 或 undetermined=true → channel=observe
+- root_cause ∈ {data_gap, feature_broken} ∧ 存在达标影子 → channel=shadow_switch
+- root_cause ∈ {data_gap, feature_broken} ∧ 不存在达标影子 → channel=training_adjust
+- root_cause = model_decay ∧ 存在达标影子 → channel=parallel
+- root_cause = model_decay ∧ 不存在达标影子 → channel=training_adjust
+- root_cause = external → channel=observe
+
+**Validates: Requirements 3.3, 3.4, 3.5, 3.6, 3.7, 3.8**
+
+### Property 6: 影子达标判定正确性
+
+*For any* 影子模型的 (rolling_mape, valid_cycle_count) 和生产模型的 (prod_rolling_mape)，以及配置 (switch_margin_pct, min_valid_cycles)：影子达标当且仅当 (prod_rolling_mape - shadow_rolling_mape) / prod_rolling_mape * 100 >= switch_margin_pct 且 valid_cycle_count >= min_valid_cycles。当存在多个达标影子时，选出的必为 rolling_mape 最低者。
+
+**Validates: Requirements 4.1, 4.2, 4.3**
+
+### Property 7: RecoveryDecision 必引用已存在 RCAReport
+
+*For any* RecoveryDecision 实例, store.get_rca(d.rca_report_id) 必须非 None；不存在引用无效 rca_report_id 的决策记录。
+
+**Validates: Requirement 3.9**
+
+### Property 8: 通道 A/B 同 slot 互斥
+
+*For any* 系统状态，不存在同一 slot 下两条 RecoveryDecision 同时处于 pending 或 executing 的写操作状态（通道A 和通道B 不可对同一 slot 同时写）。
+
+**Validates: Requirements 5.4, 7.1**
+
+### Property 9: 告警关闭必须有 recovery evidence
+
+*For any* AccuracyAlert 其 status 为 closed，recovery_evidence 字段必须非空且 type ∈ {"passed", "manual_close"}。
+
+**Validates: Requirements 8.4, 8.5**
+
+### Property 10: 告警状态迁移合法性
+
+*For any* AccuracyAlert 状态迁移序列，合法路径为：open → rca_running → recovering/observing → closed。RCA 开始时状态为 rca_running，RecoveryDecision 执行时为 recovering，observe 通道时为 observing。不存在跳跃或逆向迁移。
+
+**Validates: Requirements 8.1, 8.2, 8.3**
+
+### Property 11: 持久化路径均为相对路径
+
+*For any* 精度运营模块写入磁盘的路径字段（包括 RCAReport.artifacts_dir、所有 JSON 文件路径），均满足 not os.path.isabs(path)，且路径前缀为 data/precision_ops/{slot}/accuracy_ops/。
+
+**Validates: Requirements 9.1, 9.4**
+
+### Property 12: 仲裁器依赖隔离
+
+*For any* RecoveryArbitrator 实例，其依赖注入和方法调用中不包含 candidate_pool（候选池）、verification_queue（复验池）、knowledge_layer（知识层）的任何引用。TrainingStrategyAdjuster 同样不直接写入候选池或复验池。
+
+**Validates: Requirements 3.2, 6.3**
+
+### Property 13: RCA 输入 schema 合规性
+
+*For any* 合法的告警数据输入，RCAOrchestrator 拼接的 rca_input JSON 必须符合 examples/rca_input_sample.json 定义的 schema 结构。
+
+**Validates: Requirement 12.1**
+
+### Property 14: 数据模型序列化 round-trip
+
+*For any* 合法的 AccuracyAlert / RCAReport / RecoveryDecision / TrainingAdjustmentTask 实例，序列化为 JSON 再反序列化应产出等价对象（Pydantic model round-trip）。
+
+**Validates: Requirements 13.1, 13.2, 13.3, 13.4, 13.5**
 
 ---
 

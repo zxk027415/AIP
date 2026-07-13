@@ -187,3 +187,145 @@ def mark_dead_workers() -> List[str]:
         finally:
             conn.close()
     return marked
+
+# @AI_GENERATED: Phase 2 — MySQL backend 代理层
+# 环境变量 AUTORESEARCH_JOB_QUEUE_BACKEND=mysql 时走 MySQL（autoresearch_job 表），
+# 否则走原 SQLite 逻辑。支持跨机器 worker 领任务。
+
+def _use_mysql() -> bool:
+    """判断 Job Queue 是否走 MySQL backend。"""
+    val = os.getenv("AUTORESEARCH_JOB_QUEUE_BACKEND", "sqlite").strip().lower()
+    return val in ("mysql", "db", "database")
+
+
+def _mysql_repo():
+    """惰性获取 AutoResearchRepository（提供 job CRUD）。"""
+    from services.db.repositories import get_autoresearch_repo
+    return get_autoresearch_repo()
+
+
+# --- 以下覆盖原模块级函数，在 import 时根据 backend 决定走哪条路径 ---
+# 策略：把原函数重命名为 _sqlite_xxx，新函数同名，先判断 backend 再分发
+
+_orig_submit_job = submit_job
+_orig_claim_job = claim_job
+_orig_heartbeat = heartbeat
+_orig_is_cancel_requested = is_cancel_requested
+_orig_request_cancel = request_cancel
+_orig_finish_job = finish_job
+_orig_get_job = get_job
+_orig_list_jobs = list_jobs
+_orig_mark_dead_workers = mark_dead_workers
+
+
+def submit_job(run_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[no-redef]
+    """提交 job：MySQL backend 开启时走 DB，否则 SQLite。"""
+    if _use_mysql():
+        repo = _mysql_repo()
+        if repo is not None:
+            obj = repo.submit_job(run_id, payload)
+            return {"run_id": obj.run_id, "status": "pending", "created_at": str(obj.created_at)}
+    return _orig_submit_job(run_id, payload)
+
+
+def claim_job() -> Optional[Dict[str, Any]]:  # type: ignore[no-redef]
+    """Worker 领 job：MySQL backend 开启时走 DB。"""
+    if _use_mysql():
+        repo = _mysql_repo()
+        if repo is not None:
+            return repo.claim_job(pid=os.getpid())
+    return _orig_claim_job()
+
+
+def heartbeat(run_id: str) -> None:  # type: ignore[no-redef]
+    """Worker 心跳。"""
+    if _use_mysql():
+        repo = _mysql_repo()
+        if repo is not None:
+            repo.heartbeat(run_id)
+            return
+    _orig_heartbeat(run_id)
+
+
+def is_cancel_requested(run_id: str) -> bool:  # type: ignore[no-redef]
+    """检查取消标记。"""
+    if _use_mysql():
+        repo = _mysql_repo()
+        if repo is not None:
+            return repo.is_cancel_requested(run_id)
+    return _orig_is_cancel_requested(run_id)
+
+
+def request_cancel(run_id: str) -> bool:  # type: ignore[no-redef]
+    """标记取消。"""
+    if _use_mysql():
+        repo = _mysql_repo()
+        if repo is not None:
+            return repo.request_cancel(run_id)
+    return _orig_request_cancel(run_id)
+
+
+def finish_job(run_id: str, status: str) -> None:  # type: ignore[no-redef]
+    """Worker 完成 job。"""
+    if _use_mysql():
+        repo = _mysql_repo()
+        if repo is not None:
+            repo.finish_job(run_id, status)
+            return
+    _orig_finish_job(run_id, status)
+
+
+def get_job(run_id: str) -> Optional[Dict[str, Any]]:  # type: ignore[no-redef]
+    """查询单个 job 状态。"""
+    if _use_mysql():
+        repo = _mysql_repo()
+        if repo is not None:
+            obj = repo.get_job(run_id)
+            if obj is not None:
+                return {
+                    "run_id": obj.run_id,
+                    "status": obj.status,
+                    "pid": obj.pid,
+                    "host": obj.host,
+                    "created_at": str(obj.created_at) if obj.created_at else None,
+                    "started_at": str(obj.started_at) if obj.started_at else None,
+                    "finished_at": str(obj.finished_at) if obj.finished_at else None,
+                    "heartbeat_at": str(obj.heartbeat_at) if obj.heartbeat_at else None,
+                    "cancel_requested": int(obj.cancel_requested or 0),
+                    "payload": json.dumps(obj.payload_json or {}, ensure_ascii=False),
+                }
+            return None
+    return _orig_get_job(run_id)
+
+
+def list_jobs(limit: int = 50) -> List[Dict[str, Any]]:  # type: ignore[no-redef]
+    """列出 jobs。"""
+    if _use_mysql():
+        repo = _mysql_repo()
+        if repo is not None:
+            objs = repo.list_jobs(limit=limit)
+            return [
+                {
+                    "run_id": o.run_id,
+                    "status": o.status,
+                    "pid": o.pid,
+                    "host": o.host,
+                    "created_at": str(o.created_at) if o.created_at else None,
+                    "started_at": str(o.started_at) if o.started_at else None,
+                    "finished_at": str(o.finished_at) if o.finished_at else None,
+                    "heartbeat_at": str(o.heartbeat_at) if o.heartbeat_at else None,
+                    "cancel_requested": int(o.cancel_requested or 0),
+                }
+                for o in objs
+            ]
+    return _orig_list_jobs(limit)
+
+
+def mark_dead_workers() -> List[str]:  # type: ignore[no-redef]
+    """标记心跳超时的 running job。"""
+    if _use_mysql():
+        repo = _mysql_repo()
+        if repo is not None:
+            return repo.mark_dead_workers()
+    return _orig_mark_dead_workers()
+# @AI_GENERATED: end

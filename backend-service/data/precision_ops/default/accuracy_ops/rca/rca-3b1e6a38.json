@@ -1,0 +1,69 @@
+{
+  "rca_report_id": "rca-3b1e6a38",
+  "alert_id": "alert-07085e6e",
+  "trigger_type": "manual",
+  "root_cause": "model_decay",
+  "confidence": 0.85,
+  "reasoning": "模型在近30天的滚动评估中MAPE持续高于基线，特征重要性分布未发生明显偏移，判断为模型衰退",
+  "supporting_evidence": [
+    "MAPE连续7天 > 8.5%",
+    "特征重要性分布稳定",
+    "数据无缺失"
+  ],
+  "undetermined": false,
+  "error_profile": {
+    "mape_by_hour": {
+      "8": 0.12,
+      "9": 0.15,
+      "18": 0.18,
+      "19": 0.2
+    },
+    "mape_by_weekday": {
+      "0": 0.09,
+      "1": 0.11,
+      "5": 0.14,
+      "6": 0.13
+    },
+    "worst_windows": [
+      {
+        "start_time": "2026-06-01T08:00:00",
+        "end_time": "2026-06-01T10:00:00",
+        "mape": 0.22,
+        "description": "早高峰误差偏大"
+      }
+    ],
+    "error_bias": "over_forecast",
+    "peak_valley_error_ratio": 1.8
+  },
+  "data_quality_diagnosis": {
+    "missing_rate": 0.02,
+    "outlier_rate": 0.01,
+    "feature_drift_detected": false,
+    "feature_drift_details": [],
+    "data_freshness_lag_hours": 1.5
+  },
+  "actionable_insights": [
+    {
+      "insight_type": "model_retraining_signal",
+      "priority": "high",
+      "description": "建议在 AutoResearch 中增加最近30天数据权重，当前模型可能对近期负荷特征学习不足",
+      "supporting_evidence": [
+        "滚动MAPE从5.0上升至8.5，持续7天",
+        "特征分布未发生漂移，排除数据原因"
+      ]
+    },
+    {
+      "insight_type": "hyperparameter_hint",
+      "priority": "medium",
+      "description": "早高峰（8-10时）误差显著偏高（MAPE 15-20%），建议为该时段单独训练子模型或增加时间特征维度",
+      "supporting_evidence": [
+        "mape_by_hour[8]=12%, mape_by_hour[9]=15%, mape_by_hour[18]=18%"
+      ]
+    }
+  ],
+  "candidate_strategies": [],
+  "recommended_strategy_id": null,
+  "artifacts_dir": "",
+  "status": "succeeded",
+  "created_at": "2026-07-13T07:52:48.323988+00:00"
+}

@@ -71,6 +71,9 @@ import AlgorithmDeploymentPage from './pages/AlgorithmDeploymentPage';
 // @AI_GENERATED: end
 // @AI_GENERATED: algorithm-deployment-refactor 14 — DataPipelineManagementPage 已迁入 AlgorithmDeploymentPage → 数据管线 Tab；旧路由 /industry-data/pipelines 走 Navigate 重定向，不再需要直接导入组件。
 // @AI_GENERATED: end
+// @AI_GENERATED
+import AccuracyOperationsPage from './pages/AccuracyOperationsPage';
+// @AI_GENERATED: end
 import MainLayout from './components/MainLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
@@ -168,6 +171,9 @@ function App() {
           <Route path="/algorithm-dev/autoresearch" element={<WorkflowBaselineComparePage />} />
           <Route path="/algorithm-dev/ops" element={<PrecisionOpsDashboardPage />} />
           <Route path="/algorithm-dev/deployment" element={<AlgorithmDeploymentPage />} />
+          {/* @AI_GENERATED */}
+          <Route path="/accuracy-operations" element={<AccuracyOperationsPage />} />
+          {/* @AI_GENERATED: end */}
           
           {/* 模板测试页面 */}
           <Route path="/workflow-reference" element={<WorkflowReferencePage />} />

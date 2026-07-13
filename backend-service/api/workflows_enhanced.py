@@ -7802,6 +7802,11 @@ def _set_production_workflow_slot(
 
 
 def _load_candidate_pool_list() -> List[Dict[str, Any]]:
+    # @AI_GENERATED: Phase 2 读切换 — DB 优先读候选池
+    db_result = _load_candidate_pool_from_db()
+    if db_result is not None:
+        return db_result
+    # @AI_GENERATED: end
     data = _load_json_with_fallback(_CANDIDATE_POOL_JSON, _LEGACY_CANDIDATE_POOL_JSON, {})
     cand = data.get("candidates") if isinstance(data, dict) else None
     return list(cand) if isinstance(cand, list) else []
@@ -7953,6 +7958,11 @@ def _save_candidate_pool_list(candidates: List[Dict[str, Any]]) -> None:
 
 
 def _load_verification_queue() -> List[Dict[str, Any]]:
+    # @AI_GENERATED: Phase 2 读切换 — DB 优先读复验队列
+    db_result = _load_verification_queue_from_db()
+    if db_result is not None:
+        return db_result
+    # @AI_GENERATED: end
     data = _load_json_with_fallback(_VERIFICATION_QUEUE_JSON, None, {})
     rows = data.get("items") if isinstance(data, dict) else None
     return list(rows) if isinstance(rows, list) else []
@@ -8052,6 +8062,74 @@ def _dual_write_verification_queue_to_db(items: List[Dict[str, Any]]) -> None:
                 logger.warning("candidate_verification dual-write (id=%s) failed: %s", iid, _e)
     except Exception as exc:
         logger.warning("candidate_verification dual-write batch failed (non-fatal): %s", exc)
+# @AI_GENERATED: end
+
+
+# @AI_GENERATED: Phase 2 读切换辅助 — 候选池 / 复验队列从 MySQL 读
+def _load_candidate_pool_from_db() -> Optional[List[Dict[str, Any]]]:
+    """DB 优先读候选池。返回 None 表示未启用/异常/DB 空，调用方走 JSON 兜底。"""
+    try:
+        from services.db.repositories import get_autoresearch_repo, is_db_read_enabled
+        if not is_db_read_enabled():
+            return None
+        repo = get_autoresearch_repo()
+        if repo is None:
+            return None
+        rows = repo.list_candidates("default", limit=2000)
+        if not rows:
+            return None  # DB 空时退回 JSON（可能是老数据还没迁移）
+        result: List[Dict[str, Any]] = []
+        for r in rows:
+            item = {
+                "id": r.id,
+                "slot": r.slot,
+                "run_id": r.run_id,
+                "baseline_workflow_id": r.workflow_id,
+                "applied_patch_fingerprint": r.patch_signature,
+                "best_mape": r.best_mape,
+                "status": r.status,
+                "evidence": r.evidence if isinstance(r.evidence, dict) else {},
+                "created_at": (r.created_at.isoformat() if r.created_at else None),
+            }
+            result.append(item)
+        return result
+    except Exception as exc:
+        logger.warning("_load_candidate_pool_from_db failed (fallback to JSON): %s", exc)
+        return None
+
+
+def _load_verification_queue_from_db() -> Optional[List[Dict[str, Any]]]:
+    """DB 优先读复验队列。返回 None 表示未启用/异常/DB 空，走 JSON 兜底。"""
+    try:
+        from services.db.repositories import get_autoresearch_repo, is_db_read_enabled
+        if not is_db_read_enabled():
+            return None
+        repo = get_autoresearch_repo()
+        if repo is None:
+            return None
+        rows = repo.list_verifications("default", limit=500)
+        if not rows:
+            return None
+        result: List[Dict[str, Any]] = []
+        for r in rows:
+            item = {
+                "id": r.id,
+                "candidate_id": r.candidate_id,
+                "slot": r.slot,
+                "source_run_id": r.source_run_id,
+                "source_iteration": r.source_iteration,
+                "status": r.status,
+                "config": r.config_json if isinstance(r.config_json, dict) else {},
+                "evidence": r.evidence_json if isinstance(r.evidence_json, dict) else {},
+                "created_at": (r.created_at.isoformat() if r.created_at else None),
+                "started_at": (r.started_at.isoformat() if r.started_at else None),
+                "finished_at": (r.finished_at.isoformat() if r.finished_at else None),
+            }
+            result.append(item)
+        return result
+    except Exception as exc:
+        logger.warning("_load_verification_queue_from_db failed (fallback to JSON): %s", exc)
+        return None
 # @AI_GENERATED: end
 
 

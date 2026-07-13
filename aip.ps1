@@ -38,7 +38,7 @@ function Start-Dev {
     Write-Host "AIP dev mode starting..."
     Write-Host "  Backend: :$port (reload)  Frontend: :$fport"
 
-    $beCmd = "cd '$BACKEND_DIR'; conda activate $CONDA_ENV; uvicorn main:app --host 0.0.0.0 --reload --port $port"
+    $beCmd = "cd '$BACKEND_DIR'; conda activate $CONDA_ENV; `$env:AUTORESEARCH_DB_DUAL_WRITE='1'; `$env:AUTORESEARCH_DB_READ='1'; `$env:AUTORESEARCH_JOB_QUEUE_BACKEND='mysql'; `$env:AIP_SKIP_ALEMBIC_MIGRATION='1'; uvicorn main:app --host 0.0.0.0 --reload --port $port"
     Start-Process powershell -ArgumentList "-NoExit", "-Command", $beCmd
 
     $feCmd = "cd '$FRONTEND_DIR'; npm run dev -- --host 0.0.0.0 --port $fport"
@@ -65,13 +65,13 @@ function Start-Experiment {
     Write-Host "AIP experiment mode starting..."
     Write-Host "  Backend: :$port  Frontend: :$fport  Worker: --loop"
 
-    $beCmd = "cd '$BACKEND_DIR'; conda activate $CONDA_ENV; `$env:AUTORESEARCH_STORAGE_PROFILE='experiment'; uvicorn main:app --host 0.0.0.0 --port $port"
+    $beCmd = "cd '$BACKEND_DIR'; conda activate $CONDA_ENV; `$env:AUTORESEARCH_STORAGE_PROFILE='experiment'; `$env:AUTORESEARCH_DB_DUAL_WRITE='1'; `$env:AUTORESEARCH_DB_READ='1'; `$env:AUTORESEARCH_JOB_QUEUE_BACKEND='mysql'; `$env:AIP_SKIP_ALEMBIC_MIGRATION='1'; uvicorn main:app --host 0.0.0.0 --port $port"
     Start-Process powershell -ArgumentList "-NoExit", "-Command", $beCmd
 
     $feCmd = "cd '$FRONTEND_DIR'; `$env:VITE_API_PROXY_TARGET='http://localhost:$port'; npm run dev -- --host 0.0.0.0 --port $fport"
     Start-Process powershell -ArgumentList "-NoExit", "-Command", $feCmd
 
-    $wkCmd = "cd '$BACKEND_DIR'; conda activate $CONDA_ENV; `$env:AUTORESEARCH_STORAGE_PROFILE='experiment'; python worker_autoresearch.py --loop"
+    $wkCmd = "cd '$BACKEND_DIR'; conda activate $CONDA_ENV; `$env:AUTORESEARCH_STORAGE_PROFILE='experiment'; `$env:AUTORESEARCH_DB_DUAL_WRITE='1'; `$env:AUTORESEARCH_DB_READ='1'; `$env:AUTORESEARCH_JOB_QUEUE_BACKEND='mysql'; `$env:AIP_SKIP_ALEMBIC_MIGRATION='1'; python worker_autoresearch.py --loop"
     Start-Process powershell -ArgumentList "-NoExit", "-Command", $wkCmd
 
     Write-Host ""

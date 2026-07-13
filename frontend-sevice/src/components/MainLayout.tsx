@@ -249,6 +249,11 @@ const MainLayout: React.FC = () => {
           label: '算法部署',
         },
         {
+          key: '/accuracy-operations',
+          icon: <LineChartOutlined />,
+          label: '精度运营',
+        },
+        {
           key: '/algorithm-dev/ops',
           icon: <LineChartOutlined />,
           label: '算法运营',

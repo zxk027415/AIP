@@ -54,6 +54,9 @@ from api.iterative_labeling import router as iterative_labeling_router
 # @AI_GENERATED
 from api.precision_ops import router as precision_ops_router  # 精度运营路由
 # @AI_GENERATED: end
+# @AI_GENERATED
+from api.accuracy_operations import router as accuracy_operations_router  # 精度运营（新版）路由
+# @AI_GENERATED: end
 from api.scheduler import router as scheduler_router, set_scheduler_engine
 
 # 导入数据库初始化
@@ -350,6 +353,9 @@ app.include_router(iterative_labeling_router)  # 光伏故障迭代标注闭环�
 # @AI_GENERATED: end
 # @AI_GENERATED
 app.include_router(precision_ops_router)  # 精度运营路由
+# @AI_GENERATED: end
+# @AI_GENERATED
+app.include_router(accuracy_operations_router)  # 精度运营（新版）路由
 # @AI_GENERATED: end
 app.include_router(scheduler_router)  # 调度器状态路由
 

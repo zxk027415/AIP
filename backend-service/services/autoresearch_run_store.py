@@ -169,6 +169,25 @@ class AutoResearchRunStore:
                 return None
             state.setdefault("run_id", run_id)
             state.setdefault("snapshot_meta", {"source": "mysql", "schema_version": 1})
+            # @AI_GENERATED: 表级字段是权威源，覆盖 snapshot_state 里可能过时的值
+            state["status"] = row.status
+            if row.previous_status:
+                state["previous_status"] = row.previous_status
+            if row.recoverable is not None:
+                state["recoverable"] = row.recoverable
+            if row.error_message:
+                state["error"] = row.error_message
+            if row.interrupted_at:
+                state["interrupted_at"] = row.interrupted_at.isoformat()
+            if row.resumed_at:
+                state["resumed_at"] = row.resumed_at.isoformat()
+            if row.current_iteration is not None:
+                state.setdefault("progress", {})
+                state["progress"]["iteration"] = row.current_iteration
+            if row.total_iterations is not None:
+                state.setdefault("progress", {})
+                state["progress"]["total_iterations"] = row.total_iterations
+            # @AI_GENERATED: end
             return state
         except Exception as exc:
             try:

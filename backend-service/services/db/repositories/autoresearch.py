@@ -399,8 +399,12 @@ class AutoResearchRepository:
             q = session.query(CandidatePool).filter(CandidatePool.slot == slot)
             if status is not None:
                 q = q.filter(CandidatePool.status == status)
+            # MySQL 不支持 NULLS LAST，用 CASE 表达式替代
             rows = (
-                q.order_by(CandidatePool.best_mape.asc().nullslast())
+                q.order_by(
+                    CandidatePool.best_mape.is_(None),  # NULL → True(1) 排后面
+                    CandidatePool.best_mape.asc(),
+                )
                 .limit(max(1, limit))
                 .all()
             )

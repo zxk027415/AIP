@@ -139,7 +139,7 @@ class DeploymentRepository:
                 DeploymentModelVersion.slot == slot,
                 DeploymentModelVersion.status == status,
             )
-            # accuracy_score IS NULL 排最后
+            # MySQL 不支持 NULLS LAST，用 is_(None) 表达式排序
             rows = q.order_by(
                 DeploymentModelVersion.accuracy_score.is_(None),
                 DeploymentModelVersion.accuracy_score.asc(),

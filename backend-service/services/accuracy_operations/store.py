@@ -219,7 +219,11 @@ class AccuracyOperationsStore:
         return results
 
     def has_open_alert(
-        self, slot: str, model_form: str, workflow_id: str
+        self,
+        slot: str,
+        model_form: str,
+        workflow_id: str,
+        version_tag: Optional[str] = None,
     ) -> bool:
         """
         检查 slot 下是否已存在 status=open 且匹配 model_form + workflow_id 的告警。
@@ -248,6 +252,7 @@ class AccuracyOperationsStore:
                 alert.status == "open"
                 and alert.model_form == model_form
                 and alert.workflow_id == workflow_id
+                and (version_tag is None or alert.version_tag == version_tag)
             ):
                 return True
         return False

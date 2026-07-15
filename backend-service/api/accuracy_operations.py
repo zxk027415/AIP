@@ -39,9 +39,7 @@ from services.accuracy_operations.rca_skill_client import RCASkillClient
 from services.precision_ops.accuracy_tracker import AccuracyTracker
 from services.precision_ops.version_registry import VersionRegistry
 from services.precision_ops.config_manager import ConfigManager
-from services.precision_ops.switch_engine import SwitchDecisionEngine
-from services.precision_ops.switch_log import SwitchLog
-from services.precision_ops.production_registry import ProductionRegistry
+from services.deployment import DeploymentSlotStore, SwitchDecisionEngine, SwitchEventLog
 
 logger = logging.getLogger(__name__)
 
@@ -69,30 +67,30 @@ def _get_components() -> Dict[str, Any]:
     """
     store = _get_store()
     tracker = AccuracyTracker()
-    vr = VersionRegistry()
+    vr = VersionRegistry()  # 仅供旧槽位只读兼容；部署槽位是发布真源
     cm = ConfigManager()
     skill_client = RCASkillClient()
-
-    # SwitchDecisionEngine 需要额外依赖
-    switch_log = SwitchLog()
-    prod_registry = ProductionRegistry()
-    switch_eng = SwitchDecisionEngine(
-        version_registry=vr,
-        accuracy_tracker=tracker,
-        switch_log=switch_log,
-        production_registry=prod_registry,
-        config_manager=cm,
+    slot_store = DeploymentSlotStore()
+    deployment_switch_engine = SwitchDecisionEngine(
+        slot_store=slot_store,
+        event_log=SwitchEventLog(),
     )
 
-    monitor = AccuracyMonitor(tracker, vr, cm, store)
+    monitor = AccuracyMonitor(
+        tracker, vr, cm, store, deployment_slot_store=slot_store
+    )
     rca_orch = RCAOrchestrator(skill_client, store)
-    arbitrator = RecoveryArbitrator(vr, tracker, cm, switch_eng, store)
+    arbitrator = RecoveryArbitrator(
+        vr, tracker, cm, deployment_switch_engine, store,
+        deployment_slot_store=slot_store,
+    )
 
     return {
         "store": store,
         "monitor": monitor,
         "rca_orchestrator": rca_orch,
         "arbitrator": arbitrator,
+        "slot_store": slot_store,
     }
 
 
@@ -424,12 +422,14 @@ def get_models_lifecycle(
     """
     try:
         comps = _get_components()
-        # VersionRegistry 通过 _get_components 内部创建，此处重新获取同一实例
-        # 通过 monitor 持有的 _registry 访问，避免新建实例
-        monitor: AccuracyMonitor = comps["monitor"]
-        vr: VersionRegistry = monitor._registry
-
-        all_versions = vr.list_all(slot)
+        slot_obj = comps["slot_store"].get(slot)
+        if slot_obj is None:
+            return {"nodes": [], "edges": []}
+        all_versions: List[Dict[str, Any]] = []
+        if slot_obj.production_model is not None:
+            all_versions.append({**slot_obj.production_model.model_dump(), "role": "production"})
+        all_versions.extend({**model.model_dump(), "role": model.status} for model in slot_obj.shadow_models)
+        all_versions.extend({**model.model_dump(), "role": model.status} for model in slot_obj.prelaunch_models)
 
         nodes: List[Dict[str, Any]] = []
         for v in all_versions:

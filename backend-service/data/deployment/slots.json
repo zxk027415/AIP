@@ -22,5 +22,98 @@
     "threshold_mape": null,
     "training_window_days": 730,
     "updated_at": "2026-07-07T11:20:43.956581"
+  },
+  "load_forecast": {
+    "slot": "load_forecast",
+    "production_model": {
+      "workflow_id": "workflow-20260511-optimal-505",
+      "version_tag": "optimal-505-production",
+      "status": "production",
+      "deployed_at": "2026-07-09T09:37:35.115308+00:00",
+      "accuracy_score": 5.6616,
+      "baseline_mape": 5.6616,
+      "baseline_wmape": null,
+      "consecutive_better_days": 0,
+      "prelaunch_meta": null,
+      "source_run_id": null,
+      "source_candidate_id": null
+    },
+    "shadow_models": [
+      {
+        "workflow_id": "workflow-20260511-optimal-505",
+        "version_tag": "shadow-run43-mape4109",
+        "status": "shadow",
+        "deployed_at": "2026-07-09T09:37:35.115308+00:00",
+        "accuracy_score": 4.1093,
+        "baseline_mape": 4.1093,
+        "baseline_wmape": null,
+        "consecutive_better_days": 0,
+        "prelaunch_meta": null,
+        "source_run_id": "AutoResearch第43轮",
+        "source_candidate_id": "cand-3647f99d2f77"
+      },
+      {
+        "workflow_id": "workflow-20260511-optimal-505",
+        "version_tag": "shadow-run7-generic-mape4109",
+        "status": "shadow",
+        "deployed_at": "2026-07-09T09:37:35.115308+00:00",
+        "accuracy_score": 4.1093,
+        "baseline_mape": 4.1093,
+        "baseline_wmape": null,
+        "consecutive_better_days": 0,
+        "prelaunch_meta": null,
+        "source_run_id": "AutoResearch第7轮(通用算子版)",
+        "source_candidate_id": "cand-439b04179c12"
+      }
+    ],
+    "prelaunch_models": [],
+    "max_shadow_slots": 5,
+    "max_prelaunch_slots": 2,
+    "auto_switch_enabled": false,
+    "switch_observation_days": 7,
+    "cooldown_hours": 24,
+    "threshold_mape": null,
+    "training_window_days": 365,
+    "updated_at": "2026-07-15T11:00:00+00:00"
+  },
+  "load_forecast_e2e_demo": {
+    "slot": "load_forecast_e2e_demo",
+    "production_model": {
+      "workflow_id": "workflow-load-forecast-backtest-v3",
+      "version_tag": "demo-production-v3",
+      "status": "production",
+      "deployed_at": "2026-07-15T00:00:00+00:00",
+      "accuracy_score": null,
+      "baseline_mape": 8.0,
+      "baseline_wmape": 7.5,
+      "consecutive_better_days": 0,
+      "prelaunch_meta": null,
+      "source_run_id": null,
+      "source_candidate_id": null
+    },
+    "shadow_models": [
+      {
+        "workflow_id": "workflow-load-forecast-prediction-v2",
+        "version_tag": "demo-shadow-v2",
+        "status": "shadow",
+        "deployed_at": "2026-07-15T00:00:00+00:00",
+        "accuracy_score": null,
+        "baseline_mape": 7.0,
+        "baseline_wmape": 6.5,
+        "consecutive_better_days": 0,
+        "prelaunch_meta": null,
+        "source_run_id": null,
+        "source_candidate_id": null
+      }
+    ],
+    "prelaunch_models": [],
+    "max_shadow_slots": 3,
+    "max_prelaunch_slots": 2,
+    "auto_switch_enabled": false,
+    "switch_observation_days": 3,
+    "cooldown_hours": 24,
+    "threshold_mape": 15.0,
+    "training_window_days": 90,
+    "updated_at": "2026-07-15T00:00:00+00:00"
   }
 }

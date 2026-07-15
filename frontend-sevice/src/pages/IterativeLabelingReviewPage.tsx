@@ -130,6 +130,10 @@ interface LabelRegistry {
 const IterativeLabelingReviewPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const reviewId = searchParams.get('review_id');
+  // @AI_GENERATED: 审核页面所有读取与写入请求都复用 URL 的 slot，防止跨槽位串数据
+  const slot = searchParams.get('slot') || 'default';
+  const slotQuery = `slot=${encodeURIComponent(slot)}`;
+  // @AI_GENERATED: end
   
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState<ReviewSession | null>(null);
@@ -187,7 +191,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
     setLoading(true);
     try {
       // 需求 3.4：支持会话中断后恢复
-      const response = await fetch(`/api/iterative-labeling/review-sessions/${reviewId}`);
+      const response = await fetch(`/api/iterative-labeling/review-sessions/${reviewId}?${slotQuery}`);
       if (!response.ok) throw new Error('加载审核会话失败');
       
       const data = await response.json();
@@ -214,7 +218,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
    */
   const loadLabelRegistry = async () => {
     try {
-      const response = await fetch('/api/iterative-labeling/label-registry');
+      const response = await fetch(`/api/iterative-labeling/label-registry?${slotQuery}`);
       if (!response.ok) throw new Error('加载标签注册表失败');
       
       const data = await response.json();
@@ -231,7 +235,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
     if (!reviewId) return;
     
     try {
-      const response = await fetch(`/api/iterative-labeling/review-sessions/${reviewId}/accuracy`);
+      const response = await fetch(`/api/iterative-labeling/review-sessions/${reviewId}/accuracy?${slotQuery}`);
       if (!response.ok) throw new Error('加载精度失败');
       
       const data = await response.json();
@@ -249,7 +253,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
     setBackfillLoading(true);
     try {
       const response = await fetch(
-        `/api/iterative-labeling/review-sessions/${reviewId}/backfill-to-dataset`,
+        `/api/iterative-labeling/review-sessions/${reviewId}/backfill-to-dataset?${slotQuery}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -281,7 +285,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
     setRefWaveformsLoading(true);
     try {
       // 从会话的 prediction_context 获取训练数据路径
-      const sessResp = await fetch(`/api/iterative-labeling/review-sessions/${reviewId}`);
+      const sessResp = await fetch(`/api/iterative-labeling/review-sessions/${reviewId}?${slotQuery}`);
       if (!sessResp.ok) return;
       const sessData = await sessResp.json();
       const ctx = sessData.prediction_context || {};
@@ -289,7 +293,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
       // 训练数据已含 label 列，单文件模式即可
       const trainPath = ctx.reference_train_path || 'fault-diag-algo-release-3.1/relate_data/all_labeled_combined.parquet';
       const resp = await fetch(
-        `/api/iterative-labeling/reference-waveforms?train_csv_path=${encodeURIComponent(trainPath)}`
+        `/api/iterative-labeling/reference-waveforms?train_csv_path=${encodeURIComponent(trainPath)}&${slotQuery}`
       );
       if (!resp.ok) return;
       const data = await resp.json();
@@ -310,7 +314,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
     setUnitTimeseries(null);
     try {
       const resp = await fetch(
-        `/api/iterative-labeling/review-sessions/${reviewId}/unit-timeseries?unit_key=${encodeURIComponent(unitKey)}`
+        `/api/iterative-labeling/review-sessions/${reviewId}/unit-timeseries?unit_key=${encodeURIComponent(unitKey)}&${slotQuery}`
       );
       if (!resp.ok) throw new Error('加载波形失败');
       const data = await resp.json();
@@ -346,7 +350,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
     setLoading(true);
     try {
       const response = await fetch(
-        `/api/iterative-labeling/review-sessions/${reviewId}/verdicts`,
+        `/api/iterative-labeling/review-sessions/${reviewId}/verdicts?${slotQuery}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -453,7 +457,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
       
       try {
         // 需求 8.1：新增标签类别
-        const response = await fetch('/api/iterative-labeling/label-registry/labels', {
+        const response = await fetch(`/api/iterative-labeling/label-registry/labels?${slotQuery}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ label_name: newLabelName.trim() }),
@@ -487,7 +491,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
     // 定期刷新精度（需求 6.4：增量更新）
     const interval = setInterval(loadAccuracy, 5000);
     return () => clearInterval(interval);
-  }, [reviewId]);
+  }, [reviewId, slot]);
 
   // 当前单元变化时加载其原始时序波形
   useEffect(() => {
@@ -496,7 +500,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
       loadUnitTimeseries(unit.unit_key);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reviewId, currentUnitIndex, session?.units?.[currentUnitIndex]?.unit_key]);
+  }, [reviewId, slot, currentUnitIndex, session?.units?.[currentUnitIndex]?.unit_key]);
 
   if (!reviewId) {
     return (
@@ -1101,7 +1105,7 @@ const DataPreviewTable: React.FC<{ reviewId: string | null }> = ({ reviewId }) =
       setPreviewLoading(true);
       try {
         // 先拿会话获取 source_csv_path
-        const sessResp = await fetch(`/api/iterative-labeling/review-sessions/${reviewId}`);
+        const sessResp = await fetch(`/api/iterative-labeling/review-sessions/${reviewId}?${slotQuery}`);
         if (!sessResp.ok || cancelled) return;
         const sess = await sessResp.json();
         const csvPath = sess?.prediction_context?.source_csv_path;
@@ -1119,7 +1123,7 @@ const DataPreviewTable: React.FC<{ reviewId: string | null }> = ({ reviewId }) =
     };
     load();
     return () => { cancelled = true; };
-  }, [reviewId]);
+  }, [reviewId, slot]);
 
   if (previewLoading) return <div style={{ textAlign: 'center', padding: 32 }}>加载数据预览...</div>;
   if (!previewData || !previewData.columns.length) return <Alert type="info" showIcon message="无法预览数据（会话缺少原始 CSV 路径）" />;

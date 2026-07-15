@@ -34,6 +34,9 @@ Backfill 服务 - 打标回流为新训练集
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import logging
+# @AI_GENERATED: 回流文件对外转换为项目根相对路径
+from pathlib import Path
+# @AI_GENERATED: end
 
 from .storage.interfaces import (
     ReviewResultRepository,
@@ -377,14 +380,19 @@ class BackfillService:
             except Exception as e:
                 logger.warning(f"基线合并失败（跳过，仅用本轮标注）: {e}")
 
-        # 5. 写出新数据集 CSV
+        # 5. 写出新数据集 CSV；对外仅返回相对于项目根目录的路径
         if output_dir is None:
             root = os.environ.get('ITERATIVE_LABELING_DATA_ROOT', 'data/iterative_labeling')
             output_dir = os.path.join(root, 'datasets', self.slot)
         os.makedirs(output_dir, exist_ok=True)
         dataset_version = f"ds-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
-        csv_path = os.path.abspath(os.path.join(output_dir, f"{dataset_version}.csv"))
-        labeled.to_csv(csv_path, index=False, encoding='utf-8')
+
+        # @AI_GENERATED: 持久化与 API 返回均使用项目根相对路径，禁止把机器绝对路径带回前端
+        output_path = Path(output_dir) / f"{dataset_version}.csv"
+        labeled.to_csv(output_path, index=False, encoding='utf-8')
+        project_root = Path(__file__).resolve().parents[3]
+        csv_path = Path(os.path.relpath(output_path.resolve(), start=project_root)).as_posix()
+        # @AI_GENERATED: end
 
         logger.info(
             f"回流完成（原始时序级）: review_id={review_id}, dataset_version={dataset_version}, "

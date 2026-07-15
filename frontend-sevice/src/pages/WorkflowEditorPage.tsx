@@ -910,7 +910,9 @@ const WorkflowEditorPage: React.FC = () => {
         slot: selectedSlot,
       });
       message.success(`已创建审核会话（slot: ${selectedSlot}），共 ${resp.total_count} 个待审核单元`);
-      navigate(`/iterative-labeling/review?review_id=${encodeURIComponent(resp.review_id)}`);
+      navigate(
+        `/iterative-labeling/review?review_id=${encodeURIComponent(resp.review_id)}&slot=${encodeURIComponent(selectedSlot)}`,
+      );
     } catch (e: any) {
       console.error('创建审核会话失败:', e);
       const detail = e?.response?.data?.detail || e?.message || '未知错误';
@@ -1146,7 +1148,7 @@ const WorkflowEditorPage: React.FC = () => {
         />
         <div style={{ marginTop: 8 }}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            常用值: default（默认）、aesc、mengxi、weihai 等。同一 slot 内标签注册表共享。
+            常用值: default（默认）、aesc、mengxi、weihai 等。不同场景应使用独立标识，避免审核结果与标签空间相互混用。
           </Typography.Text>
         </div>
       </Modal>

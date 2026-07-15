@@ -21,7 +21,7 @@
     "ares-fec6cb7b1265:iter1:group0:{\"global_config_patch\": {}, \"node_param_patches\": [{\"functionId\": \"auto_tune_xgboost\", \"node_id\": \"tpl-auto_tune_xgboost-13\", \"param_patch\": {\"n_trials\": 10}}, {\"functionId\": \"auto_tune_xgboost\", \"node_id\": \"tpl-auto_tune_xgboost-13\", \"param_patch\": {\"cv_folds\": 5}}], \"override\": {\"train_days\": 21}, \"structure_patch\": {\"node_config_patches\": [], \"node_switches\": []}}"
   ],
   "knowledge_type": "correlational",
-  "last_validated_at": "2026-06-12T06:33:05.307275",
+  "last_validated_at": "2026-07-15T02:35:12.385394",
   "layer": "L2",
   "scenario_condition_hash": "9179cb04ced5016d",
   "status": "candidate"

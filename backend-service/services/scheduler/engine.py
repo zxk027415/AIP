@@ -127,12 +127,8 @@ class SchedulerEngine:
         if scheduler is not None and self._pipeline_running.get(pipeline):
             self._add_job_to_scheduler(scheduler, meta)
 
-    def start_pipeline(self, pipeline: str) -> None:
-        """Start (or restart) the scheduler for a pipeline.
-
-        Runs catch-up if last_execution_time < now - cron_interval.
-        Only affects the named pipeline.
-        """
+    def start_pipeline(self, pipeline: str, *, catchup: bool = True) -> None:
+        """启动管线调度器；``catchup=False`` 时仅等待下一次 cron，不补跑历史任务。"""
         if self._pipeline_running.get(pipeline):
             logger.debug("Pipeline '%s' is already running.", pipeline)
             return
@@ -151,9 +147,11 @@ class SchedulerEngine:
         self._pipeline_running[pipeline] = True
         logger.info("Pipeline '%s' started.", pipeline)
 
-        # Catch-up: for tasks with a missed execution, run once immediately.
-        for meta in pipeline_tasks:
-            self._maybe_catchup(meta)
+        # @AI_GENERATED: 应用启动可只启用 cron，避免进程重启导致生产任务立即补跑
+        if catchup:
+            for meta in pipeline_tasks:
+                self._maybe_catchup(meta)
+        # @AI_GENERATED: end
 
     def stop_pipeline(self, pipeline: str) -> None:
         """Stop the scheduler for a pipeline. Does NOT affect other pipelines."""

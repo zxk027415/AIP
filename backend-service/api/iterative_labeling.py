@@ -34,12 +34,15 @@
 **映射需求:** 3.5, 4.4, 8.4, 12.3
 """
 
-from fastapi import APIRouter, HTTPException, Body
+# @AI_GENERATED: 正常光伏审核链路的 API 基础依赖
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 import logging
+import re
+# @AI_GENERATED: end
 
 # 导入服务层
 from services.iterative_labeling.orchestrator import LoopOrchestrator, StageTransitionError
@@ -47,6 +50,9 @@ from services.iterative_labeling.review_session import ReviewSessionService
 from services.iterative_labeling.label_registry import LabelRegistryService
 from services.iterative_labeling.accuracy_evaluator import AccuracyEvaluator
 from services.iterative_labeling.backfill import BackfillService
+# @AI_GENERATED: 正常光伏累计训练集、不可变快照与重训请求服务
+from services.iterative_labeling.cumulative_training import CumulativeTrainingService
+# @AI_GENERATED: end
 from services.iterative_labeling.iteration_tracker import IterationTracker
 from services.iterative_labeling.storage.file_backend import (
     FileReviewResultRepository,
@@ -191,11 +197,14 @@ class GetLoopStateResponse(BaseModel):
 
 # --------- 审核会话相关 ---------
 
+# @AI_GENERATED: 审核会话契约显式携带 slot，避免前端传值被 Pydantic 忽略后落入 default
 class CreateReviewSessionRequest(BaseModel):
     """创建审核会话请求"""
     loop_id: str = Field(..., description="所属迭代闭环 — 关联的loop")
     prediction_batch_id: str = Field(..., description="预测批次标识 — 基于哪一批预测结果")
     enable_llm: Optional[bool] = Field(True, description="启用LLM辅助 — 是否生成LLM建议")
+    slot: str = Field("default", description="槽位 — 审核、标签和回流数据的隔离分区")
+# @AI_GENERATED: end
 
 class CreateReviewSessionResponse(BaseModel):
     """创建审核会话响应"""
@@ -219,10 +228,22 @@ class SubmitVerdictRequest(BaseModel):
     new_label_name: Optional[str] = Field(None, description="新标签名 — new_label时必填")
     reviewer: str = Field(..., description="审核人 — 操作者标识")
 
+# @AI_GENERATED: 人工裁决响应回传累计训练集准入、快照与重训申请状态
 class SubmitVerdictResponse(BaseModel):
     """提交人工裁决响应"""
     accepted: bool = Field(..., description="是否接受 — 裁决是否成功提交")
     accuracy_snapshot: Dict[str, Any] = Field(..., description="精度快照 — 当前三方精度")
+    cumulative_training: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="累计训练集状态 — 有效人工真值的准入、阈值与重训请求信息",
+    )
+
+
+class RegisterCumulativeTrainingImportRequest(BaseModel):
+    """登记带真值导入数据到正常累计训练集。"""
+    dataset_path: str = Field(..., description="带 label 列的 CSV/Parquet 相对项目根目录路径")
+    source_name: Optional[str] = Field(None, description="导入来源说明 — 仅用于审计展示")
+# @AI_GENERATED: end
 
 class GetAccuracyResponse(BaseModel):
     """读取三方精度响应"""
@@ -277,29 +298,32 @@ class BackfillResponse(BaseModel):
 
 # --------- 编辑器驱动：从预测结果建会话 / 回流原始时序 ---------
 
+# @AI_GENERATED: 编辑器预测→审核契约中的 slot 和相对路径输出
 class CreateReviewSessionFromPredictionRequest(BaseModel):
     """从工作流预测结果创建审核会话（编辑器驱动）"""
     predictions: List[Dict[str, Any]] = Field(..., description="预测结果数组 — 来自预测工作流 faultPredictions,每项含 site_id/device_id/branch_id/time_window/predictions")
-    source_csv_path: str = Field(..., description="原始预测 CSV 路径 — 来自预测工作流 load_csv 节点 file_path,回流时回贴原始时序用")
+    source_csv_path: str = Field(..., description="原始预测 CSV 路径 — 必须相对项目根目录，回流时回贴原始时序用")
     load_config: Optional[Dict[str, Any]] = Field(default_factory=dict, description="load_csv 配置 — rename_columns/encoding/delimiter,回流时复用")
     window_config: Optional[Dict[str, Any]] = Field(default_factory=dict, description="time_window_split 配置 — window/id_fields/time_field,回流重算窗口键用")
     label_map: Optional[Dict[str, int]] = Field(default_factory=dict, description="标签映射 — 业务名→故障码,用于播种标签注册表与展示")
     enable_llm: Optional[bool] = Field(False, description="启用GLM辅助 — 后台异步生成建议,完成后刷新可见")
     loop_id: Optional[str] = Field(None, description="所属迭代闭环 — 可选,编辑器驱动可不传")
     reviewer: Optional[str] = Field("operator", description="审核人标识")
+    slot: str = Field("default", description="槽位 — 审核、标签和累计训练集的隔离分区")
 
 class BackfillToDatasetRequest(BaseModel):
     """从审核会话回流产出原始时序数据集"""
     merge_base: Optional[bool] = Field(True, description="累积合并 — 是否拼接基线训练 CSV,默认true")
-    base_csv_path: Optional[str] = Field(None, description="基线训练 CSV 路径 — merge_base=true 时拼接到新数据集前(如上一轮训练用的 CSV)")
+    base_csv_path: Optional[str] = Field(None, description="基线训练 CSV 相对路径 — merge_base=true 时拼接到新数据集前")
 
 class BackfillToDatasetResponse(BaseModel):
     """回流产出数据集响应"""
     dataset_version: str = Field(..., description="新数据集版本号")
-    csv_path: str = Field(..., description="新数据集 CSV 绝对路径 — 可直接粘贴到训练工作流 load_csv 的 file_path")
+    csv_path: str = Field(..., description="新数据集 CSV 相对项目根目录路径，可直接填写到训练工作流 load_csv.file_path")
     labeled_rows: int = Field(..., description="标注后原始行数 — 回贴标签后的总行数")
     labeled_units: int = Field(..., description="标注单元数 — 去重后的设备×窗口数")
     total_source_rows: int = Field(..., description="原始预测 CSV 总行数")
+# @AI_GENERATED: end
 
 
 # ============================================================================
@@ -327,9 +351,56 @@ _backfill_service = BackfillService(
     ground_truth_repo=_ground_truth_repo
 )
 
-# 三方精度评估器（per review_id）
-_accuracy_evaluators: Dict[str, AccuracyEvaluator] = {}
+# 三方精度评估器（按 slot + review_id 隔离）
+_accuracy_evaluators: Dict[Tuple[str, str], AccuracyEvaluator] = {}
 
+# @AI_GENERATED: 默认累计训练账本、重训编排和 slot 隔离服务
+_cumulative_training_services: Dict[str, CumulativeTrainingService] = {}
+_orchestrators_by_slot: Dict[str, LoopOrchestrator] = {"default": _orchestrator}
+_SLOT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+
+
+def _normalize_slot(slot: Optional[str]) -> str:
+    normalized = str(slot or "default").strip()
+    if not _SLOT_NAME_PATTERN.fullmatch(normalized):
+        raise HTTPException(
+            status_code=422,
+            detail="slot 只能包含字母、数字、下划线和连字符，长度为 1 到 64",
+        )
+    return normalized
+
+
+def _registry_for_slot(slot: str) -> LabelRegistryService:
+    return LabelRegistryService(slot=slot, registry_repo=_registry_repo)
+
+
+def _review_service_for_slot(slot: str) -> ReviewSessionService:
+    return ReviewSessionService(
+        slot=slot,
+        review_repo=_review_repo,
+        registry_service=_registry_for_slot(slot),
+    )
+
+
+def _cumulative_training_for_slot(slot: str) -> CumulativeTrainingService:
+    service = _cumulative_training_services.get(slot)
+    if service is None:
+        service = CumulativeTrainingService(slot=slot, review_repo=_review_repo)
+        _cumulative_training_services[slot] = service
+    return service
+
+
+def _orchestrator_for_slot(slot: str) -> LoopOrchestrator:
+    orchestrator = _orchestrators_by_slot.get(slot)
+    if orchestrator is None:
+        orchestrator = LoopOrchestrator(slot=slot)
+        _orchestrators_by_slot[slot] = orchestrator
+    return orchestrator
+
+
+def _accuracy_key(slot: str, review_id: str) -> Tuple[str, str]:
+    return slot, review_id
+# @AI_GENERATED: end
 
 # ============================================================================
 # 闭环编排接口（Loop_Orchestrator）
@@ -373,15 +444,9 @@ async def train(loop_id: str, request: TrainRequest):
             model_params=request.model_params or {}
         )
         
-        # 2. 推进阶段并登记模型工件
-        _orchestrator.advance_to_trained(
-            loop_id=loop_id,
-            dataset_version=request.dataset_version,
-            model_ref=train_result["model_ref"],
-            accuracy_record=train_result["accuracy_record"],
-            label_space_snapshot=train_result["label_space_snapshot"]
-        )
-        
+        # @AI_GENERATED: 编排器内部已完成一次状态迁移，API 层不得重复推进
+        # trigger_train_eval 已在真实工作流成功后完成唯一一次阶段推进。
+        # @AI_GENERATED: end
         return TrainResponse(
             model_ref=train_result["model_ref"],
             accuracy_record=train_result["accuracy_record"],
@@ -417,12 +482,9 @@ async def predict(loop_id: str, request: PredictRequest):
             unlabeled_dataset_version=request.unlabeled_dataset_version
         )
         
-        # 2. 推进阶段
-        _orchestrator.advance_to_predicted(
-            loop_id=loop_id,
-            prediction_batch_id=predict_result["prediction_batch_id"]
-        )
-        
+        # @AI_GENERATED: 编排器内部已完成一次状态迁移，API 层不得重复推进
+        # trigger_predict 已在真实工作流成功后完成唯一一次阶段推进。
+        # @AI_GENERATED: end
         return PredictResponse(
             prediction_batch_id=predict_result["prediction_batch_id"],
             unit_count=predict_result["unit_count"]
@@ -461,16 +523,21 @@ async def backfill(loop_id: str, request: BackfillRequest):
     映射需求: 9.1, 9.2, 9.3, 9.4, 9.5
     """
     try:
+        # @AI_GENERATED: 回流必须带来源轮次，并使用正确的新数据集版本参数推进状态
+        loop_state = _orchestrator.get_loop_state(loop_id)
         result = _backfill_service.backfill_from_review(
             review_id=request.review_id,
             loop_id=loop_id,
-            merge_base=request.merge_base
+            source_iteration=loop_state["iteration_round"],
+            base_dataset_version=loop_state.get("dataset_version"),
+            merge_base=request.merge_base,
         )
         # 推进阶段 reviewed → backfilled
         _orchestrator.advance_to_backfilled(
             loop_id=loop_id,
-            dataset_version=result["dataset_version"]
+            new_dataset_version=result["dataset_version"],
         )
+        # @AI_GENERATED: end
         return BackfillResponse(
             dataset_version=result["dataset_version"],
             unit_count=result["unit_count"]
@@ -487,7 +554,7 @@ async def backfill(loop_id: str, request: BackfillRequest):
 # ============================================================================
 
 @router.get("/review-sessions", response_model=None)
-async def list_review_sessions():
+async def list_review_sessions(slot: str = "default"):
     """
     列出所有审核会话（供会话列表页展示,支持断点恢复入口）
 
@@ -497,8 +564,9 @@ async def list_review_sessions():
     try:
         import os, json
         from pathlib import Path
+        resolved_slot = _normalize_slot(slot)
         data_root = os.environ.get('ITERATIVE_LABELING_DATA_ROOT', 'data/iterative_labeling')
-        sessions_dir = Path(data_root) / 'review_results' / 'default'
+        sessions_dir = Path(data_root) / 'review_results' / resolved_slot
         sessions = []
         if sessions_dir.exists():
             for f in sorted(sessions_dir.glob('*.json'), reverse=True):
@@ -520,38 +588,83 @@ async def list_review_sessions():
         raise HTTPException(status_code=500, detail=f"列出审核会话失败: {str(e)}")
 
 
+# @AI_GENERATED: 正常 loop 预测批次持久化后可直接建立审核会话，避免空 prediction_units
 @router.post("/review-sessions", response_model=CreateReviewSessionResponse)
 async def create_review_session(request: CreateReviewSessionRequest):
-    """
-    创建审核会话
-    
-    基于预测批次装配待审核单元,可选启用LLM辅助打标
-    
-    映射需求: 3.1, 7.1
-    """
+    """从已持久化的真实预测批次创建审核会话。"""
     try:
-        # TODO: 从预测批次加载 prediction_units 和 llm_suggestions
-        # 当前简化实现,实际需从 orchestrator 或预测结果存储中读取
-        prediction_units = []  # 应从 prediction_batch_id 加载
-        llm_suggestions = {} if not request.enable_llm else {}  # 应调用 LLM_Labeling_Assistant
-        
-        session = _review_session_service.create_session(
-            loop_id=request.loop_id,
-            prediction_batch_id=request.prediction_batch_id,
-            prediction_units=prediction_units,
-            llm_suggestions=llm_suggestions
+        import json
+        from pathlib import Path
+
+        slot = _normalize_slot(request.slot)
+        batch_id = str(request.prediction_batch_id or "").strip()
+        if not re.fullmatch(r"pred-[A-Za-z0-9-]+", batch_id):
+            raise HTTPException(status_code=422, detail="prediction_batch_id 格式不合法")
+        batch_path = (
+            Path(_PROJECT_ROOT)
+            / "backend-service"
+            / "data"
+            / "iterative_labeling"
+            / "prediction_batches"
+            / slot
+            / f"{batch_id}.json"
         )
-        
-        # 初始化该会话的精度评估器
-        _accuracy_evaluators[session["review_id"]] = AccuracyEvaluator()
-        
+        if not batch_path.exists():
+            raise HTTPException(status_code=404, detail=f"预测批次不存在: {batch_id}")
+        batch = json.loads(batch_path.read_text(encoding="utf-8"))
+        source_csv_path = batch.get("dataset_version")
+        if not isinstance(source_csv_path, str) or not source_csv_path or _os.path.isabs(source_csv_path):
+            raise HTTPException(status_code=422, detail="预测批次缺少相对 source dataset 路径")
+
+        prediction_units = []
+        for row in batch.get("predictions") or []:
+            site = row.get("site_id")
+            device = row.get("device_id")
+            branch = row.get("branch_id")
+            time_window = row.get("time_window")
+            if device is None or time_window is None:
+                continue
+            prediction_units.append(
+                {
+                    "unit_key": f"{_norm_id_str(site)}|{_norm_id_str(device)}|{_norm_id_str(branch)}|{time_window}",
+                    "site_id": site,
+                    "device_id": device,
+                    "branch_id": branch,
+                    "time_window": time_window,
+                    "predicted_label": row.get("predicted_label"),
+                    "confidence": row.get("confidence", 0.0),
+                }
+            )
+        if not prediction_units:
+            raise HTTPException(status_code=422, detail="预测批次没有可审核的诊断单元")
+
+        registry_service = _registry_for_slot(slot)
+        session = _review_service_for_slot(slot).create_session(
+            loop_id=request.loop_id,
+            prediction_batch_id=batch_id,
+            prediction_units=prediction_units,
+            llm_suggestions={},
+            prediction_context={
+                "source_csv_path": source_csv_path,
+                "load_config": {},
+                "window_config": {},
+                "label_map": registry_service.get_current().get("label_map", {}),
+            },
+        )
+        _accuracy_evaluators[_accuracy_key(slot, session["review_id"])] = AccuracyEvaluator()
+        if request.enable_llm:
+            import asyncio
+            asyncio.create_task(_generate_llm_suggestions_bg(slot, session["review_id"], registry_service))
         return CreateReviewSessionResponse(
             review_id=session["review_id"],
-            total_count=session["total_count"]
+            total_count=session["total_count"],
         )
-    except Exception as e:
-        logger.error(f"Failed to create review session: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"创建审核会话失败: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to create review session from prediction batch: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建审核会话失败: {exc}")
+# @AI_GENERATED: end
 
 
 def _norm_id_str(x: Any) -> str:
@@ -602,6 +715,7 @@ async def _generate_llm_suggestions_bg(slot: str, review_id: str, registry_servi
         logger.error(f"后台 GLM 建议任务异常 review_id={review_id}: {e}", exc_info=True)
 
 
+# @AI_GENERATED: 从工作流预测创建会话时持久化请求 slot，而非写死 default
 @router.post("/review-sessions/from-prediction", response_model=CreateReviewSessionResponse)
 async def create_review_session_from_prediction(request: CreateReviewSessionFromPredictionRequest):
     """
@@ -616,8 +730,10 @@ async def create_review_session_from_prediction(request: CreateReviewSessionFrom
     - enable_llm=true 时后台异步生成 GLM 建议
     """
     try:
-        slot = "default"
-        registry_service = LabelRegistryService(slot=slot, registry_repo=_registry_repo)
+        slot = _normalize_slot(request.slot)
+        if _os.path.isabs(request.source_csv_path):
+            raise HTTPException(status_code=422, detail="source_csv_path 必须使用相对项目根目录路径")
+        registry_service = _registry_for_slot(slot)
         if request.label_map:
             registry_service.seed_labels(request.label_map)
 
@@ -663,7 +779,7 @@ async def create_review_session_from_prediction(request: CreateReviewSessionFrom
                 'label_map': request.label_map or {},
             }
         )
-        _accuracy_evaluators[session["review_id"]] = AccuracyEvaluator()
+        _accuracy_evaluators[_accuracy_key(slot, session["review_id"])] = AccuracyEvaluator()
 
         if request.enable_llm:
             import asyncio
@@ -680,33 +796,39 @@ async def create_review_session_from_prediction(request: CreateReviewSessionFrom
         raise HTTPException(status_code=500, detail=f"从预测结果创建审核会话失败: {str(e)}")
 
 
-@router.post("/review-sessions/{review_id}/backfill-to-dataset", response_model=BackfillToDatasetResponse)
-async def backfill_to_dataset(review_id: str, request: BackfillToDatasetRequest):
-    """
-    从审核会话回流，产出原始时序级训练数据集 CSV（编辑器驱动）
+# @AI_GENERATED: end
 
-    把人工确认的窗口级标签回贴到原始预测时序的每一行，写出可直接喂回训练工作流的 CSV。
-    返回的 csv_path 可直接粘贴到训练工作流 load_csv 节点的 file_path 开启下一轮。
-    """
+# @AI_GENERATED: 回流数据集按 slot 隔离，并保持 API 返回相对路径
+@router.post("/review-sessions/{review_id}/backfill-to-dataset", response_model=BackfillToDatasetResponse)
+async def backfill_to_dataset(
+    review_id: str,
+    request: BackfillToDatasetRequest,
+    slot: str = "default",
+):
+    """将审核真值回贴为指定槽位的原始时序训练数据集。"""
     try:
-        bf = BackfillService(
-            slot="default",
+        resolved_slot = _normalize_slot(slot)
+        service = BackfillService(
+            slot=resolved_slot,
             review_repo=_review_repo,
-            ground_truth_repo=_ground_truth_repo
+            ground_truth_repo=_ground_truth_repo,
         )
-        result = bf.backfill_to_raw_dataset(
+        result = service.backfill_to_raw_dataset(
             review_id=review_id,
             merge_base=request.merge_base if request.merge_base is not None else True,
-            base_csv_path=_resolve_data_path(request.base_csv_path) if request.base_csv_path else None
+            base_csv_path=_resolve_data_path(request.base_csv_path) if request.base_csv_path else None,
         )
         return BackfillToDatasetResponse(**result)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"审核会话 {review_id} 不存在")
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error(f"Failed to backfill to dataset: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"回流产出数据集失败: {str(e)}")
+# @AI_GENERATED: end
 
 
 @router.get("/data-preview")
@@ -749,10 +871,12 @@ async def data_preview(file_path: str, rows: int = 20):
 _reference_waveform_cache: Dict[str, Dict[int, Dict[str, Any]]] = {}
 
 
+# @AI_GENERATED: 参考波形标签名按 slot 解析，缓存键包含 slot
 @router.get("/reference-waveforms")
 async def get_reference_waveforms(
     train_csv_path: str,
     label_csv_path: Optional[str] = None,
+    slot: str = "default",
 ):
     """
     获取各故障类别的典型参考波形（供打标页对照）
@@ -775,10 +899,11 @@ async def get_reference_waveforms(
         resolved_train = _resolve_data_path(train_csv_path)
         resolved_label = _resolve_data_path(label_csv_path) if label_csv_path else None
 
-        cache_key = f"{resolved_train}|{resolved_label or ''}"
+        resolved_slot = _normalize_slot(slot)
+        cache_key = f"{resolved_slot}|{resolved_train}|{resolved_label or ''}"
         if cache_key in _reference_waveform_cache:
             cats = _reference_waveform_cache[cache_key]
-            registry = _label_registry_service.get_current()
+            registry = _registry_for_slot(resolved_slot).get_current()
             label_names = {l['label_id']: l['label_name'] for l in registry.get('labels', [])}
             result = []
             for lid, data in sorted(cats.items()):
@@ -862,7 +987,7 @@ async def get_reference_waveforms(
         _reference_waveform_cache[cache_key] = cats
 
         # 附标签名称
-        registry = _label_registry_service.get_current()
+        registry = _registry_for_slot(resolved_slot).get_current()
         label_names = {l['label_id']: l['label_name'] for l in registry.get('labels', [])}
         result = []
         for lid, data in sorted(cats.items()):
@@ -877,12 +1002,15 @@ async def get_reference_waveforms(
         raise HTTPException(status_code=500, detail=f"获取参考波形失败: {str(e)}")
 
 
+# @AI_GENERATED: end
+
 # 单元时序缓存：source_csv_path -> 已重算 time_window 的 DataFrame（避免每次翻页重复加载）
 _unit_timeseries_cache: Dict[str, Any] = {}
 
 
+# @AI_GENERATED: 单元波形按 slot 读取审核上下文
 @router.get("/review-sessions/{review_id}/unit-timeseries")
-async def get_unit_timeseries(review_id: str, unit_key: str):
+async def get_unit_timeseries(review_id: str, unit_key: str, slot: str = "default"):
     """
     读取某个待审核单元的原始时序波形（供打标页展示电压/电流曲线辅助人工判断）
 
@@ -893,8 +1021,9 @@ async def get_unit_timeseries(review_id: str, unit_key: str):
     返回：{unit_key, time_window, timestamps, series:{value:[...], i_cal:[...]}, point_count}
     """
     try:
+        resolved_slot = _normalize_slot(slot)
         review_repo = _review_repo
-        session = review_repo.load_session("default", review_id)
+        session = review_repo.load_session(resolved_slot, review_id)
         if not session:
             raise HTTPException(status_code=404, detail=f"审核会话 {review_id} 不存在")
 
@@ -996,153 +1125,253 @@ async def get_unit_timeseries(review_id: str, unit_key: str):
         raise HTTPException(status_code=500, detail=f"读取单元时序失败: {str(e)}")
 
 
+# @AI_GENERATED: end
+
+# @AI_GENERATED: 审核会话按 query slot 读取，避免同名 review_id 跨槽位串数据
 @router.get("/review-sessions/{review_id}", response_model=GetReviewSessionResponse)
-async def get_review_session(review_id: str):
-    """
-    读取会话与进度（支持中断后恢复）
-    
-    映射需求: 3.3, 3.4
-    """
+async def get_review_session(review_id: str, slot: str = "default"):
+    """读取会话与进度（支持中断后恢复）。"""
     try:
-        session_state = _review_session_service.get_session(review_id)
+        resolved_slot = _normalize_slot(slot)
+        session_state = _review_service_for_slot(resolved_slot).get_session(review_id)
+        if not session_state:
+            raise KeyError(review_id)
         return GetReviewSessionResponse(**session_state)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"审核会话 {review_id} 不存在")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get review session: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"读取审核会话失败: {str(e)}")
+# @AI_GENERATED: end
 
 
+# @AI_GENERATED: 裁决持久化后立即同步正常累计训练集；账本异常结构化回传，避免已保存裁决被错误回滚
 @router.post("/review-sessions/{review_id}/verdicts", response_model=SubmitVerdictResponse)
-async def submit_verdict(review_id: str, request: SubmitVerdictRequest):
-    """
-    提交一条人工裁决
-    
-    confirm/correct/new_label 写真值,skip 标 pending 不写真值
-    
-    映射需求: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6
-    """
+async def submit_verdict(review_id: str, request: SubmitVerdictRequest, slot: str = "default"):
+    """提交人工裁决、更新精度，并把有效真值写入唯一累计训练集。"""
     try:
-        result = _review_session_service.submit_verdict(
+        resolved_slot = _normalize_slot(slot)
+        review_service = _review_service_for_slot(resolved_slot)
+        result = review_service.submit_verdict(
             review_id=review_id,
             unit_key=request.unit_key,
             action_type=request.action_type,
             verdict_label=request.verdict_label,
             new_label_name=request.new_label_name,
-            reviewer=request.reviewer
+            reviewer=request.reviewer,
         )
-        
-        # 增量更新三方精度
-        if review_id in _accuracy_evaluators:
-            evaluator = _accuracy_evaluators[review_id]
-            # 从更新后的会话状态读取该单元的分类器预测与 LLM 建议
-            classifier_prediction = {}
+
+        evaluator_key = _accuracy_key(resolved_slot, review_id)
+        if evaluator_key in _accuracy_evaluators:
+            evaluator = _accuracy_evaluators[evaluator_key]
+            classifier_prediction: Dict[str, Any] = {}
             llm_suggestion = None
-            for u in result.get("session_state", {}).get("units", []):
-                if u.get("unit_key") == request.unit_key:
-                    classifier_prediction = u.get("classifier_prediction", {}) or {}
-                    llm_suggestion = u.get("llm_suggestion")
+            for unit in result.get("session_state", {}).get("units", []):
+                if unit.get("unit_key") == request.unit_key:
+                    classifier_prediction = unit.get("classifier_prediction", {}) or {}
+                    llm_suggestion = unit.get("llm_suggestion")
                     break
             evaluator.update(
                 verdict=result["verdict"],
                 classifier_prediction=classifier_prediction,
-                llm_suggestion=llm_suggestion
+                llm_suggestion=llm_suggestion,
             )
             accuracy_snapshot = evaluator.get_current_accuracy()
         else:
             accuracy_snapshot = {}
-        
+
+        try:
+            cumulative_training = _cumulative_training_for_slot(resolved_slot).admit_verdict(
+                review_id=review_id,
+                session=result["session_state"],
+                verdict=result["verdict"],
+            )
+        except Exception as admission_error:  # 审核裁决已原子持久化，不能为账本失败而伪装为未提交。
+            logger.error(
+                "Cumulative training admission failed review_id=%s unit_key=%s: %s",
+                review_id,
+                request.unit_key,
+                admission_error,
+                exc_info=True,
+            )
+            cumulative_training = {
+                "admitted": False,
+                "admission_error": str(admission_error),
+                "action_required": "修复累计训练集准入错误后，重新提交同一裁决以重试",
+            }
+
         return SubmitVerdictResponse(
             accepted=result["accepted"],
-            accuracy_snapshot=accuracy_snapshot
+            accuracy_snapshot=accuracy_snapshot,
+            cumulative_training=cumulative_training,
         )
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error(f"Failed to submit verdict: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"提交裁决失败: {str(e)}")
+# @AI_GENERATED: end
 
 
+# @AI_GENERATED: 三方精度评估器按 slot + review_id 分区
 @router.get("/review-sessions/{review_id}/accuracy", response_model=GetAccuracyResponse)
-async def get_accuracy(review_id: str):
-    """
-    读取当前三方精度
-    
-    映射需求: 6.1, 6.2, 6.3, 6.4, 6.5
-    """
+async def get_accuracy(review_id: str, slot: str = "default"):
+    """读取当前审核会话的三方精度。"""
     try:
-        if review_id not in _accuracy_evaluators:
-            # 如果评估器不存在,返回占位
+        evaluator = _accuracy_evaluators.get(_accuracy_key(_normalize_slot(slot), review_id))
+        if evaluator is None:
             return GetAccuracyResponse(
                 classifier_accuracy=0.0,
                 llm_accuracy=0.0,
                 human_verified_accuracy=0.0,
                 llm_coverage=0.0,
                 macro={"precision": 0.0, "recall": 0.0, "f1": 0.0},
-                counted_units=0
+                counted_units=0,
             )
-        
-        evaluator = _accuracy_evaluators[review_id]
-        accuracy = evaluator.get_current_accuracy()
-        return GetAccuracyResponse(**accuracy)
+        return GetAccuracyResponse(**evaluator.get_current_accuracy())
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get accuracy: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"读取精度失败: {str(e)}")
+# @AI_GENERATED: end
+
+
+# @AI_GENERATED: 正常累计训练集 API（状态、带真值导入、阈值请求的显式训练）
+@router.get("/cumulative-training/state")
+async def get_cumulative_training_state(slot: str = "default"):
+    """读取指定槽位唯一累计训练集的准入、快照和重训申请状态。"""
+    try:
+        return _cumulative_training_for_slot(_normalize_slot(slot)).get_state()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to get cumulative training state: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"读取累计训练集状态失败: {exc}")
+
+
+@router.post("/cumulative-training/imports")
+async def register_cumulative_training_import(
+    request: RegisterCumulativeTrainingImportRequest,
+    slot: str = "default",
+):
+    """登记带 label 的历史/数据库导入数据；无真值数据不会被当作训练样本。"""
+    try:
+        return _cumulative_training_for_slot(_normalize_slot(slot)).register_labeled_dataset(
+            dataset_path=request.dataset_path,
+            source_name=request.source_name,
+        )
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.error("Failed to register cumulative training import: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"登记累计训练导入失败: {exc}")
+
+
+@router.post("/cumulative-training/retrain-requests/{request_id}/run")
+async def run_cumulative_retrain_request(request_id: str, slot: str = "default"):
+    """使用请求绑定的不可变累计快照执行训练；训练完成不自动发布模型。"""
+    resolved_slot = _normalize_slot(slot)
+    service = _cumulative_training_for_slot(resolved_slot)
+    try:
+        retrain_request = service.get_retrain_request(request_id)
+        if retrain_request.get("status") != "queued":
+            raise HTTPException(
+                status_code=409,
+                detail=f"重训请求当前状态为 {retrain_request.get('status')}，仅 queued 状态可执行",
+            )
+        service.mark_retrain_request(request_id, "running")
+        orchestrator = _orchestrator_for_slot(resolved_slot)
+        loop = orchestrator.create_loop(base_dataset_version=retrain_request["dataset_path"])
+        try:
+            train_result = orchestrator.trigger_train_eval(
+                loop_id=loop["loop_id"],
+                dataset_version=retrain_request["dataset_path"],
+            )
+        except Exception as training_error:
+            service.mark_retrain_request(request_id, "failed", error=str(training_error))
+            raise
+        completed = service.mark_retrain_request(
+            request_id,
+            "completed",
+            model_ref=train_result["model_ref"],
+        )
+        return {
+            "request": completed,
+            "loop_id": loop["loop_id"],
+            "train_result": train_result,
+            "publication": "not_published",
+        }
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"重训请求不存在: {request_id}")
+    except Exception as exc:
+        logger.error("Failed to run cumulative retrain request %s: %s", request_id, exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"累计训练重训失败: {exc}")
+# @AI_GENERATED: end
 
 
 # ============================================================================
 # 标签注册表接口（Label_Registry）
 # ============================================================================
 
+# @AI_GENERATED: 标签注册表按 slot 读取，避免不同业务场景混用标签空间
 @router.get("/label-registry", response_model=GetLabelRegistryResponse)
-async def get_label_registry():
-    """
-    读取当前标签注册表（只读,供 UI 预填与审核选择）
-    
-    映射需求: 8.1, 8.2, 8.3
-    """
+async def get_label_registry(slot: str = "default"):
+    """读取指定槽位的当前标签注册表。"""
     try:
-        registry = _label_registry_service.get_current()
+        registry = _registry_for_slot(_normalize_slot(slot)).get_current()
         return GetLabelRegistryResponse(
             label_space_version=registry["label_space_version"],
             labels=registry["labels"],
-            label_map=registry["label_map"]
+            label_map=registry["label_map"],
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get label registry: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"读取标签注册表失败: {str(e)}")
+# @AI_GENERATED: end
 
 
+# @AI_GENERATED: 新标签写入请求指定的 slot，避免跨场景扩充标签
 @router.post("/label-registry/labels", response_model=AddLabelResponse)
-async def add_label(request: AddLabelRequest):
-    """
-    新增标签类别（标签扩充）
-    
-    分配唯一 label_id,生成新 label_space_version,保留历史快照
-    
-    映射需求: 8.1, 8.2, 8.5
-    """
+async def add_label(request: AddLabelRequest, slot: str = "default"):
+    """在指定槽位新增标签类别。"""
     try:
-        label_id = _label_registry_service.allocate_label(request.label_name)
-        registry = _label_registry_service.get_current()
+        registry_service = _registry_for_slot(_normalize_slot(slot))
+        label_id = registry_service.allocate_label(request.label_name)
+        registry = registry_service.get_current()
         return AddLabelResponse(
             label_id=label_id,
-            label_space_version=registry["label_space_version"]
+            label_space_version=registry["label_space_version"],
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to add label: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"新增标签失败: {str(e)}")
+# @AI_GENERATED: end
 
 
 @router.get("/label-registry/versions", response_model=GetLabelVersionsResponse)
-async def get_label_versions():
+async def get_label_versions(slot: str = "default"):
     """
     读取历史版本快照列表（只读,审计/追溯）
     
     映射需求: 8.2
     """
     try:
-        registry = _label_registry_service.get_current()
+        registry = _registry_for_slot(_normalize_slot(slot)).get_current()
         return GetLabelVersionsResponse(
             history=registry.get("history", [])
         )

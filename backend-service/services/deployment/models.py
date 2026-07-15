@@ -109,6 +109,10 @@ class ModelVersion(BaseModel):
     status: str
     deployed_at: str
     accuracy_score: Optional[float] = None
+    # @AI_GENERATED: 发布基线用于 7 天滚动退化预警，指标值均为百分比
+    baseline_mape: Optional[float] = None
+    baseline_wmape: Optional[float] = None
+    # @AI_GENERATED: end
     consecutive_better_days: int = 0
     prelaunch_meta: Optional[PrelaunchMeta] = None
     source_run_id: Optional[str] = None

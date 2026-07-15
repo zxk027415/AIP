@@ -62,9 +62,6 @@ import IndustryScenarioPage from './pages/IndustryScenarioPage';
 // @AI_GENERATED: end
 import IterativeLabelingReviewPage from './pages/IterativeLabelingReviewPage';
 import IterativeLabelingListPage from './pages/IterativeLabelingListPage';
-// @AI_GENERATED
-import PrecisionOpsDashboardPage from './pages/PrecisionOpsDashboardPage';
-// @AI_GENERATED: end
 import AlgorithmManagementPage from './pages/AlgorithmManagementPage';
 // @AI_GENERATED: algorithm-deployment-refactor 10.2 — 新算法部署页面（模型管理 / 数据管线 / 定时调度 三个 Tab）
 import AlgorithmDeploymentPage from './pages/AlgorithmDeploymentPage';
@@ -169,7 +166,9 @@ function App() {
           <Route path="/algorithm-dev/workflow-editor/:id" element={<WorkflowEditorPage />} />
           <Route path="/algorithm-dev/operators" element={<FunctionLibraryPage />} />
           <Route path="/algorithm-dev/autoresearch" element={<WorkflowBaselineComparePage />} />
-          <Route path="/algorithm-dev/ops" element={<PrecisionOpsDashboardPage />} />
+          {/* @AI_GENERATED: algorithm-operations-retirement — 旧地址兼容重定向到唯一的精度运营页面 */}
+          <Route path="/algorithm-dev/ops" element={<Navigate to="/accuracy-operations" replace />} />
+          {/* @AI_GENERATED: end */}
           <Route path="/algorithm-dev/deployment" element={<AlgorithmDeploymentPage />} />
           {/* @AI_GENERATED */}
           <Route path="/accuracy-operations" element={<AccuracyOperationsPage />} />
@@ -192,8 +191,8 @@ function App() {
           {/* @AI_GENERATED: end */}
           <Route path="/iterative-labeling" element={<IterativeLabelingListPage />} />
           <Route path="/iterative-labeling/review" element={<IterativeLabelingReviewPage />} />
-          {/* @AI_GENERATED */}
-          <Route path="/precision-ops" element={<PrecisionOpsDashboardPage />} />
+          {/* @AI_GENERATED: algorithm-operations-retirement — 旧地址兼容重定向到唯一的精度运营页面 */}
+          <Route path="/precision-ops" element={<Navigate to="/accuracy-operations" replace />} />
           {/* @AI_GENERATED: end */}
           <Route path="/algorithm-solutions" element={<AlgorithmSolutionLibraryPage />} />
           <Route path="/algorithm-solutions/accuracy" element={<TemplateAccuracyPage />} />

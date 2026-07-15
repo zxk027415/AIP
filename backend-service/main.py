@@ -52,7 +52,7 @@ from api.load_forecast import router as load_forecast_router
 from api.iterative_labeling import router as iterative_labeling_router
 # @AI_GENERATED: end
 # @AI_GENERATED
-from api.precision_ops import router as precision_ops_router  # 精度运营路由
+# 旧 precision_ops 路由保留源码兼容，但不挂载；发布状态统一由 deployment_router 管理。
 # @AI_GENERATED: end
 # @AI_GENERATED
 from api.accuracy_operations import router as accuracy_operations_router  # 精度运营（新版）路由
@@ -65,6 +65,10 @@ from database import init_db
 # 记录服务启动时间
 SERVER_START_TIME = time.time()
 SERVER_START_DATETIME = datetime.now()
+
+# @AI_GENERATED: 负荷预测主链的正式数据、部署和精度运营分区；demo 使用独立 load_forecast_e2e_demo 槽位。
+LOAD_FORECAST_SLOT = "load_forecast"
+# @AI_GENERATED: end
 
 app = FastAPI(
     title="工业AI算法平台 API",
@@ -221,7 +225,8 @@ async def startup_event():
         from services.db.adapter import DBAdapter
         from services.scheduler.engine import SchedulerEngine
         from services.scheduler.tasks.load_forecast_tasks import (
-            make_data_pull_task, make_daily_rolling_task, make_accuracy_backfill_task
+            make_data_pull_task, make_daily_rolling_task, make_accuracy_backfill_task,
+            make_accuracy_monitor_task,
         )
         from services.scheduler.tasks.pv_fault_tasks import (
             make_pv_data_pull_task, make_pv_prediction_task
@@ -259,7 +264,7 @@ async def startup_event():
             make_data_pull_task(
                 _mock_source,
                 _lf_repo,
-                "default",
+                LOAD_FORECAST_SLOT,
             ),
             _db_cfg.sched_lf_pull_cron, "load_forecast"
         )
@@ -270,7 +275,7 @@ async def startup_event():
             "lf_daily_rolling",
             make_daily_rolling_task(
                 _lf_repo,
-                "default",
+                LOAD_FORECAST_SLOT,
                 station_id=_mock_feeder.station_id,
                 feature_name=_mock_feeder.feature_name,
                 slot_store=_slot_store_instance,
@@ -281,30 +286,47 @@ async def startup_event():
         )
         # @AI_GENERATED: end
         _sched_engine.register_task(
-            "lf_backfill",
+            "lf_accuracy_backfill",
             make_accuracy_backfill_task(
                 _lf_repo,
-                "default",
+                LOAD_FORECAST_SLOT,
                 station_id=_mock_feeder.station_id,
                 feature_name=_mock_feeder.feature_name,
                 slot_store=_slot_store_instance,
             ),
             _db_cfg.sched_lf_backfill_cron, "load_forecast"
         )
+        # @AI_GENERATED: 回填完成后独立监控 7 天版本级指标；该任务只创建告警
+        _sched_engine.register_task(
+            "lf_accuracy_monitor",
+            make_accuracy_monitor_task(LOAD_FORECAST_SLOT, _slot_store_instance),
+            "5 4 * * *", "load_forecast",
+        )
+        # @AI_GENERATED: end
         _sched_engine.register_task(
             "pv_data_pull", make_pv_data_pull_task(_mock_source, _pv_repo),
             _db_cfg.sched_pv_pull_cron, "pv_fault"
         )
+        # @AI_GENERATED: PV 预测模型由累计训练 completed request 决定，禁止启动时硬编码工件。
         _sched_engine.register_task(
-            "pv_prediction", make_pv_prediction_task(_pv_repo, "models/pv_fault.pkl"),
+            "pv_prediction", make_pv_prediction_task(_pv_repo),
             _db_cfg.sched_pv_predict_cron, "pv_fault"
         )
+        # @AI_GENERATED: end
         set_scheduler_engine(_sched_engine)
         app._db_adapter = _db_adapter  # store for shutdown
         print("✓ DBAdapter 和 SchedulerEngine 初始化完成")
 
         # @AI_GENERATED: 阶段 3 — 启动时预置 tasks.json 种子（幂等，已存在则不覆盖）
         _seed_scheduler_tasks(_db_cfg)
+        # @AI_GENERATED: end
+        # @AI_GENERATED: SchedulerEngine 注册后必须显式启动 pipeline，否则 cron 永远不触发
+        _sched_engine.start_pipeline("load_forecast", catchup=False)
+        print("✓ load_forecast 调度管线已启动")
+        # @AI_GENERATED: end
+        # @AI_GENERATED: PV 管线必须显式启动；无 completed 模型时预测任务安全等待。
+        _sched_engine.start_pipeline("pv_fault", catchup=False)
+        print("✓ pv_fault 调度管线已启动")
         # @AI_GENERATED: end
     except Exception as e:
         print(f"DBAdapter/SchedulerEngine 初始化失败（非致命）: {e}")
@@ -351,8 +373,8 @@ app.include_router(load_forecast_router)  # 负荷预测路由
 # @AI_GENERATED
 app.include_router(iterative_labeling_router)  # 光伏故障迭代标注闭环路由
 # @AI_GENERATED: end
-# @AI_GENERATED
-app.include_router(precision_ops_router)  # 精度运营路由
+# @AI_GENERATED: 旧 precision_ops 控制面会写独立注册表，禁止挂载以保持部署槽位为唯一发布真源
+# 只保留 /api/accuracy-operations（监控/RCA/建议）与 /api/deployment（发布/切换/回滚）。
 # @AI_GENERATED: end
 # @AI_GENERATED
 app.include_router(accuracy_operations_router)  # 精度运营（新版）路由
@@ -471,6 +493,14 @@ def _seed_scheduler_tasks(db_cfg) -> None:
                 "slot": "default",
             },
             {
+                "task_id": "lf_accuracy_monitor",
+                "name": "负荷预测 — 7 天滚动精度监控与退化预警（只读部署身份）",
+                "pipeline": "load_forecast",
+                "schedule_type": "cron",
+                "cron_expr": "5 4 * * *",
+                "slot": "default",
+            },
+            {
                 "task_id": "pv_data_pull",
                 "name": "光伏故障 — 数据拉取",
                 "pipeline": "pv_fault",
@@ -490,6 +520,10 @@ def _seed_scheduler_tasks(db_cfg) -> None:
 
         seeded = 0
         for defaults in _DEFAULT_TASKS:
+            # @AI_GENERATED: 负荷预测任务按正式部署槽位写入，避免新环境重新种子时回退 default。
+            if defaults["pipeline"] == "load_forecast":
+                defaults["slot"] = LOAD_FORECAST_SLOT
+            # @AI_GENERATED: end
             # 已存在则跳过（不覆盖用户改过的 cron_expr）
             if store.get_task(defaults["task_id"]) is not None:
                 continue

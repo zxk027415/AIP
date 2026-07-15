@@ -21,7 +21,9 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from sqlalchemy import insert as sa_insert, select
+# @AI_GENERATED: 未标注样本筛选需要显式 SQL OR 条件
+from sqlalchemy import insert as sa_insert, or_, select
+# @AI_GENERATED: end
 
 from services.db.adapter import DBAdapter
 from services.db.exceptions import IngestionError
@@ -111,6 +113,9 @@ class PVFaultRepository:
 
         # float/int 列：NaN → None（SQL NULL）
         df = df.where(pd.notnull(df), None)
+        # @AI_GENERATED: pandas 浮点列会把 None 回写为 NaN；label 必须保留 SQL NULL 语义。
+        df["label"] = df["label"].astype(object).where(df["label"].notna(), None)
+        # @AI_GENERATED: end
 
         records = df.to_dict(orient="records")
         if not records:
@@ -235,6 +240,42 @@ class PVFaultRepository:
             for row in rows:
                 session.expunge(row)
         return list(rows)
+
+    # @AI_GENERATED: 调度预测只读取未标注且尚未被成功批次消费的原始观测，供 pandas 快照为 CSV。
+    def query_unlabeled_training_samples(
+        self,
+        after_time: Optional[datetime] = None,
+    ) -> List[Dict[str, object]]:
+        """读取 ``label IS NULL OR label < 0`` 的观测，按复合业务键稳定排序。
+
+        ``after_time`` 是调度侧成功预测游标：传入后仅返回更晚的未标注观测，避免每日任务
+        对同一批待审核数据重复推理。返回普通字典，调用方可直接构造 pandas CSV。
+        """
+        columns = (
+            TrainingSample.time,
+            TrainingSample.site_id,
+            TrainingSample.device_id,
+            TrainingSample.branch_id,
+            TrainingSample.value,
+            TrainingSample.i_cal,
+            TrainingSample.label,
+        )
+        stmt = select(*columns).where(
+            or_(TrainingSample.label.is_(None), TrainingSample.label < 0)
+        )
+        if after_time is not None:
+            stmt = stmt.where(TrainingSample.time > after_time)
+        stmt = stmt.order_by(
+            TrainingSample.time.asc(),
+            TrainingSample.site_id.asc(),
+            TrainingSample.device_id.asc(),
+            TrainingSample.branch_id.asc(),
+            TrainingSample.id.asc(),
+        )
+        with self._adapter.get_sync_session() as session:
+            rows = session.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+    # @AI_GENERATED: end
 
     # ------------------------------------------------------------------
     # 高水位查询

@@ -9,7 +9,7 @@
   "production_timeout_seconds": 120,
   "max_shadow_versions": 5,
   "rollback_window_hours": 48,
-  "auto_switch_enabled": true,
+  "auto_switch_enabled": false,
   "prediction_retention_days": 90,
   "min_eval_points": 72,
   "post_switch_observation_points": 48,

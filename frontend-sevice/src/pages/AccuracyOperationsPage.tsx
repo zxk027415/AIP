@@ -12,7 +12,7 @@
  *   - Task 13.1
  */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Card, Select, Typography, Row, Col } from 'antd';
 import { useAccuracyOperationsStore } from '../stores/accuracyOperationsStore';
 import ModelLifecycleCard from './accuracy-operations/ModelLifecycleCard';
@@ -45,21 +45,11 @@ const SLOT_OPTIONS = [
  *   - Row 3（全宽）：RCA 报告占位卡片（Task 13.6 实现后替换）
  */
 const AccuracyOperationsPage: React.FC = () => {
-  const { currentSlot, setCurrentSlot, fetchOverview, fetchAlerts, fetchMonitoringSnapshot, fetchLifecycle } =
-    useAccuracyOperationsStore();
+  const { currentSlot, setCurrentSlot } = useAccuracyOperationsStore();
 
-  // 挂载时拉取所有数据
-  useEffect(() => {
-    fetchOverview(currentSlot);
-    fetchAlerts(currentSlot);
-    fetchMonitoringSnapshot(currentSlot);
-    fetchLifecycle(currentSlot);
-  }, [currentSlot, fetchOverview, fetchAlerts, fetchMonitoringSnapshot, fetchLifecycle]);
-
-  /** handleSlotChange — slot 变更时更新 store 并触发重新拉取 */
+  /** handleSlotChange — slot 变更后由各子面板独立拉取各自的数据 */
   const handleSlotChange = (value: string) => {
     setCurrentSlot(value);
-    // useEffect 依赖 currentSlot，会在下一渲染周期自动触发 fetch
   };
 
   /** handleSelectAlert — AlertPanel 行点击回调（预留给 RCAReportViewer） */

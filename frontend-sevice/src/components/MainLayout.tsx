@@ -253,11 +253,6 @@ const MainLayout: React.FC = () => {
           icon: <LineChartOutlined />,
           label: '精度运营',
         },
-        {
-          key: '/algorithm-dev/ops',
-          icon: <LineChartOutlined />,
-          label: '算法运营',
-        },
       ],
     },
     // ── 系统 ──
@@ -317,11 +312,6 @@ const MainLayout: React.FC = () => {
               key: '/backtest/unified',
               icon: <BuildOutlined />,
               label: '统一回测',
-            },
-            {
-              key: '/precision-ops',
-              icon: <ThunderboltOutlined />,
-              label: '精度运营旧入口',
             },
             {
               key: '/llm-config',
@@ -519,7 +509,6 @@ const MainLayout: React.FC = () => {
                 {location.pathname.startsWith('/algorithm-dev/workflow-editor/') && '工作流编排'}
                 {location.pathname === '/algorithm-dev/operators' && '基础算法库'}
                 {location.pathname === '/algorithm-dev/autoresearch' && '自动化回测'}
-                {location.pathname === '/algorithm-dev/ops' && '算法运营'}
                 {location.pathname === '/algorithm-dev/deployment' && '算法部署'}
                 {location.pathname === '/functions' && t('header.basicAlgorithmLibrary')}
                 {location.pathname === '/knowledge-graph' && t('header.aiKnowledgeGraph')}

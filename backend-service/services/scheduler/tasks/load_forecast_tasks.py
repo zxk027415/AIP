@@ -504,7 +504,12 @@ def _run_single_prediction(
     from services.scheduler.tasks.workflow_predictor import run_prediction
 # @AI_GENERATED: end
 
-    cycle_id = f"{workflow_id}:{forecast_ts.strftime('%Y%m%d%H%M%S')}"
+    # @AI_GENERATED: cycle_id 列为 String(128)，使用版本标签短哈希保留完整身份且避免长标签溢出
+    import hashlib
+
+    version_digest = hashlib.sha256(version_tag.encode("utf-8")).hexdigest()[:16]
+    cycle_id = f"{workflow_id[:70]}:{version_digest}:{forecast_ts.strftime('%Y%m%d%H%M%S')}"
+    # @AI_GENERATED: end
 
     # Check if already predicted for this cycle
     with lf_repo._adapter.get_sync_session() as session:
@@ -513,6 +518,7 @@ def _run_single_prediction(
             .filter(
                 PredictionResult.slot == slot,
                 PredictionResult.workflow_id == workflow_id,
+                PredictionResult.version_tag == version_tag,
                 PredictionResult.prediction_cycle_id == cycle_id,
             )
             .first()
@@ -575,11 +581,9 @@ def _run_single_prediction(
     return cycle_id
 
 
-# ---------------------------------------------------------------------------
-# Task 3: 精度回填任务
-# ---------------------------------------------------------------------------
+# @AI_GENERATED: deprecated — 该旧回填实现仅保留源码审计；下方版本级工厂是唯一新调用入口
 
-def make_accuracy_backfill_task(
+def _legacy_make_accuracy_backfill_task(
     lf_repo: "LoadForecastRepository",
     slot: str,
     station_id: str = DEFAULT_MOCK_STATION_ID,
@@ -733,7 +737,9 @@ def make_accuracy_backfill_task(
     return accuracy_backfill_task
 
 
-# @AI_GENERATED: 阶段 2 — backfill 后置操作：更新 shadow consecutive_better_days + prelaunch 毕业判定
+# @AI_GENERATED: end
+
+# @AI_GENERATED: deprecated helper retained only for _legacy_make_accuracy_backfill_task; the versioned helper is appended below
 def _post_backfill_slot_update(
     slot: str,
     slot_store,
@@ -876,4 +882,220 @@ def _post_backfill_slot_update(
             "_post_backfill_slot_update: slot=%s 切换检查失败（不影响精度回填）: %s",
             slot, exc,
         )
+# @AI_GENERATED: end
+
+# @AI_GENERATED: 版本级 7 天精度回填与监控任务工厂
+
+def make_accuracy_backfill_task(
+    lf_repo: "LoadForecastRepository",
+    slot: str,
+    station_id: str = DEFAULT_MOCK_STATION_ID,
+    feature_name: str = DEFAULT_MOCK_FEATURE_NAME,
+    workflow_id: str = DEFAULT_MOCK_WORKFLOW_ID,
+    slot_store=None,
+) -> Callable:
+    """返回回填任务：按 ``workflow_id@version_tag`` 计算最近 7 天滚动精度。
+
+    ``workflow_id`` 仅保留旧调用兼容，不再用于过滤回填数据；否则部署中的
+    production/shadow 会因默认 mock 工作流而永远无法获得真实指标。
+    """
+
+    def accuracy_backfill_task() -> int:
+        from services.precision_ops.accuracy_tracker import AccuracyTracker
+        from services.precision_ops.config_manager import ConfigManager
+        from services.precision_ops.versioning import make_version_key
+
+        # @AI_GENERATED: 生产精度口径固定为最近 7 天；配置只允许调整最少有效周期，不可放宽窗口
+        window_days = 7
+        try:
+            min_valid_cycles = int(ConfigManager().load_config(slot).min_valid_cycles)
+        except Exception as exc:
+            logger.warning("accuracy_backfill_task: 配置读取失败 slot=%s，使用最少 3 个有效周期: %s", slot, exc)
+            min_valid_cycles = 3
+        # @AI_GENERATED: end
+        cutoff = datetime.utcnow() - timedelta(days=window_days)
+
+        # 只用已经进入平台库的实测值回填，绝不直接读取外部 CSV 的未来标签。
+        with lf_repo._adapter.get_sync_session() as session:
+            latest_actual_ts = (
+                session.query(StationData.timestamp_utc)
+                .filter(
+                    StationData.slot == slot,
+                    StationData.station_id == station_id,
+                    StationData.feature_name == feature_name,
+                )
+                .order_by(StationData.timestamp_utc.desc())
+                .limit(1)
+                .scalar()
+            )
+            if latest_actual_ts is not None:
+                pending = (
+                    session.query(PredictionResult)
+                    .filter(
+                        PredictionResult.slot == slot,
+                        PredictionResult.actual_value.is_(None),
+                        PredictionResult.forecast_timestamp >= cutoff,
+                        PredictionResult.forecast_timestamp <= latest_actual_ts,
+                    )
+                    .all()
+                )
+                for prediction in pending:
+                    actual = (
+                        session.query(StationData.value)
+                        .filter(
+                            StationData.slot == slot,
+                            StationData.station_id == station_id,
+                            StationData.feature_name == feature_name,
+                            StationData.timestamp_utc == prediction.forecast_timestamp,
+                        )
+                        .order_by(StationData.ingested_at.desc())
+                        .limit(1)
+                        .scalar()
+                    )
+                    if actual is None:
+                        continue
+                    prediction.actual_value = float(actual)
+                    prediction.status = "evaluated"
+                    prediction.evaluated_at = datetime.utcnow()
+
+        with lf_repo._adapter.get_sync_session() as session:
+            rows = (
+                session.query(PredictionResult)
+                .filter(
+                    PredictionResult.slot == slot,
+                    PredictionResult.forecast_timestamp >= cutoff,
+                    PredictionResult.forecast_timestamp <= datetime.utcnow(),
+                )
+                .all()
+            )
+            session.expunge_all()
+
+        groups: dict[tuple[str, str], list] = defaultdict(list)
+        for row in rows:
+            groups[(row.workflow_id, row.version_tag)].append(row)
+
+        tracker = AccuracyTracker()
+        latest_metrics: dict[tuple[str, str], dict] = {}
+        updated = 0
+        for (wf_id, version_tag), predictions in groups.items():
+            evaluated = [row for row in predictions if row.actual_value is not None]
+            valid_for_mape = [row for row in evaluated if row.actual_value != 0]
+            if not valid_for_mape:
+                continue
+            total_points = len(predictions)
+            coverage_rate = len(evaluated) / total_points if total_points else 0.0
+            valid_cycle_count = len({row.prediction_cycle_id for row in evaluated})
+            total_cycle_count = len({row.prediction_cycle_id for row in predictions})
+            mape = statistics.mean(
+                abs(float(row.predicted_value) - float(row.actual_value)) / abs(float(row.actual_value)) * 100
+                for row in valid_for_mape
+            )
+            abs_error_sum = sum(abs(float(row.predicted_value) - float(row.actual_value)) for row in evaluated)
+            actual_abs_sum = sum(abs(float(row.actual_value)) for row in evaluated)
+            wmape = abs_error_sum / actual_abs_sum * 100 if actual_abs_sum else None
+            mae = abs_error_sum / len(evaluated) if evaluated else None
+            status = "active" if valid_cycle_count >= min_valid_cycles and coverage_rate >= 0.9 else "insufficient_data"
+            metrics = {
+                "rolling_mape": mape,
+                "rolling_wmape": wmape,
+                "rolling_mae": mae or 0.0,
+                "valid_cycle_count": valid_cycle_count,
+                "total_cycle_count": total_cycle_count,
+                "coverage_rate": coverage_rate,
+                "window_days": window_days,
+                "last_evaluated_at": datetime.utcnow().isoformat(),
+                "status": status,
+            }
+            tracker.update_metrics(slot, wf_id, metrics, version_tag=version_tag)
+            lf_repo.upsert_accuracy_metrics(
+                slot,
+                make_version_key(wf_id, version_tag),
+                {
+                    "rolling_mape": mape,
+                    "rolling_mae": mae,
+                    "valid_cycle_count": valid_cycle_count,
+                    "total_cycle_count": total_cycle_count,
+                    "status": status,
+                    "last_evaluated_at": datetime.utcnow(),
+                },
+            )
+            latest_metrics[(wf_id, version_tag)] = metrics
+            updated += 1
+
+        if slot_store is not None and latest_metrics:
+            _post_versioned_backfill_slot_update(slot, slot_store, latest_metrics)
+        logger.info(
+            "accuracy_backfill_task: slot=%s window_days=%d updated_versions=%d",
+            slot, window_days, updated,
+        )
+        return updated
+
+    return accuracy_backfill_task
+
+
+def _post_versioned_backfill_slot_update(slot: str, slot_store, latest_metrics: dict[tuple[str, str], dict]) -> None:
+    """把版本级指标回写部署槽位；不在回填路径执行切换。"""
+    from services.deployment.prelaunch_lifecycle import evaluate_all_prelaunches
+
+    slot_obj = slot_store.get(slot)
+    if slot_obj is None:
+        return
+
+    production_mape: Optional[float] = None
+    if slot_obj.production_model is not None:
+        production_metrics = latest_metrics.get((slot_obj.production_model.workflow_id, slot_obj.production_model.version_tag))
+        if production_metrics is not None:
+            slot_obj.production_model.accuracy_score = production_metrics["rolling_mape"]
+            production_mape = production_metrics["rolling_mape"]
+        else:
+            production_mape = slot_obj.production_model.accuracy_score
+
+    for shadow in slot_obj.shadow_models:
+        if shadow.status != "shadow":
+            continue
+        shadow_metrics = latest_metrics.get((shadow.workflow_id, shadow.version_tag))
+        if shadow_metrics is None:
+            continue
+        shadow.accuracy_score = shadow_metrics["rolling_mape"]
+        if production_mape is not None:
+            shadow.consecutive_better_days = (
+                shadow.consecutive_better_days + 1
+                if shadow.accuracy_score < production_mape else 0
+            )
+
+    by_workflow = {
+        workflow_id: metrics["rolling_mape"]
+        for (workflow_id, _version_tag), metrics in latest_metrics.items()
+    }
+    decisions = evaluate_all_prelaunches(slot_obj, accuracy_by_workflow_id=by_workflow)
+    slot_obj.updated_at = datetime.utcnow().isoformat()
+    slot_store.upsert(slot_obj)
+    for decision in decisions:
+        if decision.decision == "graduate":
+            slot_store.promote_prelaunch_to_shadow(slot, decision.workflow_id)
+        elif decision.decision == "fail":
+            slot_store.fail_prelaunch(slot, decision.workflow_id, decision.reason)
+
+    # @AI_GENERATED: 回填只更新部署评分；通道 A 必须由告警 → RCA → RecoveryDecision 后显式调用部署引擎
+    # 禁止在 cron 回填路径中自动提升 shadow，避免绕过根因分析和人工确认。
+    # @AI_GENERATED: end
+
+
+def make_accuracy_monitor_task(slot: str, slot_store) -> Callable:
+    """返回独立监控任务：只生成告警，绝不自动切换或修改部署身份。"""
+    def accuracy_monitor_task() -> int:
+        from services.accuracy_operations.monitor import AccuracyMonitor
+        from services.accuracy_operations.store import AccuracyOperationsStore
+        from services.precision_ops.accuracy_tracker import AccuracyTracker
+        from services.precision_ops.config_manager import ConfigManager
+        from services.precision_ops.version_registry import VersionRegistry
+
+        alerts = AccuracyMonitor(
+            AccuracyTracker(), VersionRegistry(), ConfigManager(), AccuracyOperationsStore(),
+            deployment_slot_store=slot_store,
+        ).evaluate(slot)
+        logger.info("accuracy_monitor_task: slot=%s new_alerts=%d", slot, len(alerts))
+        return len(alerts)
+
+    return accuracy_monitor_task
 # @AI_GENERATED: end

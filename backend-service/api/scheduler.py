@@ -571,7 +571,9 @@ async def start_pipeline(pipeline: str) -> Dict[str, str]:
             detail=f"未知管线 '{pipeline}'，支持: {sorted(_VALID_PIPELINES)}",
         )
     engine = _get_engine()
-    engine.start_pipeline(pipeline)
+    # @AI_GENERATED: 控制面重新启动只恢复 cron，不补跑历史生产任务；补跑需使用显式 trigger-now。
+    engine.start_pipeline(pipeline, catchup=False)
+    # @AI_GENERATED: end
     return {"status": "started", "pipeline": pipeline}
 
 

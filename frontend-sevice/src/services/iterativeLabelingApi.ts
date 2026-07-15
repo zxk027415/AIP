@@ -95,6 +95,7 @@ export interface BackfillResponse {
 
 // --------- 审核会话相关类型 ---------
 
+// @AI_GENERATED: 通用创建审核会话接口也显式透传 slot
 export interface CreateReviewSessionRequest {
   /** 所属迭代闭环 — 关联的loop */
   loopId: string;
@@ -102,7 +103,10 @@ export interface CreateReviewSessionRequest {
   predictionBatchId: string;
   /** 启用LLM辅助 — 是否生成LLM建议 */
   enableLlm?: boolean;
+  /** 槽位 — 审核、标签和回流数据的隔离分区 */
+  slot?: string;
 }
+// @AI_GENERATED: end
 
 export interface CreateReviewSessionResponse {
   /** 审核会话唯一标识 — 用于后续提交裁决 */
@@ -137,12 +141,16 @@ export interface SubmitVerdictRequest {
   reviewer: string;
 }
 
+// @AI_GENERATED: 审核裁决回传正常累计训练集准入、阈值和重训请求摘要
 export interface SubmitVerdictResponse {
   /** 是否接受 — 裁决是否成功提交 */
   accepted: boolean;
   /** 精度快照 — 当前三方精度 */
   accuracySnapshot: Record<string, unknown>;
+  /** 累计训练集状态 — 有效人工真值的准入、快照与重训申请 */
+  cumulativeTraining: Record<string, unknown>;
 }
+// @AI_GENERATED: end
 
 export interface GetAccuracyResponse {
   /** 分类器原始预测精度 — 分类器命中人工裁决的比例 */
@@ -161,10 +169,11 @@ export interface GetAccuracyResponse {
 
 // --------- 编辑器驱动：从预测结果建会话 / 回流原始时序 ---------
 
+// @AI_GENERATED: 编辑器→审核 API 显式携带 slot，防止后端忽略后写入 default
 export interface CreateReviewSessionFromPredictionRequest {
   /** 预测结果数组 — 来自预测工作流 faultPredictions */
   predictions: Array<Record<string, unknown>>;
-  /** 原始预测 CSV 路径 — 来自预测工作流 load_csv 节点 file_path */
+  /** 原始预测 CSV 路径 — 使用相对于项目根目录的路径 */
   sourceCsvPath: string;
   /** load_csv 配置 — rename_columns/encoding/delimiter,回流复用 */
   loadConfig?: Record<string, unknown>;
@@ -178,7 +187,10 @@ export interface CreateReviewSessionFromPredictionRequest {
   loopId?: string;
   /** 审核人标识 */
   reviewer?: string;
+  /** 槽位 — 审核、标签和回流数据的隔离分区 */
+  slot?: string;
 }
+// @AI_GENERATED: end
 
 export interface BackfillToDatasetRequest {
   /** 累积合并 — 是否拼接基线训练 CSV,默认true */
@@ -190,7 +202,7 @@ export interface BackfillToDatasetRequest {
 export interface BackfillToDatasetResponse {
   /** 新数据集版本号 */
   dataset_version: string;
-  /** 新数据集 CSV 绝对路径 — 可直接粘贴到训练工作流 load_csv 的 file_path */
+  /** 新数据集 CSV 相对项目根目录路径 — 可直接粘贴到训练工作流 load_csv 的 file_path */
   csv_path: string;
   /** 标注后原始行数 */
   labeled_rows: number;
@@ -236,6 +248,23 @@ export interface GetIterationsResponse {
   /** 趋势对象 — 含macroF1ByRound/labelCountByRound */
   trend: Record<string, unknown[]>;
 }
+
+// @AI_GENERATED: 正常累计训练集的状态、带真值导入与显式重训 API 契约
+export interface RegisterCumulativeTrainingImportRequest {
+  /** 仅允许带 label 列的 CSV/Parquet 相对项目根目录路径 */
+  datasetPath: string;
+  /** 导入来源说明，仅用于审计展示 */
+  sourceName?: string;
+}
+
+export interface CumulativeRetrainRunResponse {
+  request: Record<string, unknown>;
+  loopId: string;
+  trainResult: Record<string, unknown>;
+  /** 模型训练完成后仍需走发布流程，API 不会自动发布 */
+  publication: 'not_published';
+}
+// @AI_GENERATED: end
 
 // ============================================================================
 // API 客户端方法
@@ -321,6 +350,7 @@ export const reviewSessionApi = {
       loop_id: request.loopId,
       prediction_batch_id: request.predictionBatchId,
       enable_llm: request.enableLlm,
+      slot: request.slot || 'default',
     }),
 
   /**
@@ -374,6 +404,7 @@ export const reviewSessionApi = {
       enable_llm: request.enableLlm,
       loop_id: request.loopId,
       reviewer: request.reviewer,
+      slot: request.slot || 'default',
     }),
 
   /**
@@ -391,6 +422,30 @@ export const reviewSessionApi = {
       base_csv_path: request.baseCsvPath,
     }),
 };
+
+// @AI_GENERATED: 正常累计训练集控制面；所有路径由后端校验为项目根相对路径
+export const cumulativeTrainingApi = {
+  getState: (slot = 'default'): Promise<Record<string, unknown>> =>
+    api.get('/iterative-labeling/cumulative-training/state', { params: { slot } }),
+
+  registerImport: (
+    request: RegisterCumulativeTrainingImportRequest,
+    slot = 'default'
+  ): Promise<Record<string, unknown>> =>
+    api.post('/iterative-labeling/cumulative-training/imports', {
+      dataset_path: request.datasetPath,
+      source_name: request.sourceName,
+    }, { params: { slot } }),
+
+  runRetrainRequest: (
+    requestId: string,
+    slot = 'default'
+  ): Promise<CumulativeRetrainRunResponse> =>
+    api.post(`/iterative-labeling/cumulative-training/retrain-requests/${requestId}/run`, {}, {
+      params: { slot },
+    }),
+};
+// @AI_GENERATED: end
 
 /**
  * 标签注册表 API
@@ -451,6 +506,9 @@ export const iterationTrackerApi = {
 export default {
   loopOrchestrator: loopOrchestratorApi,
   reviewSession: reviewSessionApi,
+  // @AI_GENERATED: 暴露正常累计训练集控制面
+  cumulativeTraining: cumulativeTrainingApi,
+  // @AI_GENERATED: end
   labelRegistry: labelRegistryApi,
   iterationTracker: iterationTrackerApi,
 };

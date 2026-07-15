@@ -440,297 +440,387 @@ class LoopOrchestrator:
         loop_state['backfilled_dataset_version'] = new_dataset_version
         loop_state['updated_at'] = datetime.utcnow().isoformat()
     
+    # @AI_GENERATED
+    @staticmethod
+    def _project_roots() -> tuple:
+        """Return internal project roots; callers persist only their relative forms."""
+        import os
+
+        backend_service_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        return os.path.dirname(backend_service_dir), backend_service_dir
+
+    @classmethod
+    def _resolve_project_dataset(cls, dataset_version: str) -> tuple:
+        """Validate a project-root-relative CSV/Parquet path and return its canonical relative form."""
+        import os
+
+        if not isinstance(dataset_version, str) or not dataset_version.strip():
+            raise ValueError("dataset_version 不能为空")
+        if os.path.isabs(dataset_version):
+            raise ValueError("dataset_version 必须是相对项目根路径，禁止使用绝对路径")
+
+        project_root, _ = cls._project_roots()
+        candidate = os.path.normpath(os.path.join(project_root, dataset_version.strip()))
+        try:
+            if os.path.commonpath([project_root, candidate]) != project_root:
+                raise ValueError("dataset_version 必须位于项目根目录内")
+        except ValueError as exc:
+            raise ValueError("dataset_version 必须是相对项目根路径") from exc
+        if not os.path.isfile(candidate):
+            raise ValueError(f"dataset_version 文件不存在: {dataset_version}")
+
+        suffix = os.path.splitext(candidate)[1].lower()
+        if suffix not in {".csv", ".parquet"}:
+            raise ValueError("dataset_version 仅支持 CSV 或 Parquet 文件")
+        return candidate, os.path.relpath(candidate, project_root).replace(os.sep, "/")
+
+    @classmethod
+    def _resolve_model_artifact(cls, model_ref: str, requested_model_path: Optional[str] = None) -> tuple:
+        """Resolve an existing relative model artifact without exposing an absolute path."""
+        import os
+
+        project_root, backend_service_dir = cls._project_roots()
+        if requested_model_path:
+            if not isinstance(requested_model_path, str) or os.path.isabs(requested_model_path):
+                raise ValueError("model_path 必须是相对路径，禁止使用绝对路径")
+            candidates = [
+                os.path.normpath(os.path.join(project_root, requested_model_path)),
+                os.path.normpath(os.path.join(backend_service_dir, requested_model_path)),
+            ]
+        else:
+            if not model_ref or os.path.basename(model_ref) != model_ref:
+                raise ValueError("model_ref 必须是有效的模型标识")
+            candidates = [os.path.join(backend_service_dir, "data", "models", f"{model_ref}.pkl")]
+
+        for candidate in candidates:
+            try:
+                if os.path.commonpath([project_root, candidate]) != project_root:
+                    continue
+            except ValueError:
+                continue
+            if os.path.isfile(candidate) and candidate.lower().endswith(".pkl"):
+                persisted_path = os.path.relpath(candidate, project_root).replace(os.sep, "/")
+                execution_path = os.path.relpath(candidate, backend_service_dir).replace(os.sep, "/")
+                return candidate, persisted_path, execution_path
+        requested = requested_model_path or f"backend-service/data/models/{model_ref}.pkl"
+        raise ValueError(f"模型 pkl 不存在: {requested}")
+
+    @staticmethod
+    def _workflow_config_get(config: Any, key: str) -> Any:
+        """Read a workflow config key from either a mapping or a Pydantic model."""
+        return config.get(key) if isinstance(config, dict) else getattr(config, key, None)
+
+    @staticmethod
+    def _workflow_config_set(config: Any, key: str, value: Any) -> None:
+        """Set a workflow config key on either a mapping or a Pydantic model."""
+        if isinstance(config, dict):
+            config[key] = value
+        else:
+            setattr(config, key, value)
+
+    @staticmethod
+    def _read_model_feature_list(model_file: str) -> list:
+        """Load the persisted feature list from a validated model pickle."""
+        import pickle
+
+        with open(model_file, "rb") as handle:
+            payload = pickle.load(handle)
+        feature_list = payload.get("feature_list") if isinstance(payload, dict) else None
+        if not isinstance(feature_list, list) or not feature_list:
+            raise ValueError("模型 pkl 缺少非空 feature_list")
+        return feature_list
+
+    @staticmethod
+    def _normalize_accuracy_record(metrics: Any) -> Dict[str, Any]:
+        """Adapt workflow metrics to the existing Accuracy_Record shape."""
+        metrics = metrics if isinstance(metrics, dict) else {}
+        return {
+            'macro_f1_mean': metrics.get('macro_f1_mean', metrics.get('f1')),
+            'macro_f1_std': metrics.get('macro_f1_std'),
+            'accuracy_mean': metrics.get('accuracy_mean', metrics.get('accuracy')),
+            'accuracy_std': metrics.get('accuracy_std'),
+            'macro_precision_mean': metrics.get('macro_precision_mean', metrics.get('precision')),
+            'macro_recall_mean': metrics.get('macro_recall_mean', metrics.get('recall')),
+            'per_class_recall_mean': metrics.get('per_class_recall_mean', {}),
+            'per_repeat_macro_f1': metrics.get('per_repeat_macro_f1', []),
+            'confusion_matrix': metrics.get('confusion_matrix', {}),
+            'warnings': metrics.get('warnings', []),
+        }
+
+    @staticmethod
+    def _json_safe(value: Any) -> Any:
+        """Convert workflow values (including NumPy/Pandas scalars) to JSON-safe values."""
+        import math
+
+        if isinstance(value, dict):
+            return {str(key): LoopOrchestrator._json_safe(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [LoopOrchestrator._json_safe(item) for item in value]
+        if isinstance(value, float):
+            return value if math.isfinite(value) else None
+        if hasattr(value, 'item'):
+            try:
+                return LoopOrchestrator._json_safe(value.item())
+            except Exception:
+                pass
+        if hasattr(value, 'isoformat'):
+            try:
+                return value.isoformat()
+            except Exception:
+                pass
+        return value
+
     def trigger_train_eval(
         self,
         loop_id: str,
         dataset_version: str,
         model_params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """
-        触发训练评估（阶段 → trained）— 复用既有，不重造
-        
-        参数：
-        - loop_id: str — 迭代闭环唯一标识
-        - dataset_version: str — 必填，选定的有真值数据集版本
-        - model_params: dict | None — 可选，透传给训练评估工作流的参数对象，含：
-            - test_ratio: float — 测试集占比，默认 0.2
-            - n_repeats: int — 重复次数，默认 10
-            - random_state: int — 随机种子基值，默认 90
-            - k: int — mRMR 特征数
-            - label_map: dict — 标签映射，供 label_encode
-        
-        行为：
-        1. 以 model_params 触发 workflow-pv-fault-diag-quickval-cv-v1（内部走 stratified_cv_eval）
-        2. 复用 workflows_enhanced.py 既有执行引擎（_execute_pipeline_sync 等）与指标映射
-        3. **不在本系统重算切分/特征选择/过采样/训练/精度**
-        4. 读取算子输出逐键搬运组装 Accuracy_Record
-        5. 登记 Model_Artifact（含 model_ref/dataset_version/label_space_snapshot/iteration_round）
-        6. 数据集缺真值标签列时返回 422 + missing_columns，不触发训练
-        
-        返回：
-        - dict — 包含：
-            - model_ref: str — 模型引用（预测时显式指定）
-            - accuracy_record: dict — 精度记录（见 Data Models）
-            - label_space_snapshot: dict — 本次训练的标签空间快照
-        
-        异常：
-        - 若 loop_id 不存在，抛 KeyError
-        - 若当前阶段不允许训练，抛 StageTransitionError
-        - 若数据集缺真值标签列，抛 ValueError 并附 missing_columns
-        
-        映射需求：
-        - 需求 1.1（调用训练评估工作流）
-        - 需求 1.9（登记 Model_Artifact）
-        - 需求 1.10（数据集缺真值标签列时拒绝）
-        - 需求 1.11（复用既有执行引擎，不重造）
-        - 需求 12.4（把训练/预测执行委托给已有 AIP 工作流）
-        
-        **Validates: Requirements 1.1, 1.9, 1.10, 1.11, 12.4**
-        """
-        # 延迟导入（避免循环依赖）
+        """Execute the real PV training workflow and advance this loop once on success."""
         import sys
-        import os
-        # 将 backend-service 添加到 sys.path（便于导入 api.workflows_enhanced）
-        backend_service_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import pandas as pd
+
+        dataset_file, dataset_version = self._resolve_project_dataset(dataset_version)
+        if loop_id not in self._loops:
+            raise KeyError(f"闭环 {loop_id} 不存在")
+        if self._loops[loop_id].get('stage') not in (None, 'backfilled'):
+            raise StageTransitionError(
+                f"训练阶段要求当前阶段为 None 或 'backfilled'，但当前为 '{self._loops[loop_id].get('stage')}'"
+            )
+
+        if dataset_file.lower().endswith('.csv'):
+            dataset = pd.read_csv(dataset_file)
+        else:
+            dataset = pd.read_parquet(dataset_file)
+        if 'label' not in dataset.columns:
+            raise ValueError("训练数据缺少真值标签列: missing_columns=['label']")
+        if dataset['label'].dropna().nunique() < 2:
+            raise ValueError("训练数据的 label 列至少需要两个非空类别")
+
+        _, backend_service_dir = self._project_roots()
         if backend_service_dir not in sys.path:
             sys.path.insert(0, backend_service_dir)
-        
         from api.workflows_enhanced import load_workflow_from_file, _execute_pipeline_sync
-        import uuid
-        
-        # 校验参数
-        if not dataset_version:
-            raise ValueError("dataset_version 不能为空")
-        
-        # 准备默认参数
-        if model_params is None:
-            model_params = {}
-        
-        # 填充默认值（需求 1：test_ratio/n_repeats/random_state 默认值）
-        test_ratio = model_params.get('test_ratio', 0.2)
-        n_repeats = model_params.get('n_repeats', 10)
-        random_state = model_params.get('random_state', 90)
-        k = model_params.get('k', 20)
-        label_map = model_params.get('label_map', {})
-        
-        # 加载训练评估工作流模板（workflow-pv-fault-diag-quickval-cv-v1）
+
         workflow = load_workflow_from_file('workflow-pv-fault-diag-quickval-cv-v1')
         if workflow is None:
             raise ValueError("训练评估工作流模板 workflow-pv-fault-diag-quickval-cv-v1 不存在")
-        
-        # TODO: 数据集缺真值标签列校验（需求 1.10）
-        # 当前简化实现：假设数据集已就绪；后续需在此处增加数据集元数据读取与列校验
-        # 若缺失 label 列，应抛 ValueError 并附 missing_columns=['label']
-        
-        # 覆盖工作流中的参数（透传 model_params 到 stratified_cv_eval 算子）
-        # 找到 stratified_cv_eval 节点（id 为 qv-stratified_cv_eval-n10）
+
+        params = model_params if isinstance(model_params, dict) else {}
+        load_node_found = False
+        cv_node_found = False
         for node in workflow.nodes:
-            if node.data.config.get('functionId') == 'stratified_cv_eval':
-                # 覆盖算子参数
-                node.data.config['test_ratio'] = test_ratio
-                node.data.config['n_repeats'] = n_repeats
-                node.data.config['random_state'] = random_state
-                node.data.config['k'] = k
-                # label_map 暂不透传到算子（算子内部使用 target_col='label'）
-                break
-        
-        # 执行工作流（复用既有执行引擎 _execute_pipeline_sync）
+            config = node.data.config
+            if self._workflow_config_get(config, 'functionId') == 'load_csv':
+                self._workflow_config_set(config, 'file_path', dataset_version)
+                load_node_found = True
+            elif self._workflow_config_get(config, 'functionId') == 'stratified_cv_eval':
+                for key, default in {
+                    'test_ratio': 0.2,
+                    'n_repeats': 10,
+                    'random_state': 90,
+                    'k': 20,
+                }.items():
+                    self._workflow_config_set(config, key, params.get(key, default))
+                cv_node_found = True
+        if not load_node_found or not cv_node_found:
+            raise RuntimeError("训练评估工作流缺少 load_csv 或 stratified_cv_eval 节点")
+
         execution_result = _execute_pipeline_sync(workflow)
-        
-        # 校验执行成功
         if not execution_result.get('success', False):
-            error_msg = execution_result.get('error', '工作流执行失败')
-            raise RuntimeError(f"训练评估工作流执行失败: {error_msg}")
-        
-        # 读取算子输出（stratified_cv_eval 输出在 nodeResults 中）
-        node_results = execution_result.get('nodeResults', {})
-        
-        # 找到 stratified_cv_eval 节点的输出（节点 id 为 qv-stratified_cv_eval-n10）
-        cv_eval_node_id = 'qv-stratified_cv_eval-n10'
-        if cv_eval_node_id not in node_results:
-            raise RuntimeError(f"训练评估工作流输出缺失 {cv_eval_node_id} 节点结果")
-        
-        cv_eval_result = node_results[cv_eval_node_id]
-        if not cv_eval_result.get('success', False):
-            raise RuntimeError(f"stratified_cv_eval 节点执行失败: {cv_eval_result.get('error', '未知错误')}")
-        
-        # 读取算子输出（output 字段）
-        cv_eval_output = cv_eval_result.get('output', {})
-        
-        # 逐键搬运组装 Accuracy_Record（需求 1.9）
-        # 与 design.md 的 Accuracy_Record 数据契约对齐
-        accuracy_record = {
-            'macro_f1_mean': cv_eval_output.get('macro_f1_mean'),
-            'macro_f1_std': cv_eval_output.get('macro_f1_std'),
-            'accuracy_mean': cv_eval_output.get('accuracy_mean'),
-            'accuracy_std': cv_eval_output.get('accuracy_std'),
-            'macro_precision_mean': cv_eval_output.get('macro_precision_mean'),
-            'macro_recall_mean': cv_eval_output.get('macro_recall_mean'),
-            'per_class_recall_mean': cv_eval_output.get('per_class_recall_mean', {}),
-            'per_repeat_macro_f1': cv_eval_output.get('per_repeat_macro_f1', []),
-            'confusion_matrix': cv_eval_output.get('confusion_matrix', {}),
-            'warnings': cv_eval_output.get('warnings', [])
-        }
-        
-        # 生成 model_ref（唯一标识，格式：mdl-{loop_id 短前缀}-{uuid 短前缀}）
-        loop_state = self._loops.get(loop_id)
-        if loop_state is None:
-            raise KeyError(f"闭环 {loop_id} 不存在")
-        
-        iteration_round = loop_state['iteration_round']
-        model_ref = f"mdl-r{iteration_round}-{uuid.uuid4().hex[:8]}"
-        
-        # 读取当前标签注册表，生成 label_space_snapshot
+            raise RuntimeError(f"训练评估工作流执行失败: {execution_result.get('error', '未知错误')}")
+
+        n10_result = (execution_result.get('nodeResults') or {}).get('qv-stratified_cv_eval-n10')
+        if not isinstance(n10_result, dict):
+            raise RuntimeError("训练评估工作流输出缺失 n10 节点结果")
+        if n10_result.get('success') is False or n10_result.get('status') in {'failed', 'error'}:
+            raise RuntimeError("训练评估工作流 n10 节点未成功执行")
+        output_summary = n10_result.get('outputSummary')
+        if not isinstance(output_summary, dict):
+            raise RuntimeError("n10 节点输出缺少 outputSummary")
+        model_ref = output_summary.get('model_id')
+        model_path_value = output_summary.get('model_path')
+        if not model_ref or not model_path_value:
+            raise RuntimeError("n10 节点 outputSummary 缺少 model_id 或 model_path")
+
+        model_file, model_path, _ = self._resolve_model_artifact(
+            str(model_ref), str(model_path_value)
+        )
+        feature_list = self._read_model_feature_list(model_file)
+        accuracy_record = self._normalize_accuracy_record(execution_result.get('metrics'))
         current_registry = self.label_registry_service.get_current()
         label_space_snapshot = {
             'label_space_version': current_registry.get('label_space_version'),
-            'label_ids': [label['label_id'] for label in current_registry.get('labels', [])]
+            'label_ids': [label['label_id'] for label in current_registry.get('labels', [])],
         }
-        
-        # 推进阶段：None/backfilled → trained
+
         self.advance_to_trained(
             loop_id=loop_id,
             dataset_version=dataset_version,
-            model_ref=model_ref,
+            model_ref=str(model_ref),
             label_space_snapshot=label_space_snapshot,
-            accuracy_record=accuracy_record
+            accuracy_record=accuracy_record,
         )
-        
-        # 返回结果
+
         return {
-            'model_ref': model_ref,
+            'model_ref': str(model_ref),
+            'model_path': model_path,
+            'feature_list': feature_list,
             'accuracy_record': accuracy_record,
-            'label_space_snapshot': label_space_snapshot
+            'label_space_snapshot': label_space_snapshot,
         }
-    
+
     def trigger_predict(
         self,
         loop_id: str,
         model_ref: str,
         unlabeled_dataset_version: str,
-        prediction_workflow_id: str = "workflow-pv-fault-diag-prediction-v1",
+        prediction_workflow_id: str = "workflow-pv-fault-diag-quickval-predict-v1",
         prediction_params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """
-        触发预测（阶段 trained → predicted）— 复用既有，不重造
-        
-        参数：
-        - loop_id: str — 迭代闭环唯一标识
-        - model_ref: str — 必填，使用的模型引用（显式指定）
-        - unlabeled_dataset_version: str — 必填，待预测的无真值数据集版本
-        - prediction_workflow_id: str — 预测工作流模板 ID，默认 "workflow-pv-fault-diag-prediction-v1"
-        - prediction_params: dict | None — 可选，透传给预测工作流的参数对象
-        
-        返回：
-        - dict — 预测结果，包含：
-            - prediction_batch_id: str — 本次预测批次标识
-            - unit_count: int — 诊断单元数（Diagnosis_Unit 数量）
-            - predictions: list[dict] — 预测结果列表，每项含：
-                - unit_key: str — 诊断单元标识（site_id|device_id|(branch_id)|time_window）
-                - predicted_label: int — 预测标签（label_id）
-                - confidence: float — 置信度（0~1）
-                - model_ref: str — 产生该预测的模型引用
-        
-        行为：
-        1. 校验 model_ref 非空且有效（必填参数）
-        2. 校验 unlabeled_dataset_version 非空（必填参数）
-        3. 校验当前阶段为 'trained'（合法前驱）
-        4. 以显式 model_ref 调用预测工作流（复用 workflows_enhanced.py 的执行引擎）
-        5. 为每个 Diagnosis_Unit 产出 Classifier_Prediction（predicted_label/confidence/unit_key）
-        6. 将预测结果与 model_ref/dataset_version/iteration_round 关联保存
-        7. 推进阶段 trained → predicted（调用 advance_to_predicted）
-        
-        异常：
-        - 若 model_ref 缺失或无效，返回 400 错误（禁止任何隐式重训）
-        - 若 unlabeled_dataset_version 缺失，返回 400 错误
-        - 若当前阶段不是 'trained'，抛 StageTransitionError
-        - 若预测工作流执行失败，抛执行错误
-        
-        映射需求：
-        - 需求 2.1（以显式 model_ref 调用预测工作流）
-        - 需求 2.2（禁止隐式重训，model_ref 缺失返回 400）
-        - 需求 2.3（为每个 Diagnosis_Unit 产出 Classifier_Prediction）
-        - 需求 2.4（预测结果与 model_ref/dataset_version/iteration_round 关联保存）
-        - 需求 2.5（复用既有预测工作流，不重造）
-        - 需求 12.4（把预测执行委托给 AIP 工作流，编排层只触发/传参/收集结果/推进状态）
-        
-        **Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 12.4**
-        """
-        # 1. 校验必填参数
+        """Execute the PV prediction template, persist a relative-path batch, and advance once."""
+        import json
+        import os
+        import sys
+        import tempfile
+        import uuid
+
         if not model_ref:
             raise ValueError("预测阶段必须提供有效的 model_ref（模型引用），禁止隐式重训")
-        
-        if not unlabeled_dataset_version:
-            raise ValueError("预测阶段必须提供 unlabeled_dataset_version（待预测数据集版本）")
-        
-        # 2. 校验当前阶段（必须是 'trained'，通过 _advance_stage 内部校验）
+        _dataset_file, dataset_version = self._resolve_project_dataset(unlabeled_dataset_version)
         loop_state = self.get_loop_state(loop_id)
         if loop_state['stage'] != 'trained':
             raise StageTransitionError(
                 f"预测阶段要求当前阶段为 'trained'，但当前为 '{loop_state['stage']}'"
             )
-        
-        # 3. 分配预测批次标识
-        prediction_batch_id = f"pred-{loop_id}-{uuid.uuid4().hex[:8]}"
-        
-        # 4. 加载预测工作流模板（复用既有，不重造）
-        # 注：这里只演示接口契约，实际执行引擎由 workflows_enhanced.py 提供
-        # 当前阶段我们定义接口但不完整实现执行逻辑（避免循环依赖）
-        # 实际调用应在 API 层（api/iterative_labeling.py）中完成
-        
-        # 延迟导入避免循环依赖
-        # from api.workflows_enhanced import load_workflow_from_file, _execute_pipeline_sync
-        
-        # 5. 准备预测参数（含显式 model_ref）
-        predict_params = prediction_params or {}
-        predict_params['model_ref'] = model_ref  # 显式指定模型引用（需求 2.1, 2.2）
-        predict_params['dataset_version'] = unlabeled_dataset_version
-        
-        # 6. 触发预测工作流（当前阶段只定义接口，实际执行由 API 层完成）
-        # workflow = load_workflow_from_file(prediction_workflow_id)
-        # if not workflow:
-        #     raise ValueError(f"预测工作流模板 {prediction_workflow_id} 不存在")
-        # 
-        # result = _execute_pipeline_sync(workflow, execution_data=predict_params)
-        # if not result.get('success'):
-        #     raise RuntimeError(f"预测工作流执行失败: {result.get('error')}")
-        
-        # 7. 解析预测结果，组装 Classifier_Prediction 列表（需求 2.3）
-        # 注：实际解析逻辑应从 result['fault_predictions'] 或类似字段提取
-        # 这里只演示数据契约结构
+
+        params = prediction_params if isinstance(prediction_params, dict) else {}
+        nested_model_params = params.get('model_params')
+        requested_model_path = (
+            nested_model_params.get('model_path')
+            if isinstance(nested_model_params, dict) and nested_model_params.get('model_path')
+            else params.get('model_path')
+        )
+        model_file, model_path, execution_model_path = self._resolve_model_artifact(
+            str(model_ref), requested_model_path
+        )
+        feature_list = self._read_model_feature_list(model_file)
+
+        _, backend_service_dir = self._project_roots()
+        if backend_service_dir not in sys.path:
+            sys.path.insert(0, backend_service_dir)
+        from api.workflows_enhanced import load_workflow_from_file, _execute_pipeline_sync
+
+        workflow = load_workflow_from_file(prediction_workflow_id)
+        if workflow is None:
+            raise ValueError(f"预测工作流模板 {prediction_workflow_id} 不存在")
+
+        load_node_found = False
+        feature_node_found = False
+        classifier_node_found = False
+        for node in workflow.nodes:
+            config = node.data.config
+            function_id = self._workflow_config_get(config, 'functionId')
+            if function_id == 'load_csv':
+                self._workflow_config_set(config, 'file_path', dataset_version)
+                load_node_found = True
+            elif function_id == 'feature_select':
+                self._workflow_config_set(config, 'feature_list', feature_list)
+                feature_node_found = True
+            elif function_id == 'random_forest_classifier':
+                self._workflow_config_set(config, 'model_id', model_ref)
+                self._workflow_config_set(config, 'model_path', execution_model_path)
+                classifier_node_found = True
+        if not (load_node_found and feature_node_found and classifier_node_found):
+            raise RuntimeError("预测工作流缺少 load_csv、feature_select 或 random_forest_classifier 节点")
+
+        execution_result = _execute_pipeline_sync(workflow)
+        if not execution_result.get('success', False):
+            raise RuntimeError(f"预测工作流执行失败: {execution_result.get('error', '未知错误')}")
+        raw_predictions = execution_result.get('fault_predictions')
+        if not isinstance(raw_predictions, list) or not raw_predictions:
+            raise RuntimeError("预测工作流未返回非空 fault_predictions")
+
         predictions = []
-        # 示例结构（实际应从工作流结果中提取）：
-        # for pred_row in result.get('fault_predictions', []):
-        #     unit_key = f"{pred_row.get('site_id', '')}|{pred_row.get('device_id', '')}|" \
-        #                f"{pred_row.get('branch_id', '')}|{pred_row.get('time_window', '')}"
-        #     predictions.append({
-        #         'unit_key': unit_key,
-        #         'predicted_label': pred_row.get('predicted_label'),
-        #         'confidence': pred_row.get('confidence', 0.0),
-        #         'model_ref': model_ref,
-        #         'prediction_batch_id': prediction_batch_id
-        #     })
-        
-        # 8. 将预测结果与闭环状态关联（需求 2.4）
-        loop_state = self._loops[loop_id]
-        loop_state['prediction_batch_id'] = prediction_batch_id
-        loop_state['prediction_dataset_version'] = unlabeled_dataset_version
-        loop_state['prediction_model_ref'] = model_ref
-        loop_state['prediction_unit_count'] = len(predictions)
-        loop_state['updated_at'] = datetime.utcnow().isoformat()
-        
-        # 9. 推进阶段 trained → predicted（需求 12.1, 12.2）
+        for index, raw_prediction in enumerate(raw_predictions):
+            if not isinstance(raw_prediction, dict):
+                raise RuntimeError(f"fault_predictions[{index}] 不是对象")
+            predicted_label = raw_prediction.get('predicted_label')
+            if predicted_label is None:
+                predicted_label = raw_prediction.get('predictions', raw_prediction.get('predict_label'))
+            required_fields = ('site_id', 'device_id', 'branch_id', 'time_window', 'confidence')
+            missing = [field for field in required_fields if raw_prediction.get(field) is None]
+            if predicted_label is None:
+                missing.append('predicted_label')
+            if missing:
+                raise RuntimeError(
+                    f"fault_predictions[{index}] 缺少必要字段: {', '.join(missing)}"
+                )
+            predictions.append(self._json_safe({
+                'site_id': raw_prediction['site_id'],
+                'device_id': raw_prediction['device_id'],
+                'branch_id': raw_prediction['branch_id'],
+                'time_window': raw_prediction['time_window'],
+                'predicted_label': predicted_label,
+                'confidence': raw_prediction['confidence'],
+            }))
+        if not predictions:
+            raise RuntimeError("预测工作流未产生可持久化的预测结果")
+
+        prediction_batch_id = f"pred-{loop_id}-{uuid.uuid4().hex[:8]}"
+        slot = str(self.slot or '').strip()
+        if (
+            not slot
+            or os.path.isabs(slot)
+            or slot in {'.', '..'}
+            or any(part == '..' for part in slot.replace('\\', '/').split('/'))
+        ):
+            raise ValueError("slot 必须是安全的批次目录名")
+        batch_directory = os.path.join(
+            backend_service_dir, 'data', 'iterative_labeling', 'prediction_batches', slot
+        )
+        os.makedirs(batch_directory, exist_ok=True)
+        batch_path = os.path.join(batch_directory, f"{prediction_batch_id}.json")
+        batch_payload = {
+            'dataset_version': dataset_version,
+            'model_ref': model_ref,
+            'model_path': model_path,
+            'predictions': predictions,
+            'iteration': loop_state['iteration_round'],
+        }
+        # 调度或进程中断时，审核 API 只能看到旧完整批次或新完整批次，不能读取半截 JSON。
+        temp_fd, temp_path = tempfile.mkstemp(dir=batch_directory, suffix='.tmp', text=True)
+        try:
+            with os.fdopen(temp_fd, 'w', encoding='utf-8') as handle:
+                json.dump(batch_payload, handle, ensure_ascii=False, indent=2, allow_nan=False)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp_path, batch_path)
+        except Exception:
+            try:
+                os.unlink(temp_path)
+            except FileNotFoundError:
+                pass
+            raise
+
         self.advance_to_predicted(loop_id, prediction_batch_id)
-        
-        # 10. 返回预测结果摘要
+        updated_loop_state = self._loops[loop_id]
+        updated_loop_state['prediction_dataset_version'] = dataset_version
+        updated_loop_state['prediction_model_ref'] = model_ref
+        updated_loop_state['prediction_model_path'] = model_path
+        updated_loop_state['prediction_unit_count'] = len(predictions)
+        updated_loop_state['updated_at'] = datetime.utcnow().isoformat()
+
         return {
             'prediction_batch_id': prediction_batch_id,
             'unit_count': len(predictions),
             'predictions': predictions,
             'model_ref': model_ref,
-            'dataset_version': unlabeled_dataset_version,
-            'iteration_round': loop_state['iteration_round']
+            'model_path': model_path,
+            'dataset_version': dataset_version,
+            'iteration_round': updated_loop_state['iteration_round'],
         }
+    # @AI_GENERATED: end
     
     def _advance_stage(self, loop_id: str, target_stage: str) -> None:
         """

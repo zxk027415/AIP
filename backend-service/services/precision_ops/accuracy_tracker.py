@@ -1,28 +1,9 @@
-"""
-precision_ops/accuracy_tracker.py — 精度跟踪器
+# @AI_GENERATED
+"""版本级精度指标追踪器。
 
-提供：
-  - RollingMetrics  : 滚动精度指标 TypedDict
-  - AccuracyTracker : 精度计算、滚动窗口维护、排行榜
-
-存储路径：{BASE_DATA_DIR}/{slot}/accuracy_metrics.json
-
-JSON 结构：
-{
-  "slot": "default",
-  "evaluation_window_days": 7,
-  "metrics": {
-    "workflow-id": {
-      "rolling_mape": 4.12,
-      "rolling_mae": 15.3,
-      "valid_cycle_count": 7,
-      "total_cycle_count": 8,
-      "last_evaluated_at": "2026-06-08T08:00:00+00:00",
-      "status": "active"
-    }
-  },
-  "updated_at": "2026-06-08T08:00:00+00:00"
-}
+指标以 ``workflow_id@version_tag`` 为键写入 ``accuracy_metrics.json``；旧的
+workflow_id 键仍可读取。数据库的既有 ``accuracy_metric.workflow_id`` 列也存该键，
+因此无需迁移表结构即可区分同一工作流的多个已部署版本。
 """
 from __future__ import annotations
 
@@ -33,504 +14,214 @@ from typing import Any, Dict, List, Optional
 
 try:
     from typing import TypedDict
-except ImportError:  # Python < 3.8
+except ImportError:  # pragma: no cover
     from typing_extensions import TypedDict  # type: ignore
 
 from services.precision_ops._db_helper import _get_lf_repo, _is_db_enabled, _parse_iso
-from services.precision_ops.utils import (
-    BASE_DATA_DIR,
-    _atomic_write_json,
-    ensure_data_dir,
-    load_json_safe,
-    now_iso,
-)
+from services.precision_ops.utils import BASE_DATA_DIR, _atomic_write_json, ensure_data_dir, load_json_safe, now_iso
+from services.precision_ops.versioning import make_version_key, split_version_key
 
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# TypedDict
-# ---------------------------------------------------------------------------
-
 class RollingMetrics(TypedDict):
-    """
-    RollingMetrics — 单版本滚动精度指标快照
-
-    字段说明（英文 — 中文）：
-      rolling_mape        — 滚动 MAPE（%），越低越好
-      rolling_mae         — 滚动 MAE（绝对误差均值）
-      valid_cycle_count   — 有效周期数（覆盖率 ≥ 90% 的周期）
-      total_cycle_count   — 总周期数（含超时/失败/低覆盖率的周期）
-      last_evaluated_at   — 最后评估时间（ISO 8601 字符串）
-      status              — "active"（数据充分）| "insufficient_data"（数据不足）
-    """
+    """单个部署版本在滚动评估窗口内的指标快照。"""
 
     rolling_mape: float
+    rolling_wmape: Optional[float]
     rolling_mae: float
     valid_cycle_count: int
     total_cycle_count: int
+    coverage_rate: Optional[float]
+    window_days: Optional[int]
     last_evaluated_at: str
     status: str
 
 
-# ---------------------------------------------------------------------------
-# AccuracyTracker
-# ---------------------------------------------------------------------------
-
 class AccuracyTracker:
-    """
-    AccuracyTracker — 精度指标计算、滚动窗口维护、排行榜
-
-    存储路径：{BASE_DATA_DIR}/{slot}/accuracy_metrics.json
-
-    使用方式（两种均可）：
-
-        # 构造时注入 PredictionStore
-        tracker = AccuracyTracker(prediction_store=store)
-        tracker.evaluate_cycle("default", "cycle-001")
-
-        # 方法参数注入（refresh_all_metrics）
-        tracker = AccuracyTracker()
-        tracker.refresh_all_metrics("default", 7, prediction_store=store)
-
-    :param prediction_store: PredictionStore 实例；evaluate_cycle 使用；
-                             不传则仅支持 refresh_all_metrics（显式传参）。
-    """
+    """读写版本级滚动精度指标，并保留旧 ``workflow_id`` 调用兼容性。"""
 
     def __init__(self, prediction_store: Optional[Any] = None) -> None:
-        """
-        :param prediction_store: PredictionStore 实例（可选）。
-                                 显式传入，不在内部创建，方便测试隔离。
-        """
         self._prediction_store = prediction_store
 
-    # ------------------------------------------------------------------
-    # 每周期评估
-    # ------------------------------------------------------------------
-
-    def evaluate_cycle(
-        self,
-        slot: str,
-        cycle_id: str,
-        min_valid_cycles: int = 3,
-    ) -> None:
-        """
-        评估指定预测周期，更新 accuracy_metrics.json。
-
-        流程：
-        1. 从 accuracy_metrics.json 读取已知 workflow_id 列表
-        2. 对每个 workflow，通过 PredictionStore.get_predictions_in_window
-           获取近 30 天内的预测记录，再按 prediction_cycle_id 过滤
-        3. 计算覆盖率：evaluated 记录数 / 总记录数 ≥ 90% 才计算精度
-        4. 计算 MAPE（排除 actual=0 的点）和 MAE（包含 actual=0 的点）
-        5. 更新 valid_cycle_count / total_cycle_count / status，原子写入
-
-        :param slot:             槽位名称（分区键）
-        :param cycle_id:         预测周期 ID
-        :param min_valid_cycles: 有效周期数达到此值才标记 status=active
-        :raises ValueError:      prediction_store 未注入时抛出
-        """
-        if self._prediction_store is None:
-            raise ValueError(
-                "evaluate_cycle 需要 PredictionStore；"
-                "请在构造时传入 prediction_store 参数"
-            )
-
-        metrics_path = BASE_DATA_DIR / slot / "accuracy_metrics.json"
-        data = load_json_safe(metrics_path, default={})
-        metrics_dict: Dict[str, Any] = data.get("metrics", {})
-
-        if not metrics_dict:
-            logger.warning(
-                "evaluate_cycle: slot=%s 的 accuracy_metrics.json 中没有已知 workflow，跳过",
-                slot,
-            )
-            return
-
-        # 使用近 30 天作为查询窗口，保证能覆盖近期所有周期
-        now_dt = datetime.now(tz=timezone.utc)
-        window_start = (now_dt - timedelta(days=30)).isoformat()
-        window_end = now_dt.isoformat()
-
-        updated = False
-
-        for workflow_id in list(metrics_dict.keys()):
-            # 获取时间窗口内的所有记录，再按 cycle_id 过滤
+    @staticmethod
+    def _record_in_window(record: dict, window_days: int) -> bool:
+        """判断已评估预测是否属于以当前时间结束的滚动窗口。"""
+        timestamp = record.get("forecast_timestamp")
+        if record.get("evaluated_at") is None or timestamp is None:
+            return False
+        if isinstance(timestamp, datetime):
+            timestamp_dt = timestamp
+            if timestamp_dt.tzinfo is None:
+                timestamp_dt = timestamp_dt.replace(tzinfo=timezone.utc)
+        else:
             try:
-                all_records = self._prediction_store.get_predictions_in_window(
-                    slot, workflow_id, window_start, window_end
-                )
-            except Exception as exc:
-                logger.warning(
-                    "evaluate_cycle: 查询 slot=%s workflow=%s 失败: %s",
-                    slot, workflow_id, exc,
-                )
-                continue
+                timestamp_dt = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+                if timestamp_dt.tzinfo is None:
+                    timestamp_dt = timestamp_dt.replace(tzinfo=timezone.utc)
+            except (TypeError, ValueError):
+                return False
+        return datetime.now(tz=timezone.utc) - timedelta(days=window_days) <= timestamp_dt <= datetime.now(tz=timezone.utc)
 
-            cycle_records = [
-                r for r in all_records
-                if r.get("prediction_cycle_id") == cycle_id
-            ]
-
-            if not cycle_records:
-                continue
-
-            current: Dict[str, Any] = metrics_dict.get(workflow_id, {})
-            new_total = current.get("total_cycle_count", 0) + 1
-
-            # 覆盖率检查
-            total_count = len(cycle_records)
-            evaluated_count = sum(
-                1 for r in cycle_records
-                if r.get("actual_value") is not None
-            )
-            coverage = evaluated_count / total_count if total_count > 0 else 0.0
-
-            if coverage < 0.9:
-                logger.info(
-                    "evaluate_cycle: slot=%s workflow=%s cycle=%s 覆盖率=%.2f < 0.9，跳过精度计算",
-                    slot, workflow_id, cycle_id, coverage,
-                )
-                metrics_dict[workflow_id] = {
-                    **current,
-                    "total_cycle_count": new_total,
-                }
-                updated = True
-                continue
-
-            # MAPE：排除 actual=0 的点
-            mape_records = [
-                r for r in cycle_records
-                if r.get("actual_value") is not None
-                and r.get("actual_value") != 0.0
-            ]
-            cycle_mape: Optional[float] = None
-            if mape_records:
-                errors = [
-                    abs(r["predicted_value"] - r["actual_value"]) / abs(r["actual_value"])
-                    for r in mape_records
-                ]
-                cycle_mape = sum(errors) / len(errors) * 100
-
-            # MAE：包含 actual=0 的点
-            mae_records = [
-                r for r in cycle_records
-                if r.get("actual_value") is not None
-            ]
-            cycle_mae: Optional[float] = None
-            if mae_records:
-                abs_errors = [
-                    abs(r["predicted_value"] - r["actual_value"])
-                    for r in mae_records
-                ]
-                cycle_mae = sum(abs_errors) / len(abs_errors)
-
-            new_valid = current.get("valid_cycle_count", 0) + 1
-            status = "active" if new_valid >= min_valid_cycles else "insufficient_data"
-
-            metrics_dict[workflow_id] = {
-                **current,
-                "rolling_mape": cycle_mape
-                    if cycle_mape is not None
-                    else current.get("rolling_mape", 0.0),
-                "rolling_mae": cycle_mae
-                    if cycle_mae is not None
-                    else current.get("rolling_mae", 0.0),
-                "valid_cycle_count": new_valid,
-                "total_cycle_count": new_total,
-                "last_evaluated_at": now_iso(),
-                "status": status,
-            }
-            updated = True
-
-        if updated:
-            ensure_data_dir(slot)
-            payload = {
-                "slot": slot,
-                "evaluation_window_days": data.get("evaluation_window_days", 7),
-                "metrics": metrics_dict,
-                "updated_at": now_iso(),
-            }
-            _atomic_write_json(metrics_path, payload)
-
-    # ------------------------------------------------------------------
-    # 滚动指标计算（纯函数）
-    # ------------------------------------------------------------------
-
-    def compute_rolling_mape(
-        self,
-        records: List[dict],
-        window_days: int,
-    ) -> Optional[float]:
-        """
-        计算滚动 MAPE（Mean Absolute Percentage Error）。
-
-        过滤规则：
-        - evaluated_at 不为 None（已回填实际值）
-        - actual_value 不为 0（排除零值，避免除零）
-        - forecast_timestamp 在 [now - window_days, now] 范围内
-
-        :param records:     PredictionStore.get_predictions_in_window 返回的记录列表
-        :param window_days: 评估窗口天数
-        :return: MAPE（%），无有效点时返回 None
-        """
-        cutoff = (
-            datetime.now(tz=timezone.utc) - timedelta(days=window_days)
-        ).isoformat()
-        now_str = datetime.now(tz=timezone.utc).isoformat()
-
+    def compute_rolling_mape(self, records: List[dict], window_days: int) -> Optional[float]:
+        """计算窗口内逐点平均百分比误差；actual=0 的点不参与分母。"""
         valid = [
-            r for r in records
-            if r.get("evaluated_at") is not None
-            and r.get("actual_value") is not None
-            and r.get("actual_value") != 0.0
-            and r.get("forecast_timestamp") is not None
-            and cutoff <= r["forecast_timestamp"] <= now_str
+            row for row in records
+            if self._record_in_window(row, window_days)
+            and row.get("actual_value") not in (None, 0.0)
         ]
-
         if not valid:
             return None
+        return sum(
+            abs(float(row["predicted_value"]) - float(row["actual_value"]))
+            / abs(float(row["actual_value"]))
+            for row in valid
+        ) / len(valid) * 100
 
-        errors = [
-            abs(r["predicted_value"] - r["actual_value"]) / abs(r["actual_value"])
-            for r in valid
-        ]
-        return sum(errors) / len(errors) * 100
-
-    def compute_rolling_mae(
-        self,
-        records: List[dict],
-        window_days: int,
-    ) -> Optional[float]:
-        """
-        计算滚动 MAE（Mean Absolute Error）。
-
-        过滤规则与 compute_rolling_mape 相同，但不排除 actual_value=0 的点。
-
-        :param records:     PredictionStore.get_predictions_in_window 返回的记录列表
-        :param window_days: 评估窗口天数
-        :return: MAE，无有效点时返回 None
-        """
-        cutoff = (
-            datetime.now(tz=timezone.utc) - timedelta(days=window_days)
-        ).isoformat()
-        now_str = datetime.now(tz=timezone.utc).isoformat()
-
+    def compute_rolling_wmape(self, records: List[dict], window_days: int) -> Optional[float]:
+        """计算窗口内 WMAPE：Σ|预测-实际| / Σ|实际| × 100。"""
         valid = [
-            r for r in records
-            if r.get("evaluated_at") is not None
-            and r.get("actual_value") is not None
-            and r.get("forecast_timestamp") is not None
-            and cutoff <= r["forecast_timestamp"] <= now_str
+            row for row in records
+            if self._record_in_window(row, window_days) and row.get("actual_value") is not None
         ]
+        denominator = sum(abs(float(row["actual_value"])) for row in valid)
+        if not valid or denominator == 0:
+            return None
+        numerator = sum(abs(float(row["predicted_value"]) - float(row["actual_value"])) for row in valid)
+        return numerator / denominator * 100
 
+    def compute_rolling_mae(self, records: List[dict], window_days: int) -> Optional[float]:
+        """计算窗口内 MAE，零负荷点也会参与。"""
+        valid = [row for row in records if self._record_in_window(row, window_days) and row.get("actual_value") is not None]
         if not valid:
             return None
-
-        abs_errors = [
-            abs(r["predicted_value"] - r["actual_value"])
-            for r in valid
-        ]
-        return sum(abs_errors) / len(abs_errors)
-
-    # ------------------------------------------------------------------
-    # 读取
-    # ------------------------------------------------------------------
+        return sum(abs(float(row["predicted_value"]) - float(row["actual_value"])) for row in valid) / len(valid)
 
     def get_rolling_metrics(
         self,
         slot: str,
         workflow_id: str,
+        version_tag: Optional[str] = None,
     ) -> Optional[RollingMetrics]:
-        """
-        读取指定版本的滚动精度指标。
-
-        :param slot:        槽位名称（分区键）
-        :param workflow_id: 工作流模板 ID
-        :return: RollingMetrics TypedDict，或 None（版本不存在）
-        """
-        metrics_path = BASE_DATA_DIR / slot / "accuracy_metrics.json"
-        data = load_json_safe(metrics_path, default={})
-        metrics_dict = data.get("metrics", {})
-
-        entry = metrics_dict.get(workflow_id)
+        """读取版本级指标；带标签查询未命中时 fail-closed，无标签查询保留旧 workflow_id 键兼容。"""
+        data = load_json_safe(BASE_DATA_DIR / slot / "accuracy_metrics.json", default={})
+        entries: Dict[str, Any] = data.get("metrics", {})
+        version_key = make_version_key(workflow_id, version_tag)
+        entry = entries.get(version_key)
+        # @AI_GENERATED: 部署版本带标签时 fail closed，禁止把旧裸 workflow 指标误归属到新版本
+        if entry is None and version_tag:
+            return None
+        # @AI_GENERATED: end
         if entry is None:
             return None
-
         return RollingMetrics(
             rolling_mape=float(entry.get("rolling_mape", 0.0)),
+            rolling_wmape=(float(entry["rolling_wmape"]) if entry.get("rolling_wmape") is not None else None),
             rolling_mae=float(entry.get("rolling_mae", 0.0)),
             valid_cycle_count=int(entry.get("valid_cycle_count", 0)),
             total_cycle_count=int(entry.get("total_cycle_count", 0)),
+            coverage_rate=(float(entry["coverage_rate"]) if entry.get("coverage_rate") is not None else None),
+            window_days=(int(entry["window_days"]) if entry.get("window_days") is not None else None),
             last_evaluated_at=str(entry.get("last_evaluated_at", "")),
             status=str(entry.get("status", "insufficient_data")),
         )
-
-    # ------------------------------------------------------------------
-    # 排行榜
-    # ------------------------------------------------------------------
-
-    def get_leaderboard(self, slot: str) -> List[dict]:
-        """
-        返回精度排行榜。
-
-        规则：
-        - 排除 status=insufficient_data 的版本
-        - 按 rolling_mape 升序排列
-        - rolling_mape 差异 < 0.0001 时按 valid_cycle_count 降序排列
-        - 每项包含 workflow_id + RollingMetrics 的所有字段
-
-        :param slot: 槽位名称（分区键）
-        :return: 排行榜列表
-        """
-        metrics_path = BASE_DATA_DIR / slot / "accuracy_metrics.json"
-        data = load_json_safe(metrics_path, default={})
-        metrics_dict: Dict[str, Any] = data.get("metrics", {})
-
-        board = []
-        for workflow_id, entry in metrics_dict.items():
-            if entry.get("status") == "insufficient_data":
-                continue
-            board.append({
-                "workflow_id": workflow_id,
-                "rolling_mape": float(entry.get("rolling_mape", 0.0)),
-                "rolling_mae": float(entry.get("rolling_mae", 0.0)),
-                "valid_cycle_count": int(entry.get("valid_cycle_count", 0)),
-                "total_cycle_count": int(entry.get("total_cycle_count", 0)),
-                "last_evaluated_at": str(entry.get("last_evaluated_at", "")),
-                "status": str(entry.get("status", "insufficient_data")),
-            })
-
-        board.sort(
-            key=lambda x: (
-                round(x["rolling_mape"] / 0.0001) * 0.0001,  # 差异 < 0.0001 视为相同
-                -x["valid_cycle_count"],                       # 相同 MAPE 时 valid_cycle_count 降序
-            )
-        )
-
-        return board
-
-    # ------------------------------------------------------------------
-    # 全量刷新
-    # ------------------------------------------------------------------
-
-    def refresh_all_metrics(
-        self,
-        slot: str,
-        window_days: int,
-        prediction_store: Any,
-        min_valid_cycles: int = 3,
-    ) -> None:
-        """
-        对 accuracy_metrics.json 中所有版本重新计算滚动指标。
-
-        使用 PredictionStore 从 SQLite 拉取窗口内全量记录，
-        调用 compute_rolling_mape / compute_rolling_mae 重新计算，
-        更新 status（valid_cycle_count < min_valid_cycles → insufficient_data），
-        更新 last_evaluated_at，原子写入。
-
-        :param slot:             槽位名称（分区键）
-        :param window_days:      评估窗口天数
-        :param prediction_store: PredictionStore 实例（显式传参，方便测试）
-        :param min_valid_cycles: 有效周期数阈值
-        """
-        metrics_path = BASE_DATA_DIR / slot / "accuracy_metrics.json"
-        data = load_json_safe(metrics_path, default={})
-        metrics_dict: Dict[str, Any] = data.get("metrics", {})
-
-        if not metrics_dict:
-            logger.info("refresh_all_metrics: slot=%s 无已知 workflow，跳过", slot)
-            return
-
-        now_dt = datetime.now(tz=timezone.utc)
-        window_start = (now_dt - timedelta(days=window_days)).isoformat()
-        window_end = now_dt.isoformat()
-        evaluated_at = now_iso()
-
-        for workflow_id, entry in metrics_dict.items():
-            try:
-                records = prediction_store.get_predictions_in_window(
-                    slot, workflow_id, window_start, window_end
-                )
-            except Exception as exc:
-                logger.warning(
-                    "refresh_all_metrics: 查询 slot=%s workflow=%s 失败: %s",
-                    slot, workflow_id, exc,
-                )
-                continue
-
-            rolling_mape = self.compute_rolling_mape(records, window_days)
-            rolling_mae = self.compute_rolling_mae(records, window_days)
-
-            valid_count = int(entry.get("valid_cycle_count", 0))
-            status = "active" if valid_count >= min_valid_cycles else "insufficient_data"
-
-            if rolling_mape is not None:
-                entry["rolling_mape"] = rolling_mape
-            if rolling_mae is not None:
-                entry["rolling_mae"] = rolling_mae
-
-            entry["status"] = status
-            entry["last_evaluated_at"] = evaluated_at
-
-        ensure_data_dir(slot)
-        payload = {
-            "slot": slot,
-            "evaluation_window_days": window_days,
-            "metrics": metrics_dict,
-            "updated_at": evaluated_at,
-        }
-        _atomic_write_json(metrics_path, payload)
-
-    # ------------------------------------------------------------------
-    # 指定版本更新
-    # ------------------------------------------------------------------
 
     def update_metrics(
         self,
         slot: str,
         workflow_id: str,
         metrics: dict,
+        version_tag: Optional[str] = None,
     ) -> None:
-        """
-        更新指定版本的指标，原子写入 accuracy_metrics.json。
-
-        若版本不存在则新增；若已存在则合并（updates 覆盖旧字段）。
-
-        :param slot:        槽位名称（分区键）
-        :param workflow_id: 工作流模板 ID
-        :param metrics:     要写入的指标字典（可以是部分字段）
-        """
-        metrics_path = BASE_DATA_DIR / slot / "accuracy_metrics.json"
-        data = load_json_safe(metrics_path, default={})
-
-        metrics_dict: Dict[str, Any] = data.get("metrics", {})
-        existing = metrics_dict.get(workflow_id, {})
-        metrics_dict[workflow_id] = {**existing, **metrics}
-
+        """原子合并写入版本级指标，并 best-effort 双写到既有数据库表。"""
+        path = BASE_DATA_DIR / slot / "accuracy_metrics.json"
+        data = load_json_safe(path, default={})
+        entries: Dict[str, Any] = data.get("metrics", {})
+        version_key = make_version_key(workflow_id, version_tag)
+        entries[version_key] = {**entries.get(version_key, {}), **metrics}
         ensure_data_dir(slot)
-        payload = {
+        _atomic_write_json(path, {
             "slot": data.get("slot", slot),
-            "evaluation_window_days": data.get("evaluation_window_days", 7),
-            "metrics": metrics_dict,
+            "evaluation_window_days": data.get("evaluation_window_days", metrics.get("window_days", 7)),
+            "metrics": entries,
             "updated_at": now_iso(),
+        })
+
+        if not _is_db_enabled():
+            return
+
+        db_metrics = {
+            key: value for key, value in metrics.items()
+            if key in {"rolling_mape", "rolling_mae", "valid_cycle_count", "total_cycle_count", "status", "last_evaluated_at"}
         }
-        _atomic_write_json(metrics_path, payload)
+        if not db_metrics:
+            return
 
-        # DB dual-write（异步，best-effort）
-        if _is_db_enabled():
-            _slot, _wf_id, _metrics = slot, workflow_id, dict(metrics)
+        def _db_write() -> None:
+            repo = _get_lf_repo()
+            if repo is None:
+                return
+            try:
+                if isinstance(db_metrics.get("last_evaluated_at"), str):
+                    db_metrics["last_evaluated_at"] = _parse_iso(db_metrics["last_evaluated_at"])
+                repo.upsert_accuracy_metrics(slot, version_key, db_metrics)
+            except Exception as exc:  # best-effort mirror must not block monitoring
+                logger.warning("DB 写入 accuracy_metrics 失败（忽略）: %s", exc)
 
-            def _db_write():
-                repo = _get_lf_repo()
-                if repo is None:
-                    return
-                try:
-                    db_m = dict(_metrics)
-                    if isinstance(db_m.get("last_evaluated_at"), str):
-                        db_m["last_evaluated_at"] = _parse_iso(db_m["last_evaluated_at"])
-                    repo.upsert_accuracy_metrics(_slot, _wf_id, db_m)
-                except Exception as _exc:
-                    logger.warning("DB 写入 accuracy_metrics 失败（忽略）: %s", _exc)
+        threading.Thread(target=_db_write, daemon=True).start()
 
-            threading.Thread(target=_db_write, daemon=True).start()
+    def get_leaderboard(self, slot: str) -> List[dict]:
+        """返回 active 版本的排行榜，优先按 WMAPE、缺失时按 MAPE 升序。"""
+        data = load_json_safe(BASE_DATA_DIR / slot / "accuracy_metrics.json", default={})
+        board: List[dict] = []
+        for version_key, entry in data.get("metrics", {}).items():
+            if entry.get("status") != "active":
+                continue
+            workflow_id, version_tag = split_version_key(version_key)
+            board.append({
+                "workflow_id": workflow_id,
+                "version_tag": version_tag,
+                "rolling_mape": float(entry.get("rolling_mape", 0.0)),
+                "rolling_wmape": entry.get("rolling_wmape"),
+                "rolling_mae": float(entry.get("rolling_mae", 0.0)),
+                "valid_cycle_count": int(entry.get("valid_cycle_count", 0)),
+                "total_cycle_count": int(entry.get("total_cycle_count", 0)),
+                "coverage_rate": entry.get("coverage_rate"),
+                "window_days": entry.get("window_days"),
+                "last_evaluated_at": str(entry.get("last_evaluated_at", "")),
+                "status": "active",
+            })
+        board.sort(key=lambda item: (float(item["rolling_wmape"] if item["rolling_wmape"] is not None else item["rolling_mape"]), -item["valid_cycle_count"]))
+        return board
+
+    def evaluate_cycle(self, slot: str, cycle_id: str, min_valid_cycles: int = 3) -> None:
+        """兼容旧调用：按已登记版本评估单个周期，并不会跨版本混算。"""
+        if self._prediction_store is None:
+            raise ValueError("evaluate_cycle 需要 PredictionStore；请在构造时传入 prediction_store 参数")
+        data = load_json_safe(BASE_DATA_DIR / slot / "accuracy_metrics.json", default={})
+        for version_key in data.get("metrics", {}):
+            workflow_id, version_tag = split_version_key(version_key)
+            records = self._prediction_store.get_predictions_in_window(slot, workflow_id, "", "")
+            cycle_records = [
+                row for row in records
+                if row.get("prediction_cycle_id") == cycle_id and (not version_tag or row.get("version_tag") == version_tag)
+            ]
+            total = len(cycle_records)
+            evaluated = [row for row in cycle_records if row.get("actual_value") is not None]
+            if not total:
+                continue
+            coverage = len(evaluated) / total
+            previous = self.get_rolling_metrics(slot, workflow_id, version_tag) or {}
+            valid_cycles = int(previous.get("valid_cycle_count", 0)) + int(coverage >= 0.9)
+            self.update_metrics(slot, workflow_id, {
+                "rolling_mape": self.compute_rolling_mape(cycle_records, 30) or previous.get("rolling_mape", 0.0),
+                "rolling_wmape": self.compute_rolling_wmape(cycle_records, 30),
+                "rolling_mae": self.compute_rolling_mae(cycle_records, 30) or previous.get("rolling_mae", 0.0),
+                "valid_cycle_count": valid_cycles,
+                "total_cycle_count": int(previous.get("total_cycle_count", 0)) + 1,
+                "coverage_rate": coverage,
+                "window_days": 30,
+                "last_evaluated_at": now_iso(),
+                "status": "active" if valid_cycles >= min_valid_cycles else "insufficient_data",
+            }, version_tag=version_tag)
+# @AI_GENERATED: end

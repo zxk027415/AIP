@@ -95,6 +95,9 @@ class SwitchRequest(BaseModel):
     """
 
     target_workflow_id: str = Field(..., description="要提升为 production 的影子模型 workflow_id")
+    # @AI_GENERATED: 同一 workflow 的多版本必须携带 version_tag 才能精确切换
+    target_version_tag: Optional[str] = Field(None, description="目标影子模型的 version_tag；同 workflow 多版本时必填")
+    # @AI_GENERATED: end
     trigger_type: str = Field("manual", description="触发类型：'manual' | 'auto'")
     reason: str = Field("", description="切换原因备注")
     pre_switch_mape: Optional[float] = Field(None, description="切换前精度覆盖值")
@@ -334,6 +337,7 @@ def switch_model(slot: str, req: SwitchRequest) -> Dict[str, Any]:
             reason=req.reason,
             pre_switch_mape=req.pre_switch_mape,
             force=req.force,
+            target_version_tag=req.target_version_tag,
         )
     except SwitchDecisionError as exc:
         _raise_from_decision_error(exc)

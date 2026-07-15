@@ -375,14 +375,19 @@ class ReviewSessionService:
             is_ground_truth = True
         
         elif action_type == 'new_label':
-            # 打成新标签（需求 5.3）
-            if not new_label_name or not new_label_name.strip():
-                raise ValueError("new_label 动作必须提供 new_label_name")
-            
-            # 调用 Label_Registry.allocate_label 扩充标签
-            final_verdict_label = self.registry_service.allocate_label(new_label_name.strip())
+            # @AI_GENERATED: 前端可先显式创建标签再提交其 label_id；也兼容一次性名称分配
+            if verdict_label is not None:
+                label_record = self.registry_service.get_label_by_id(verdict_label)
+                if label_record is None:
+                    raise ValueError(f"label_id {verdict_label} 在注册表中不存在")
+                final_verdict_label = verdict_label
+            else:
+                if not new_label_name or not new_label_name.strip():
+                    raise ValueError("new_label 动作必须提供 new_label_name 或已创建的 verdict_label")
+                final_verdict_label = self.registry_service.allocate_label(new_label_name.strip())
+                logger.info(f"新增标签：{new_label_name} -> label_id={final_verdict_label}")
             is_ground_truth = True
-            logger.info(f"新增标签：{new_label_name} -> label_id={final_verdict_label}")
+            # @AI_GENERATED: end
         
         elif action_type == 'skip':
             # 存疑跳过（需求 5.4）

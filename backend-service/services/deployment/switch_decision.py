@@ -116,6 +116,9 @@ class SwitchEligibility:
     eligible: bool
     target_workflow_id: Optional[str]
     reason: str
+    # @AI_GENERATED: 返回标签以便调用方按完整版本身份执行切换
+    target_version_tag: Optional[str] = None
+    # @AI_GENERATED: end
     consecutive_better_days: int = 0
 
 
@@ -261,6 +264,7 @@ class SwitchDecisionEngine:
             eligible=True,
             target_workflow_id=best.workflow_id,
             reason="eligible",
+            target_version_tag=best.version_tag,
             consecutive_better_days=best.consecutive_better_days,
         )
 
@@ -276,6 +280,7 @@ class SwitchDecisionEngine:
         reason: str = "",
         pre_switch_mape: Optional[float] = None,
         force: bool = False,
+        target_version_tag: Optional[str] = None,
     ) -> SwitchEvent:
         """
         将目标 shadow 模型提升为 production，原 production 降级为 retired。
@@ -319,20 +324,30 @@ class SwitchDecisionEngine:
                 message=f"槽位不存在：slot={slot!r}",
             )
 
-        # 定位目标 shadow
-        target: Optional[ModelVersion] = None
-        for m in slot_obj.shadow_models:
-            if m.workflow_id == target_workflow_id:
-                target = m
-                break
-        if target is None:
+        # 定位目标 shadow；同 workflow 存在多个版本时必须显式传 version_tag。
+        candidates = [
+            model for model in slot_obj.shadow_models
+            if model.workflow_id == target_workflow_id
+            and (target_version_tag is None or model.version_tag == target_version_tag)
+        ]
+        if not candidates:
             raise SwitchDecisionError(
                 code="target_not_found",
                 message=(
                     f"目标模型不存在于 slot={slot!r} 的 shadow_models 中："
-                    f"target_workflow_id={target_workflow_id!r}"
+                    f"target_workflow_id={target_workflow_id!r}, "
+                    f"target_version_tag={target_version_tag!r}"
                 ),
             )
+        if len(candidates) > 1:
+            raise SwitchDecisionError(
+                code="invalid_state_transition",
+                message=(
+                    f"workflow_id={target_workflow_id!r} 存在多个影子版本，"
+                    "必须指定 target_version_tag"
+                ),
+            )
+        target = candidates[0]
         if target.status != "shadow":
             raise SwitchDecisionError(
                 code="invalid_state_transition",
@@ -360,7 +375,7 @@ class SwitchDecisionEngine:
         # -------- 状态转换 --------
         # 1) 移除 shadow_models 中的目标条目
         new_shadow_list: List[ModelVersion] = [
-            m for m in slot_obj.shadow_models if m.workflow_id != target_workflow_id
+            model for model in slot_obj.shadow_models if model is not target
         ]
         # 2) 原 production 降级为 retired，加入 shadow_models 末尾以便审计与回滚
         if old_production is not None:
@@ -474,7 +489,11 @@ class SwitchDecisionEngine:
         prev_version_tag = target_event.from_version_tag
         prev_model: Optional[ModelVersion] = None
         for m in slot_obj.shadow_models:
-            if m.workflow_id == prev_workflow_id and m.status == "retired":
+            if (
+                m.workflow_id == prev_workflow_id
+                and m.version_tag == prev_version_tag
+                and m.status == "retired"
+            ):
                 prev_model = m
                 break
         if prev_model is None:
@@ -499,7 +518,8 @@ class SwitchDecisionEngine:
         retired_current = current_prod.model_copy(update={"status": "retired"})
         # 2) 前一 production 恢复为 production，从 shadow_models 移除
         new_shadow_list: List[ModelVersion] = [
-            m for m in slot_obj.shadow_models if m.workflow_id != prev_workflow_id
+            m for m in slot_obj.shadow_models
+            if not (m.workflow_id == prev_workflow_id and m.version_tag == prev_version_tag)
         ]
         new_shadow_list.append(retired_current)
         restored_production = prev_model.model_copy(

@@ -291,7 +291,18 @@ class AccuracyAlert(BaseModel):
     """注册时的基线 MAPE（来自 version_registry.baseline_mape）"""
 
     current_rolling_mape: float
-    """当前滚动 MAPE（来自 accuracy_tracker）"""
+    """当前滚动 MAPE（来自 accuracy_tracker，兼容旧展示）"""
+
+    # @AI_GENERATED: 实际告警可优先使用 WMAPE，保留 MAPE 字段兼容历史告警和前端
+    metric_name: str = "mape"
+    """本次退化比较使用的指标：wmape 优先，缺失时为 mape。"""
+
+    baseline_metric: Optional[float] = None
+    """本次实际比较使用的发布基线指标（百分比）。"""
+
+    current_metric: Optional[float] = None
+    """本次实际比较使用的 7 天滚动指标（百分比）。"""
+    # @AI_GENERATED: end
 
     degradation_pct: float
     """退化百分比，公式：(current_rolling_mape - baseline_mape) / baseline_mape * 100"""
@@ -417,7 +428,15 @@ class RecoveryDecision(BaseModel):
     """是否通过置信度门控（confidence >= 0.6 且 undetermined=False）"""
 
     switch_event_id: Optional[str] = None
-    """通道A产出的切换事件 ID（来自 switch_engine，执行后回填）"""
+    """通道A产出的切换事件 ID（来自部署切换引擎，执行后回填）"""
+
+    # @AI_GENERATED: 精度运营只保存部署动作建议，部署服务是实际状态机与审计真源
+    target_workflow_id: Optional[str] = None
+    """推荐提升为 production 的影子 workflow_id。"""
+
+    target_version_tag: Optional[str] = None
+    """推荐目标的 version_tag，消除同 workflow 多版本歧义。"""
+    # @AI_GENERATED: end
 
     sla_deadline: str
     """SLA 截止时间 ISO8601（shadow_switch=2h / observe=12h）"""

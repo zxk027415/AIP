@@ -380,6 +380,34 @@ def recovery_shadow_switch(body: ShadowSwitchRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/recovery/decisions/{decision_id}")
+def get_recovery_decision(
+    decision_id: str,
+    slot: str = Query(..., description="槽位名称 — RecoveryDecision 文件按 slot 分区存储"),
+) -> Dict[str, Any]:
+    """获取一条已持久化的恢复决策，供 UI 回显通道 A/观察状态。"""
+    try:
+        store: AccuracyOperationsStore = _get_components()["store"]
+        decision = store.get_decision(slot, decision_id)
+        if decision is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"恢复决策不存在: slot={slot}, decision_id={decision_id}",
+            )
+        return decision.dict()
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Not found")
+    except Exception as e:
+        logger.exception(
+            "GET /recovery/decisions/%s 异常 slot=%s", decision_id, slot
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/monitoring/snapshot")
 def get_monitoring_snapshot(
     slot: str = Query(..., description="槽位名称 — 分区键"),
@@ -570,4 +598,41 @@ def _find_alert_any_slot(
             return alert
 
     return None
+
+
+# @AI_GENERATED: 槽位运营总览端点 — pv_fault 使用分类精度，load_forecast 复用现有 MAPE
+@router.get("/slot-overview")
+def get_slot_overview(
+    slot: str = Query(..., description="槽位名称 — pv_fault 返回分类精度，load_forecast 返回 MAPE 总览"),
+) -> Dict[str, Any]:
+    """
+    GET /slot-overview — 按槽位聚合运营总览
+
+    pv_fault: 分类精度、标签分布、置信度、审核进度、模型溯源。
+    load_forecast/default: 在现有 overview 基础上增加 domain 字段。
+    """
+    try:
+        if slot == "pv_fault":
+            from services.iterative_labeling.pv_training_workspace import PVTrainingWorkspaceService
+            workspace = PVTrainingWorkspaceService()
+            return workspace.build_slot_overview("pv_fault")
+        else:
+            # 复用现有 overview 逻辑
+            comps = _get_components()
+            store_inst: AccuracyOperationsStore = comps["store"]
+            monitor_inst: AccuracyMonitor = comps["monitor"]
+            snapshot = monitor_inst.get_monitoring_snapshot(slot)
+            open_alerts = store_inst.list_alerts(slot, status="open")
+            return {
+                "domain": "load_forecast" if "load" in slot else slot,
+                "production": snapshot.get("production"),
+                "shadows": snapshot.get("shadows", []),
+                "open_alert_count": len(open_alerts),
+                "active_recovery_count": _count_active_recoveries(store_inst, slot),
+            }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("GET /slot-overview 异常 slot=%s", slot)
+        raise HTTPException(status_code=500, detail=str(e))
 # @AI_GENERATED: end

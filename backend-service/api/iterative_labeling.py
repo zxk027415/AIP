@@ -64,6 +64,26 @@ from services.iterative_labeling.storage.file_backend import (
 router = APIRouter(prefix="/api/iterative-labeling", tags=["iterative-labeling"])
 logger = logging.getLogger(__name__)
 
+# @AI_GENERATED: PV 仓储注入与训练工作台惰性初始化
+from services.iterative_labeling.pv_training_workspace import PVTrainingWorkspaceService
+
+_pv_repo_instance = None
+_pv_workspace_instance: Optional[PVTrainingWorkspaceService] = None
+
+
+def set_pv_fault_repository(repo) -> None:
+    """由 main.py 在启动时注入 PVFaultRepository。"""
+    global _pv_repo_instance
+    _pv_repo_instance = repo
+
+
+def _get_pv_workspace() -> PVTrainingWorkspaceService:
+    global _pv_workspace_instance
+    if _pv_workspace_instance is None:
+        _pv_workspace_instance = PVTrainingWorkspaceService()
+    return _pv_workspace_instance
+# @AI_GENERATED: end
+
 # ============================================================================
 # 路径解析工具：所有文件路径统一相对项目根目录解析
 # ============================================================================
@@ -197,13 +217,13 @@ class GetLoopStateResponse(BaseModel):
 
 # --------- 审核会话相关 ---------
 
-# @AI_GENERATED: 审核会话契约显式携带 slot，避免前端传值被 Pydantic 忽略后落入 default
+# @AI_GENERATED: 审核会话契约显式携带 slot，光伏正式链路缺省为 pv_fault，避免前端传值被 Pydantic 忽略后串入其他分区。
 class CreateReviewSessionRequest(BaseModel):
     """创建审核会话请求"""
     loop_id: str = Field(..., description="所属迭代闭环 — 关联的loop")
     prediction_batch_id: str = Field(..., description="预测批次标识 — 基于哪一批预测结果")
     enable_llm: Optional[bool] = Field(True, description="启用LLM辅助 — 是否生成LLM建议")
-    slot: str = Field("default", description="槽位 — 审核、标签和回流数据的隔离分区")
+    slot: str = Field("pv_fault", description="槽位 — 审核、标签和回流数据的隔离分区")
 # @AI_GENERATED: end
 
 class CreateReviewSessionResponse(BaseModel):
@@ -1401,3 +1421,249 @@ async def get_iterations():
     except Exception as e:
         logger.error(f"Failed to get iterations: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"读取迭代历史失败: {str(e)}")
+
+
+# @AI_GENERATED: 训练候选数据审查、聚类运行/确认、时间切片标注和预测批次读取
+# ============================================================================
+# 训练数据准入（Training Candidates + Clustering + Time Slices）
+# ============================================================================
+
+
+class CreateClusteringRunRequest(BaseModel):
+    """创建聚类 run 请求"""
+    n_clusters: int = Field(5, ge=2, le=30, description="聚类数")
+    label_status: str = Field("unlabeled", description="候选筛选：unlabeled/labeled/all")
+    page_size: int = Field(500, ge=10, le=500, description="候选样本最大数量")
+    site_id: Optional[str] = Field(None, description="站点过滤")
+    time_start: Optional[str] = Field(None, description="起始时间 ISO")
+    time_end: Optional[str] = Field(None, description="结束时间 ISO")
+    reviewer: str = Field("operator", description="操作者")
+
+
+class UpdateClusterRequest(BaseModel):
+    """更新簇信息请求"""
+    proposed_label_name: Optional[str] = Field(None, description="人工命名")
+    selected_member_keys: Optional[List[str]] = Field(None, description="选中成员键列表")
+
+
+class ConfirmClusteringRunRequest(BaseModel):
+    """二次确认聚类 run 请求"""
+    confirm_inclusion: bool = Field(..., description="必须为 true 才执行确认")
+
+
+class CreateTimeSliceRequest(BaseModel):
+    """时间切片标注请求"""
+    source_path: str = Field(..., description="源 CSV/Parquet 相对项目根路径")
+    time_start: str = Field(..., description="起始时间 ISO")
+    time_end: str = Field(..., description="结束时间 ISO")
+    label_id: int = Field(..., description="标注标签 ID")
+    confirm_inclusion: bool = Field(..., description="必须为 true 才登记累计训练集")
+    site_id: Optional[str] = Field(None)
+    device_id: Optional[str] = Field(None)
+    branch_id: Optional[str] = Field(None)
+    reviewer: str = Field("operator")
+
+
+@router.get("/training-candidates")
+async def get_training_candidates(
+    page: int = 1,
+    page_size: int = 100,
+    label_status: Optional[str] = None,
+    site_id: Optional[str] = None,
+    time_start: Optional[str] = None,
+    time_end: Optional[str] = None,
+):
+    """分页读取 pv_fault 数据库中的候选训练样本。
+
+    需要 main.py 启动时注入 PVFaultRepository，否则返回 503。
+    """
+    if _pv_repo_instance is None:
+        raise HTTPException(status_code=503, detail="PV 数据源未连接（PVFaultRepository 未注入）")
+    try:
+        from datetime import datetime as _dt
+        ts = _dt.fromisoformat(time_start) if time_start else None
+        te = _dt.fromisoformat(time_end) if time_end else None
+        result = _pv_repo_instance.query_training_sample_page(
+            page=page,
+            page_size=page_size,
+            label_status=label_status,
+            site_id=site_id,
+            time_start=ts,
+            time_end=te,
+        )
+        # datetime 序列化
+        for item in result.get("items", []):
+            if "time" in item and item["time"] is not None:
+                item["time"] = str(item["time"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("training-candidates failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"读取训练候选失败: {exc}")
+
+
+@router.post("/clustering/runs")
+async def create_clustering_run(request: CreateClusteringRunRequest):
+    """从数据库候选样本创建聚类 run，供人工命名和二次确认。"""
+    if _pv_repo_instance is None:
+        raise HTTPException(status_code=503, detail="PV 数据源未连接")
+    try:
+        from datetime import datetime as _dt
+        ts = _dt.fromisoformat(request.time_start) if request.time_start else None
+        te = _dt.fromisoformat(request.time_end) if request.time_end else None
+        result = _pv_repo_instance.query_training_sample_page(
+            page=1,
+            page_size=request.page_size,
+            label_status=request.label_status if request.label_status != "all" else None,
+            site_id=request.site_id,
+            time_start=ts,
+            time_end=te,
+        )
+        samples = result.get("items", [])
+        if not samples:
+            raise HTTPException(status_code=422, detail="筛选条件下无候选样本")
+        workspace = _get_pv_workspace()
+        run = workspace.create_clustering_run(
+            samples=samples,
+            n_clusters=request.n_clusters,
+            reviewer=request.reviewer,
+        )
+        return run
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.error("create_clustering_run failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建聚类 run 失败: {exc}")
+
+
+@router.get("/clustering/runs/{run_id}")
+async def get_clustering_run(run_id: str):
+    """读取聚类 run 状态。"""
+    workspace = _get_pv_workspace()
+    run = workspace.get_clustering_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"聚类 run {run_id} 不存在")
+    return run
+
+
+@router.put("/clustering/runs/{run_id}/clusters/{cluster_id}")
+async def update_cluster(run_id: str, cluster_id: str, request: UpdateClusterRequest):
+    """给聚类簇设置人工名称或筛选成员。"""
+    workspace = _get_pv_workspace()
+    try:
+        run = workspace.update_cluster(
+            run_id=run_id,
+            cluster_id=cluster_id,
+            proposed_label_name=request.proposed_label_name,
+            selected_member_keys=request.selected_member_keys,
+        )
+        return run
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.error("update_cluster failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/clustering/runs/{run_id}/confirm")
+async def confirm_clustering_run(run_id: str, request: ConfirmClusteringRunRequest):
+    """二次确认聚类 run：生成 labeled CSV 并登记到累计训练集。"""
+    if not request.confirm_inclusion:
+        raise HTTPException(status_code=422, detail="confirm_inclusion 必须为 true")
+    workspace = _get_pv_workspace()
+    try:
+        run = workspace.get_clustering_run(run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail=f"聚类 run {run_id} 不存在")
+
+        # 构建 label_id_map：对不存在标签自动新增
+        registry = _registry_for_slot("pv_fault")
+        current = registry.get_current()
+        existing_map: Dict[str, int] = current.get("label_map", {})
+        label_id_map: Dict[str, int] = {}
+        for cid, cluster in run.get("clusters", {}).items():
+            name = cluster.get("proposed_label_name")
+            if not name:
+                raise HTTPException(status_code=422, detail=f"簇 {cid} 缺少 proposed_label_name")
+            if name in existing_map:
+                label_id_map[name] = existing_map[name]
+            else:
+                new_id = registry.allocate_label(name)
+                label_id_map[name] = new_id
+                existing_map[name] = new_id
+
+        result = workspace.confirm_clustering_run(run_id=run_id, label_id_map=label_id_map)
+
+        # 登记到累计训练集
+        ct = _cumulative_training_for_slot("pv_fault")
+        import_result = ct.register_labeled_dataset(
+            dataset_path=result["dataset_path"],
+            source_name=f"clustering-confirm-{run_id}",
+        )
+        result["cumulative_training"] = import_result
+        return result
+    except HTTPException:
+        raise
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.error("confirm_clustering_run failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"确认聚类 run 失败: {exc}")
+
+
+@router.post("/training-slices")
+async def create_training_slice(request: CreateTimeSliceRequest):
+    """从源文件切取时间段标注并登记到 pv_fault 累计训练集。"""
+    if not request.confirm_inclusion:
+        raise HTTPException(status_code=422, detail="confirm_inclusion 必须为 true")
+    workspace = _get_pv_workspace()
+    try:
+        meta = workspace.create_confirmed_time_slice(
+            source_path=request.source_path,
+            time_start=request.time_start,
+            time_end=request.time_end,
+            label_id=request.label_id,
+            reviewer=request.reviewer,
+            site_id=request.site_id,
+            device_id=request.device_id,
+            branch_id=request.branch_id,
+        )
+        ct = _cumulative_training_for_slot("pv_fault")
+        import_result = ct.register_labeled_dataset(
+            dataset_path=meta["dataset_path"],
+            source_name=f"time-slice-{meta['slice_id']}",
+        )
+        meta["cumulative_training"] = import_result
+        return meta
+    except HTTPException:
+        raise
+    except (ValueError, FileNotFoundError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.error("create_training_slice failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建时间切片失败: {exc}")
+
+
+@router.get("/prediction-batches")
+async def list_prediction_batches(slot: str = "pv_fault"):
+    """列出指定槽位的预测批次。"""
+    workspace = _get_pv_workspace()
+    return {"batches": workspace.list_prediction_batches(_normalize_slot(slot))}
+
+
+@router.get("/prediction-batches/{batch_id}")
+async def get_prediction_batch(batch_id: str, slot: str = "pv_fault"):
+    """读取单个预测批次详情。"""
+    workspace = _get_pv_workspace()
+    batch = workspace.get_prediction_batch(batch_id, _normalize_slot(slot))
+    if batch is None:
+        raise HTTPException(status_code=404, detail=f"预测批次 {batch_id} 不存在")
+    return batch
+# @AI_GENERATED: end

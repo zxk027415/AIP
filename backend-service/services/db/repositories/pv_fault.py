@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 # @AI_GENERATED: 未标注样本筛选需要显式 SQL OR 条件
 from sqlalchemy import insert as sa_insert, or_, select
@@ -338,3 +338,98 @@ class PVFaultRepository:
             if obj is not None:
                 session.expunge(obj)
         return obj
+
+    # @AI_GENERATED: 候选训练数据分页与批量 ID 读取
+    def query_training_sample_page(
+        self,
+        page: int = 1,
+        page_size: int = 100,
+        label_status: Optional[str] = None,
+        site_id: Optional[str] = None,
+        time_start: Optional[datetime] = None,
+        time_end: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """分页查询 training_samples，返回普通 dict 列表。
+
+        label_status:
+          - 'unlabeled': label IS NULL OR label < 0
+          - 'labeled': label IS NOT NULL AND label >= 0
+          - None: 不过滤
+        page_size 最大 500。
+        """
+        from sqlalchemy import func
+
+        page_size = max(1, min(int(page_size), 500))
+        page = max(1, int(page))
+        offset = (page - 1) * page_size
+
+        columns = (
+            TrainingSample.id,
+            TrainingSample.time,
+            TrainingSample.site_id,
+            TrainingSample.device_id,
+            TrainingSample.branch_id,
+            TrainingSample.value,
+            TrainingSample.i_cal,
+            TrainingSample.label,
+        )
+        stmt = select(*columns)
+        count_stmt = select(func.count(TrainingSample.id))
+
+        if label_status == "unlabeled":
+            condition = or_(TrainingSample.label.is_(None), TrainingSample.label < 0)
+            stmt = stmt.where(condition)
+            count_stmt = count_stmt.where(condition)
+        elif label_status == "labeled":
+            condition = TrainingSample.label.isnot(None) & (TrainingSample.label >= 0)
+            stmt = stmt.where(condition)
+            count_stmt = count_stmt.where(condition)
+
+        if site_id is not None:
+            stmt = stmt.where(TrainingSample.site_id == site_id)
+            count_stmt = count_stmt.where(TrainingSample.site_id == site_id)
+        if time_start is not None:
+            stmt = stmt.where(TrainingSample.time >= time_start)
+            count_stmt = count_stmt.where(TrainingSample.time >= time_start)
+        if time_end is not None:
+            stmt = stmt.where(TrainingSample.time < time_end)
+            count_stmt = count_stmt.where(TrainingSample.time < time_end)
+
+        stmt = stmt.order_by(
+            TrainingSample.time.desc(),
+            TrainingSample.site_id.asc(),
+            TrainingSample.device_id.asc(),
+            TrainingSample.id.desc(),
+        ).offset(offset).limit(page_size)
+
+        with self._adapter.get_sync_session() as session:
+            total = session.execute(count_stmt).scalar() or 0
+            rows = session.execute(stmt).mappings().all()
+
+        return {
+            "page": page,
+            "page_size": page_size,
+            "total": int(total),
+            "items": [dict(row) for row in rows],
+        }
+
+    def query_training_samples_by_ids(self, ids: List[int]) -> List[Dict[str, object]]:
+        """批量按主键 ID 读取样本，返回普通 dict。"""
+        if not ids:
+            return []
+        ids = ids[:500]  # 最大 500
+        columns = (
+            TrainingSample.id,
+            TrainingSample.time,
+            TrainingSample.site_id,
+            TrainingSample.device_id,
+            TrainingSample.branch_id,
+            TrainingSample.value,
+            TrainingSample.i_cal,
+            TrainingSample.label,
+        )
+        stmt = select(*columns).where(TrainingSample.id.in_(ids)).order_by(TrainingSample.time.asc())
+        with self._adapter.get_sync_session() as session:
+            rows = session.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+    # @AI_GENERATED: end

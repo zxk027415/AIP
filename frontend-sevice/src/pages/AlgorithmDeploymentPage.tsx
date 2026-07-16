@@ -9,7 +9,7 @@
  *   4. 预上线（?tab=prelaunch）  — 入池/观察进度/手动毕业
  */
 import React, { useMemo } from 'react';
-import { Card, Space, Tabs, Tag, Typography } from 'antd';
+import { Card, Select, Space, Tabs, Tag, Typography } from 'antd';
 import {
   ApartmentOutlined,
   ClockCircleOutlined,
@@ -22,6 +22,7 @@ import ModelManagementTab from './deployment/ModelManagementTab';
 import PipelineTab from './deployment/PipelineTab';
 import SchedulerTab from './deployment/SchedulerTab';
 import PrelaunchTab from './deployment/PrelaunchTab';
+import './deployment/algorithmDeploymentWorkspace.css';
 
 const { Title, Paragraph } = Typography;
 
@@ -29,8 +30,26 @@ type TabKey = 'model' | 'pipeline' | 'scheduler' | 'prelaunch';
 const VALID_TABS: readonly TabKey[] = ['model', 'pipeline', 'scheduler', 'prelaunch'] as const;
 const DEFAULT_TAB: TabKey = 'model';
 
+// @AI_GENERATED: 部署页槽位选项和受控选择器
+const DEPLOYMENT_SLOT_OPTIONS = [
+  { label: 'load_forecast（负荷预测）', value: 'load_forecast' },
+  { label: 'pv_fault（光伏故障诊断）', value: 'pv_fault' },
+  { label: 'default（默认）', value: 'default' },
+];
+// @AI_GENERATED: end
+
 const AlgorithmDeploymentPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // @AI_GENERATED: 槽位受控 — URL ?slot= 参数驱动
+  const storySlot = searchParams.get('slot')?.trim() || 'load_forecast';
+
+  const handleSlotChange = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('slot', value);
+    setSearchParams(next, { replace: true });
+  };
+  // @AI_GENERATED: end
 
   const activeTab: TabKey = useMemo(() => {
     const raw = searchParams.get('tab');
@@ -44,24 +63,37 @@ const AlgorithmDeploymentPage: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: 24, minHeight: '100%', background: '#f3f5f8' }}>
-      <div style={{ maxWidth: 1360, margin: '0 auto' }}>
+    <div className="algorithm-deployment-workspace">
+      <div className="algorithm-deployment-container">
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <Card bordered={false} style={{ borderRadius: 12, boxShadow: '0 10px 28px rgba(15,23,42,.06)' }}>
+          <Card className="deployment-page-header" bordered={false}>
             <Space direction="vertical" size={8} style={{ width: '100%' }}>
-              <Space align="center" size={12}>
-                <RocketOutlined style={{ fontSize: 22, color: '#1677ff' }} />
-                <Title level={3} style={{ margin: 0 }}>算法部署</Title>
-                <Tag color="blue">模型全生命周期管理</Tag>
-              </Space>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                <Space align="center" size={12}>
+                  <RocketOutlined style={{ fontSize: 22, color: '#1677ff' }} />
+                  <Title level={3} style={{ margin: 0 }}>算法部署</Title>
+                  <Tag color="blue">模型全生命周期管理</Tag>
+                </Space>
+                {/* @AI_GENERATED: 槽位选择器 */}
+                <Space size={8}>
+                  <span style={{ fontSize: 13, color: '#64748b' }}>槽位</span>
+                  <Select
+                    value={storySlot}
+                    onChange={handleSlotChange}
+                    options={DEPLOYMENT_SLOT_OPTIONS}
+                    style={{ width: 240 }}
+                    size="middle"
+                  />
+                </Space>
+                {/* @AI_GENERATED: end */}
+              </div>
               <Paragraph type="secondary" style={{ marginBottom: 0, maxWidth: 900 }}>
-                统一管理模型上线、生产/影子/预上线切换、数据管线和定时调度。
-                数据管线和定时调度入口已迁入本页；精度运营（只读健康中心）保持独立页面。
+                按槽位管理模型上线、生产/影子/预上线切换、数据管线和定时调度。
               </Paragraph>
             </Space>
           </Card>
 
-          <Card bordered={false} style={{ borderRadius: 12, boxShadow: '0 10px 28px rgba(15,23,42,.06)' }} bodyStyle={{ padding: '8px 16px 16px' }}>
+          <Card className="deployment-page-tabs" bordered={false} bodyStyle={{ padding: '8px 16px 16px' }}>
             <Tabs
               activeKey={activeTab}
               onChange={handleTabChange}
@@ -70,7 +102,9 @@ const AlgorithmDeploymentPage: React.FC = () => {
                 {
                   key: 'model',
                   label: <Space size={6}><DeploymentUnitOutlined />模型管理</Space>,
-                  children: <ModelManagementTab />,
+                  // @AI_GENERATED: 透传 storySlot 以便 ModelManagementTab 可选择性聚焦
+                  children: <ModelManagementTab storySlot={storySlot} />,
+                  // @AI_GENERATED: end
                 },
                 {
                   key: 'pipeline',
@@ -80,7 +114,7 @@ const AlgorithmDeploymentPage: React.FC = () => {
                 {
                   key: 'scheduler',
                   label: <Space size={6}><ClockCircleOutlined />定时调度</Space>,
-                  children: <SchedulerTab />,
+                  children: <SchedulerTab storySlot={storySlot} />,
                 },
                 {
                   key: 'prelaunch',

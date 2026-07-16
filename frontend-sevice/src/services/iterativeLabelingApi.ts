@@ -169,7 +169,7 @@ export interface GetAccuracyResponse {
 
 // --------- 编辑器驱动：从预测结果建会话 / 回流原始时序 ---------
 
-// @AI_GENERATED: 编辑器→审核 API 显式携带 slot，防止后端忽略后写入 default
+// @AI_GENERATED: 编辑器→审核 API 显式携带 slot，防止后端忽略后写入 pv_fault
 export interface CreateReviewSessionFromPredictionRequest {
   /** 预测结果数组 — 来自预测工作流 faultPredictions */
   predictions: Array<Record<string, unknown>>;
@@ -350,7 +350,9 @@ export const reviewSessionApi = {
       loop_id: request.loopId,
       prediction_batch_id: request.predictionBatchId,
       enable_llm: request.enableLlm,
-      slot: request.slot || 'default',
+      // @AI_GENERATED: 光伏审核请求未显式传槽位时写入正式 pv_fault 分区。
+      slot: request.slot || 'pv_fault',
+      // @AI_GENERATED: end
     }),
 
   /**
@@ -404,7 +406,9 @@ export const reviewSessionApi = {
       enable_llm: request.enableLlm,
       loop_id: request.loopId,
       reviewer: request.reviewer,
-      slot: request.slot || 'default',
+      // @AI_GENERATED: 光伏审核请求未显式传槽位时写入正式 pv_fault 分区。
+      slot: request.slot || 'pv_fault',
+      // @AI_GENERATED: end
     }),
 
   /**
@@ -425,12 +429,12 @@ export const reviewSessionApi = {
 
 // @AI_GENERATED: 正常累计训练集控制面；所有路径由后端校验为项目根相对路径
 export const cumulativeTrainingApi = {
-  getState: (slot = 'default'): Promise<Record<string, unknown>> =>
+  getState: (slot = 'pv_fault'): Promise<Record<string, unknown>> =>
     api.get('/iterative-labeling/cumulative-training/state', { params: { slot } }),
 
   registerImport: (
     request: RegisterCumulativeTrainingImportRequest,
-    slot = 'default'
+    slot = 'pv_fault'
   ): Promise<Record<string, unknown>> =>
     api.post('/iterative-labeling/cumulative-training/imports', {
       dataset_path: request.datasetPath,
@@ -439,7 +443,7 @@ export const cumulativeTrainingApi = {
 
   runRetrainRequest: (
     requestId: string,
-    slot = 'default'
+    slot = 'pv_fault'
   ): Promise<CumulativeRetrainRunResponse> =>
     api.post(`/iterative-labeling/cumulative-training/retrain-requests/${requestId}/run`, {}, {
       params: { slot },
@@ -500,6 +504,75 @@ export const iterationTrackerApi = {
   },
 };
 
+// @AI_GENERATED: 训练数据工作台 API — 候选数据、聚类确认、时间切片、预测批次和槽位运营总览
+export const trainingWorkspaceApi = {
+  /** 分页读取 pv_fault 候选训练样本 */
+  getTrainingCandidates: (params: {
+    page?: number;
+    page_size?: number;
+    label_status?: string;
+    site_id?: string;
+    time_start?: string;
+    time_end?: string;
+  } = {}): Promise<{ page: number; page_size: number; total: number; items: Array<Record<string, unknown>> }> =>
+    api.get('/iterative-labeling/training-candidates', { params }),
+
+  /** 创建聚类 run */
+  createClusteringRun: (body: {
+    n_clusters?: number;
+    label_status?: string;
+    page_size?: number;
+    site_id?: string;
+    time_start?: string;
+    time_end?: string;
+    reviewer?: string;
+  }): Promise<Record<string, unknown>> =>
+    api.post('/iterative-labeling/clustering/runs', body),
+
+  /** 读取聚类 run */
+  getClusteringRun: (runId: string): Promise<Record<string, unknown>> =>
+    api.get(`/iterative-labeling/clustering/runs/${runId}`),
+
+  /** 更新簇（命名 / 选择成员） */
+  updateCluster: (
+    runId: string,
+    clusterId: string,
+    body: { proposed_label_name?: string; selected_member_keys?: string[] },
+  ): Promise<Record<string, unknown>> =>
+    api.put(`/iterative-labeling/clustering/runs/${runId}/clusters/${clusterId}`, body),
+
+  /** 二次确认聚类 run 并登记累计训练集 */
+  confirmClusteringRun: (runId: string): Promise<Record<string, unknown>> =>
+    api.post(`/iterative-labeling/clustering/runs/${runId}/confirm`, { confirm_inclusion: true }),
+
+  /** 创建时间切片标注并登记累计训练集 */
+  createTimeSlice: (body: {
+    source_path: string;
+    time_start: string;
+    time_end: string;
+    label_id: number;
+    confirm_inclusion: boolean;
+    site_id?: string;
+    device_id?: string;
+    branch_id?: string;
+    reviewer?: string;
+  }): Promise<Record<string, unknown>> =>
+    api.post('/iterative-labeling/training-slices', body),
+
+  /** 列出预测批次 */
+  listPredictionBatches: (slot = 'pv_fault'): Promise<{ batches: Array<Record<string, unknown>> }> =>
+    api.get('/iterative-labeling/prediction-batches', { params: { slot } }),
+
+  /** 读取单个预测批次 */
+  getPredictionBatch: (batchId: string, slot = 'pv_fault'): Promise<Record<string, unknown>> =>
+    api.get(`/iterative-labeling/prediction-batches/${batchId}`, { params: { slot } }),
+
+  /** 槽位运营总览 */
+  getSlotOverview: (slot: string): Promise<Record<string, unknown>> =>
+    api.get('/accuracy-operations/slot-overview', { params: { slot } }),
+};
+// @AI_GENERATED: end
+
 /**
  * 默认导出：聚合所有 API 模块
  */
@@ -511,4 +584,7 @@ export default {
   // @AI_GENERATED: end
   labelRegistry: labelRegistryApi,
   iterationTracker: iterationTrackerApi,
+  // @AI_GENERATED: 训练工作台和运营聚合
+  trainingWorkspace: trainingWorkspaceApi,
+  // @AI_GENERATED: end
 };

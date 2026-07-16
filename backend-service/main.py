@@ -247,12 +247,49 @@ async def startup_event():
         from services.precision_ops._db_helper import set_lf_repo
         set_lf_repo(_lf_repo)
         _pv_repo = PVFaultRepository(_db_adapter)
+        # @AI_GENERATED: 将 PVFaultRepository 注入迭代标注 API，启用候选数据审查端点
+        from api.iterative_labeling import set_pv_fault_repository
+        set_pv_fault_repository(_pv_repo)
+        # @AI_GENERATED: end
         _mock_feeder = build_default_mock_feeder(_db_adapter)
         _mock_feeder.ensure_tables()
         _mock_source = LocalDbMockDataSource(_db_adapter)
 
         _sched_engine = SchedulerEngine()
-        # @AI_GENERATED: mock_data_feed — 模拟公司生产库每天新增 96 行数据（独立于平台拉取）
+
+        # @AI_GENERATED: formal-load-forecast-scheduler-evidence
+        # APScheduler 的 cron job 在后台线程运行；将其真实回执同步到任务登记，
+        # 让算法部署页的 last_execution 与精度运营同一 slot 的证据链可对齐。
+        # 此监听器不触发预测、RCA、仲裁或任何部署身份切换。
+        from services.deployment.scheduler_store import SchedulerStore as _SchedulerStore
+
+        _scheduler_task_store = _SchedulerStore()
+
+        def _sync_scheduler_task_result(
+            task_id: str,
+            result: str,
+            completed_at: datetime,
+            next_scheduled_time,
+        ) -> None:
+            task = _scheduler_task_store.get_task(task_id)
+            if task is None:
+                return
+            updated = task.model_copy(update={
+                "last_execution_time": completed_at.isoformat(),
+                "last_result": result,
+                "next_scheduled_time": (
+                    next_scheduled_time.isoformat()
+                    if next_scheduled_time is not None
+                    else None
+                ),
+                "updated_at": datetime.now().isoformat(),
+            })
+            _scheduler_task_store.upsert_task(updated)
+
+        _sched_engine.add_task_result_listener(_sync_scheduler_task_result)
+        # @AI_GENERATED: end
+
+        # @AI_GENERATED: mock_data_feed — 模拟公司源按自然业务日公开 CSV 原始点（独立于平台拉取）
         _sched_engine.register_task(
             "mock_data_feed",
             _mock_feeder.feed_next_batch,
@@ -462,7 +499,7 @@ def _seed_scheduler_tasks(db_cfg) -> None:
         _DEFAULT_TASKS = [
             {
                 "task_id": "mock_data_feed",
-                "name": "模拟喂数据 — 公司生产库每天新增 96 行",
+                "name": "模拟喂数据 — 公司生产库按自然日到达（完整日 96 点）",
                 "pipeline": "load_forecast",
                 "schedule_type": "cron",
                 "cron_expr": "0 0 * * *",

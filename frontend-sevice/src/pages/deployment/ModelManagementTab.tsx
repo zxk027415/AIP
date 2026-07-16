@@ -152,7 +152,9 @@ function getPrelaunchStatus(
   return 'fail';                           // 超标
 }
 
-const ModelManagementTab: React.FC = () => {
+// @AI_GENERATED: 接受可选 storySlot 用于聚焦指定槽位
+const ModelManagementTab: React.FC<{ storySlot?: string }> = ({ storySlot }) => {
+// @AI_GENERATED: end
   const [messageApi, contextHolder] = message.useMessage();
   const [loading, setLoading] = useState<boolean>(false);
   const [slots, setSlots] = useState<Record<string, DeploymentSlotView>>({});
@@ -298,6 +300,7 @@ const ModelManagementTab: React.FC = () => {
     try {
       await deploymentApi.switchModel(switchModal.slot, {
         target_workflow_id: switchModal.target.workflow_id,
+        target_version_tag: switchModal.target.version_tag,
         trigger_type: 'manual',
         reason: '人工操作从模型管理面板发起切换',
       });
@@ -362,7 +365,14 @@ const ModelManagementTab: React.FC = () => {
   // 渲染
   // -------------------------------------------------------------------------
 
-  const slotList = useMemo(() => Object.values(slots), [slots]);
+  // @AI_GENERATED: storySlot 过滤 — 只展示选中槽位
+  const slotList = useMemo(() => {
+    const all = Object.values(slots);
+    if (!storySlot) return all;
+    const filtered = all.filter(s => s.slot === storySlot);
+    return filtered.length > 0 ? filtered : all;
+  }, [slots, storySlot]);
+  // @AI_GENERATED: end
 
   return (
     <>
@@ -378,6 +388,17 @@ const ModelManagementTab: React.FC = () => {
         </div>
 
         <Spin spinning={loading}>
+          {/* @AI_GENERATED: storySlot 指向 pv_fault 但尚未注册部署槽位时展示引导 */}
+          {storySlot === 'pv_fault' && !slots['pv_fault'] && !loading && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="光伏故障诊断槽位尚未注册部署模型"
+              description="pv_fault 累计训练完成后模型为 not_published 状态。如需在此管理光伏模型，请先通过累计训练重训完成后在此处注册为 shadow 或 production。"
+            />
+          )}
+          {/* @AI_GENERATED: end */}
           {slotList.length === 0 ? (
             <Empty description="尚未配置任何部署槽位" />
           ) : (
@@ -567,6 +588,7 @@ const SlotCard: React.FC<SlotCardProps> = ({
               />
             </Space>
           </Tooltip>
+          <Button size="small" href={`/accuracy-operations?slot=${encodeURIComponent(slot.slot)}`}>运营状态</Button>
           <Button size="small" icon={<SettingOutlined />} onClick={onOpenConfig}>配置</Button>
           <Button size="small" icon={<HistoryOutlined />} onClick={onViewVersions}>版本历史</Button>
           <Button size="small" danger icon={<RollbackOutlined />} onClick={onRollback} disabled={!prod}>回滚</Button>
@@ -609,7 +631,7 @@ const SlotCard: React.FC<SlotCardProps> = ({
               const eligible = isShadowEligibleForSwitch(m, slot);
               return (
                 <div
-                  key={m.workflow_id}
+                  key={`${m.workflow_id}:${m.version_tag}`}
                   style={{
                     padding: '8px 12px',
                     borderTop: idx > 0 ? '1px solid #f1f5f9' : undefined,
@@ -665,7 +687,7 @@ const SlotCard: React.FC<SlotCardProps> = ({
 
               return (
                 <div
-                  key={m.workflow_id}
+                  key={`${m.workflow_id}:${m.version_tag}`}
                   style={{
                     padding: '8px 12px',
                     borderTop: idx > 0 ? '1px solid #f1f5f9' : undefined,
@@ -765,7 +787,7 @@ const VersionHistoryModal: React.FC<{
       <Spin spinning={state.loading}>
         <Table<VersionHistoryItem>
           size="small"
-          rowKey="workflow_id"
+          rowKey={(item) => `${item.workflow_id}:${item.version_tag}:${item.role}`}
           columns={columns}
           dataSource={state.versions}
           pagination={false}

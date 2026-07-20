@@ -852,3 +852,97 @@ async def manual_pv_mock_data_feed(payload: PvManualMockFeedRequest) -> Dict[str
         "feed_result": result.as_dict(),
     }
 # @AI_GENERATED: end
+
+
+# @AI_GENERATED: pv_mock_data_feed 已写入数据预览端点
+@router.get("/tasks/pv_mock_data_feed/data-evidence")
+async def get_pv_mock_feed_data_evidence(
+    sample_limit: int = 50,
+) -> dict:
+    """返回 pv_mock_data_feed 最近写入 training_samples 的数据样本，供前端核对。
+
+    从 training_samples 表读取：
+      - total_rows       — 总行数
+      - latest_time      — 最新观测时间
+      - earliest_time    — 最早观测时间
+      - device_count     — 设备数
+      - date_count       — 自然日数
+      - samples          — 最新 sample_limit 行（按 time desc）
+    """
+    from services.db.models.pv_fault import TrainingSample
+    from sqlalchemy import select, func
+
+    if _pv_mock_feeder is None:
+        raise HTTPException(status_code=503, detail="PV mock feeder 尚未注入")
+
+    # 复用 DBAdapter，但 feeder 没直接暴露 adapter；通过 pv_repo 获取（如已注入）
+    from api.iterative_labeling import _pv_repo_instance as pv_repo
+    if pv_repo is None:
+        raise HTTPException(status_code=503, detail="PVFaultRepository 尚未注入，无法查询数据证据")
+
+    adapter = pv_repo._adapter
+    sample_limit = max(1, min(int(sample_limit), 200))
+
+    try:
+        with adapter.get_sync_session() as session:
+            total = session.execute(select(func.count(TrainingSample.id))).scalar() or 0
+            earliest = session.execute(select(func.min(TrainingSample.time))).scalar()
+            latest_time = session.execute(select(func.max(TrainingSample.time))).scalar()
+            device_count = session.execute(
+                select(func.count(func.distinct(TrainingSample.device_id)))
+            ).scalar() or 0
+
+            rows = session.execute(
+                select(
+                    TrainingSample.id,
+                    TrainingSample.time,
+                    TrainingSample.site_id,
+                    TrainingSample.device_id,
+                    TrainingSample.branch_id,
+                    TrainingSample.value,
+                    TrainingSample.i_cal,
+                    TrainingSample.label,
+                )
+                .order_by(TrainingSample.time.desc(), TrainingSample.id.desc())
+                .limit(sample_limit)
+            ).mappings().all()
+
+        samples = []
+        for row in rows:
+            samples.append({
+                "id": row["id"],
+                "time": row["time"].isoformat() if row["time"] else None,
+                "site_id": row["site_id"],
+                "device_id": row["device_id"],
+                "branch_id": str(row["branch_id"]),
+                "value": float(row["value"]) if row["value"] is not None else None,
+                "i_cal": float(row["i_cal"]) if row["i_cal"] is not None else None,
+                "label": int(row["label"]) if row["label"] is not None else None,
+            })
+
+        # 计算已覆盖的自然日数
+        if earliest and latest_time:
+            from datetime import timedelta
+            date_count = (latest_time.date() - earliest.date()).days + 1
+        else:
+            date_count = 0
+
+        # 同时返回 feeder 的最新喂数状态
+        preview = _pv_mock_feeder.get_manual_feed_preview()
+
+        return {
+            "task_id": "pv_mock_data_feed",
+            "evidence": {
+                "total_rows": int(total),
+                "device_count": int(device_count),
+                "date_count": date_count,
+                "earliest_time": earliest.isoformat() if earliest else None,
+                "latest_time": latest_time.isoformat() if latest_time else None,
+                "samples": samples,
+            },
+            "feed_preview": preview.as_dict(),
+        }
+    except Exception as exc:
+        logger.exception("pv_mock_data_feed data-evidence 查询失败")
+        raise HTTPException(status_code=500, detail=str(exc))
+# @AI_GENERATED: end

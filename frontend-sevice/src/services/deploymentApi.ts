@@ -164,6 +164,8 @@ export interface SlotConfigView {
 export interface SwitchRequest {
   /** target_workflow_id — 必填，要提升为 production 的影子模型 workflow_id */
   target_workflow_id: string;
+  /** target_version_tag — 目标影子版本标签；同一 workflow 多版本时用于精确定位。 */
+  target_version_tag?: string;
   /** trigger_type — 触发类型：manual | auto，默认 manual */
   trigger_type?: 'manual' | 'auto';
   /** reason — 切换原因备注（可选） */
@@ -291,6 +293,10 @@ export interface ScheduledTaskSummary {
   pipeline: string;
   /** schedule_type — 调度策略 */
   schedule_type: 'rolling_daily' | 'cron' | 'interval';
+  /** cron_expr — Cron 表达式；非 cron 调度时为 null。 */
+  cron_expr: string | null;
+  /** slot — 关联部署槽位；不能由 pipeline 名称推断。 */
+  slot: string;
   /** status — 当前运行状态 */
   status: 'running' | 'stopped' | 'failed';
   /** last_execution — 上次执行结果（对应模型的 last_result 字段） */
@@ -328,6 +334,98 @@ export interface ScheduledTaskDetail {
   created_at: string;
   updated_at: string;
 }
+
+// @AI_GENERATED: manual mock-feed API contract
+/** MockDataFeedPreview — 手动喂数据前的只读模拟业务日状态。 */
+export interface MockDataFeedPreview {
+  /** state — 当前动作状态：initial_feed | continue_current_business_day | confirmation_required | exhausted */
+  state: 'initial_feed' | 'continue_current_business_day' | 'confirmation_required' | 'exhausted';
+  /** current_business_date — 公司模拟库当前已公开的最大业务日期；尚未投喂时为 null。 */
+  current_business_date: string | null;
+  /** current_available_at — 当前业务日最近一条数据进入公司模拟库的时间。 */
+  current_available_at: string | null;
+  /** next_business_date — CSV 中下一批可公开的业务日期；耗尽时为 null。 */
+  next_business_date: string | null;
+  /** next_source_row_count — 下一批 CSV 原始行数；不完整日可小于 96。 */
+  next_source_row_count: number;
+  /** next_is_complete_day — 下一批是否覆盖完整的 96 个 15 分钟点。 */
+  next_is_complete_day: boolean;
+  /** requires_advance_confirmation — 当前业务日已完成，是否必须确认后才可推进。 */
+  requires_advance_confirmation: boolean;
+  /** exhausted — CSV 是否已经没有可继续公开的数据。 */
+  exhausted: boolean;
+}
+
+/** MockDataFeedResult — 一次已执行投喂的真实写入回执。 */
+export interface MockDataFeedResult {
+  /** business_date — 本次从 CSV 公开到公司模拟库的业务日期。 */
+  business_date: string | null;
+  /** source_start_index / source_end_index — 本次 CSV 原始行索引范围。 */
+  source_start_index: number | null;
+  source_end_index: number | null;
+  /** source_row_count — 本次业务日的 CSV 原始行数。 */
+  source_row_count: number;
+  /** inserted_row_count — 实际新增到公司模拟库的行数。 */
+  inserted_row_count: number;
+  /** expected_points_per_day — 预期每日采样点数，当前负荷预测为 96。 */
+  expected_points_per_day: number;
+  /** is_complete_day — 本次业务日是否为完整 96 点。 */
+  is_complete_day: boolean;
+  exhausted: boolean;
+}
+
+/** ManualMockDataFeedResponse — 手动投喂接口的确认或执行结果。 */
+export interface ManualMockDataFeedResponse {
+  task_id: string;
+  /** status — fed（已写入）| confirmation_required（需确认）| exhausted（数据耗尽）。 */
+  status: 'fed' | 'confirmation_required' | 'exhausted';
+  message: string;
+  preview: MockDataFeedPreview;
+  feed_result: MockDataFeedResult | null;
+}
+// @AI_GENERATED: end
+
+// @AI_GENERATED: lf_data_pull platform evidence contract
+/** StationDataEvidenceRow — 平台 StationData 的一条实际落库记录。 */
+export interface StationDataEvidenceRow {
+  /** station_id — 实际数据所属站点 ID。 */
+  station_id: string;
+  /** timestamp_utc — 该观测点的业务时间。 */
+  timestamp_utc: string;
+  /** feature_name — 指标/特征名称，例如 load。 */
+  feature_name: string;
+  /** value — 实际写入平台库的数值。 */
+  value: number;
+  /** ingested_at — 数据被 lf_data_pull 写入平台库的时间。 */
+  ingested_at: string;
+}
+
+/** DataPullEvidence — lf_data_pull 当前平台落库数据的只读快照。 */
+export interface DataPullEvidence {
+  /** slot — 查询使用的部署槽位；与调度任务的 slot 一致。 */
+  slot: string;
+  /** total_rows — 当前槽位平台库内的实际数据总行数。 */
+  total_rows: number;
+  /** station_count — 已落库站点数。 */
+  station_count: number;
+  /** feature_names — 已落库特征名列表。 */
+  feature_names: string[];
+  /** time_start / time_end — 实际数据时间范围的起止。 */
+  time_start: string | null;
+  time_end: string | null;
+  /** latest — 最新业务时间的数据点；空库时为 null。 */
+  latest: StationDataEvidenceRow | null;
+  /** samples — 最近写入数据中的有限样本，按业务时间升序展示。 */
+  samples: StationDataEvidenceRow[];
+}
+
+/** DataPullEvidenceResponse — 只读数据拉取证据接口的返回体。 */
+export interface DataPullEvidenceResponse {
+  task_id: string;
+  slot: string;
+  evidence: DataPullEvidence;
+}
+// @AI_GENERATED: end
 
 /**
  * ScheduledTaskCreate — POST /scheduler/tasks 请求体
@@ -462,6 +560,34 @@ export const schedulerTaskApi = {
   /** 立即触发一次（不等下次 cron，不改 status，后台异步执行）*/
   triggerTaskNow: (taskId: string): Promise<{ task_id: string; status: string; message: string }> =>
     api.post(`/scheduler/tasks/${encodeURIComponent(taskId)}/trigger-now`),
+
+  /** 获取 mock_data_feed 的当前模拟业务日和下一批投喂预览；只读，不写数据。 */
+  getMockDataFeedStatus: (): Promise<{ task_id: string; preview: MockDataFeedPreview }> =>
+    api.get('/scheduler/tasks/mock_data_feed/feed-status'),
+
+  /** 手动投喂：advance=false 时不会越过已完成的模拟业务日。 */
+  manualMockDataFeed: (advance = false): Promise<ManualMockDataFeedResponse> =>
+    api.post('/scheduler/tasks/mock_data_feed/manual-feed', { advance }),
+
+  // @AI_GENERATED: read-only lf_data_pull platform evidence API client
+  /** 只读获取 lf_data_pull 已实际写入平台库的数据范围与最近样本。 */
+  getDataPullEvidence: (taskId: string, sampleLimit = 48): Promise<DataPullEvidenceResponse> =>
+    api.get(`/scheduler/tasks/${encodeURIComponent(taskId)}/data-evidence`, { params: { sample_limit: sampleLimit } }),
+  // @AI_GENERATED: end
+
+  // @AI_GENERATED: pv_mock_data_feed 状态与数据证据
+  /** 获取 pv_mock_data_feed 的当前业务日状态（只读）。 */
+  getPvMockFeedStatus: (): Promise<{ task_id: string; preview: PvMockFeedPreview }> =>
+    api.get('/scheduler/tasks/pv_mock_data_feed/feed-status'),
+
+  /** 光伏手动喂数据：advance=false 时不会越过已完成的业务日。 */
+  manualPvMockDataFeed: (advance = false): Promise<ManualPvMockFeedResponse> =>
+    api.post('/scheduler/tasks/pv_mock_data_feed/manual-feed', { advance }),
+
+  /** 读取 pv_mock_data_feed 已写入 training_samples 的数据摘要和样本。 */
+  getPvMockFeedDataEvidence: (sampleLimit = 50): Promise<PvMockFeedDataEvidenceResponse> =>
+    api.get('/scheduler/tasks/pv_mock_data_feed/data-evidence', { params: { sample_limit: sampleLimit } }),
+  // @AI_GENERATED: end
 };
 
 // ===========================================================================
@@ -537,4 +663,65 @@ export const prelaunchApi = {
       `/deployment/slots/${encodeURIComponent(slot)}/prelaunches/${encodeURIComponent(workflowId)}/graduate`,
     ),
 };
+// @AI_GENERATED: end
+
+// @AI_GENERATED: pv_mock_data_feed API 类型
+/** PvMockFeedPreview — 光伏 mock 喂数据的当前业务日状态。 */
+export interface PvMockFeedPreview {
+  state: 'initial_feed' | 'continue_current' | 'confirmation_required' | 'exhausted';
+  current_business_date: string | null;
+  next_business_date: string | null;
+  next_source_row_count: number;
+  next_device_count: number;
+  requires_advance_confirmation: boolean;
+  exhausted: boolean;
+}
+
+/** PvMockFeedResult — 一次已执行的光伏 mock 喂数据回执。 */
+export interface PvMockFeedResult {
+  business_date: string | null;
+  source_row_count: number;
+  inserted_row_count: number;
+  skipped_row_count: number;
+  device_count: number;
+  exhausted: boolean;
+}
+
+/** ManualPvMockFeedResponse — 光伏手动喂数据接口返回体。 */
+export interface ManualPvMockFeedResponse {
+  task_id: string;
+  status: 'fed' | 'confirmation_required' | 'exhausted';
+  message: string;
+  preview: PvMockFeedPreview;
+  feed_result: PvMockFeedResult | null;
+}
+
+/** PvMockFeedSampleRow — training_samples 中的一条光伏观测样本。 */
+export interface PvMockFeedSampleRow {
+  id: number;
+  time: string;
+  site_id: string;
+  device_id: string;
+  branch_id: string;
+  value: number | null;
+  i_cal: number | null;
+  label: number | null;
+}
+
+/** PvMockFeedDataEvidence — pv_mock_data_feed 写入 training_samples 的数据摘要。 */
+export interface PvMockFeedDataEvidence {
+  total_rows: number;
+  device_count: number;
+  date_count: number;
+  earliest_time: string | null;
+  latest_time: string | null;
+  samples: PvMockFeedSampleRow[];
+}
+
+/** PvMockFeedDataEvidenceResponse — 光伏数据证据接口返回体。 */
+export interface PvMockFeedDataEvidenceResponse {
+  task_id: string;
+  evidence: PvMockFeedDataEvidence;
+  feed_preview: PvMockFeedPreview;
+}
 // @AI_GENERATED: end

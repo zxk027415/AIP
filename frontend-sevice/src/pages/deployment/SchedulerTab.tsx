@@ -6,17 +6,20 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, Button, Descriptions, Form, Input, InputNumber,
+  Alert, Button, Descriptions, Divider, Empty, Form, Input, InputNumber,
   Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { useNavigate } from 'react-router-dom';
 import {
-  EditOutlined, PlayCircleOutlined, PlusOutlined, ProfileOutlined,
+  DatabaseOutlined, EditOutlined, FundViewOutlined, PlayCircleOutlined, PlusOutlined, ProfileOutlined,
   ReloadOutlined, StopOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 import {
   schedulerTaskApi,
+  type DataPullEvidence, type ManualMockDataFeedResponse, type MockDataFeedPreview,
   type ScheduledTaskCreate, type ScheduledTaskDetail, type ScheduledTaskSummary,
+  type PvMockFeedDataEvidence, type PvMockFeedPreview, type ManualPvMockFeedResponse,
 } from '../../services/deploymentApi';
 
 const { Text } = Typography;
@@ -38,14 +41,67 @@ const PIPELINE_OPTIONS = [
   { value: 'load_forecast', label: '负荷预测（load_forecast）' },
   { value: 'pv_fault', label: '光伏故障（pv_fault）' },
 ];
+const SLOT_OPTIONS = [
+  { value: 'load_forecast', label: 'load_forecast（正式负荷预测）' },
+  { value: 'default', label: 'default（默认槽）' },
+];
+
+// @AI_GENERATED: manual mock-feed UI guard
+const MOCK_DATA_FEED_TASK_ID = 'mock_data_feed';
+const PV_MOCK_DATA_FEED_TASK_ID = 'pv_mock_data_feed';
+const PV_DATA_PULL_TASK_ID = 'pv_data_pull';
+
+function formatMockFeedPreview(preview: MockDataFeedPreview): string {
+  if (preview.exhausted) return 'CSV 模拟数据已全部投喂。';
+  const next = preview.next_business_date ?? '—';
+  const completeness = preview.next_is_complete_day ? '完整 96 点' : `不完整 ${preview.next_source_row_count} 点`;
+  if (preview.state === 'initial_feed') return `尚未投喂；首次将公开 ${next}（${completeness}）。`;
+  if (preview.state === 'continue_current_business_day') return `当前模拟日还有历史遗留行待补齐；将继续公开 ${next}（${completeness}）。`;
+  return `当前模拟业务日 ${preview.current_business_date ?? '—'} 已投喂；下一业务日为 ${next}（${completeness}）。`;
+}
+
+function formatPvMockFeedPreview(preview: PvMockFeedPreview): string {
+  if (preview.exhausted) return 'Parquet 模拟数据已全部投喂。';
+  const next = preview.next_business_date ?? '—';
+  const devices = preview.next_device_count;
+  const rows = preview.next_source_row_count;
+  if (preview.state === 'initial_feed') return `尚未投喂；首次将公开 ${next}（${devices} 台设备 × ${rows} 行）。`;
+  return `当前业务日 ${preview.current_business_date ?? '—'} 已投喂；下一业务日为 ${next}（${devices} 台设备 × ${rows} 行）。`;
+}
+// @AI_GENERATED: end
+
 function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   try { return new Date(iso).toLocaleString('zh-CN', { hour12: false }); } catch { return iso; }
 }
 
-const SchedulerTab: React.FC = () => {
+interface SchedulerTabProps {
+  /** storySlot — 从精度运营故事线带回的槽位上下文，由部署页页头展示。 */
+  storySlot?: string;
+}
+
+interface TaskDetailState {
+  open: boolean;
+  loading: boolean;
+  data: ScheduledTaskDetail | null;
+  dataPullEvidence: DataPullEvidence | null;
+  dataPullEvidenceLoading: boolean;
+  dataPullEvidenceError: string | null;
+  // @AI_GENERATED: pv mock feed data evidence
+  pvDataEvidence: PvMockFeedDataEvidence | null;
+  pvDataEvidenceLoading: boolean;
+  pvDataEvidenceError: string | null;
+  // @AI_GENERATED: end
+}
+
+const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
+  const navigate = useNavigate();
   const [messageApi, contextHolder] = message.useMessage();
   const [tasks, setTasks] = useState<ScheduledTaskSummary[]>([]);
+  const [mockFeedPreview, setMockFeedPreview] = useState<MockDataFeedPreview | null>(null);
+  // @AI_GENERATED: pv mock feed preview
+  const [pvMockFeedPreview, setPvMockFeedPreview] = useState<PvMockFeedPreview | null>(null);
+  // @AI_GENERATED: end
   const [loading, setLoading] = useState(false);
   const [rowActionLoading, setRowActionLoading] = useState<Record<string, boolean>>({});
   const [createOpen, setCreateOpen] = useState(false);
@@ -55,13 +111,53 @@ const SchedulerTab: React.FC = () => {
   const [editTask, setEditTask] = useState<ScheduledTaskSummary | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editForm] = Form.useForm<{ cron_expr: string; trigger_time: string; max_window_days: number | null }>();
-  const [detail, setDetail] = useState<{ open: boolean; loading: boolean; data: ScheduledTaskDetail | null }>({ open: false, loading: false, data: null });
+  const [detail, setDetail] = useState<TaskDetailState>({
+    open: false,
+    loading: false,
+    data: null,
+    dataPullEvidence: null,
+    dataPullEvidenceLoading: false,
+    dataPullEvidenceError: null,
+    pvDataEvidence: null,
+    pvDataEvidenceLoading: false,
+    pvDataEvidenceError: null,
+  });
 
   const loadTasks = useCallback(async () => {
     setLoading(true);
-    try { const res = await schedulerTaskApi.listScheduledTasks(); setTasks(res.tasks ?? []); }
-    catch (err: any) { messageApi.error(`加载失败：${err?.message ?? String(err)}`); setTasks([]); }
-    finally { setLoading(false); }
+    try {
+      const res = await schedulerTaskApi.listScheduledTasks();
+      const nextTasks = res.tasks ?? [];
+      setTasks(nextTasks);
+      if (nextTasks.some((task) => task.task_id === MOCK_DATA_FEED_TASK_ID)) {
+        try {
+          const status = await schedulerTaskApi.getMockDataFeedStatus();
+          setMockFeedPreview(status.preview);
+        } catch {
+          setMockFeedPreview(null);
+        }
+      } else {
+        setMockFeedPreview(null);
+      }
+      // @AI_GENERATED: load pv mock feed preview
+      if (nextTasks.some((task) => task.task_id === PV_MOCK_DATA_FEED_TASK_ID)) {
+        try {
+          const pvStatus = await schedulerTaskApi.getPvMockFeedStatus();
+          setPvMockFeedPreview(pvStatus.preview);
+        } catch {
+          setPvMockFeedPreview(null);
+        }
+      } else {
+        setPvMockFeedPreview(null);
+      }
+      // @AI_GENERATED: end
+    } catch (err: any) {
+      messageApi.error(`加载失败：${err?.message ?? String(err)}`);
+      setTasks([]);
+      setMockFeedPreview(null);
+    } finally {
+      setLoading(false);
+    }
   }, [messageApi]);
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
@@ -96,11 +192,137 @@ const SchedulerTab: React.FC = () => {
     }
   };
 
-  const handleViewDetail = async (task: ScheduledTaskSummary) => {
-    setDetail({ open: true, loading: true, data: null });
-    try { const data = await schedulerTaskApi.getScheduledTask(task.task_id); setDetail({ open: true, loading: false, data }); }
-    catch (err: any) { messageApi.error(`加载详情失败：${err?.message ?? String(err)}`); setDetail({ open: true, loading: false, data: null }); }
+  // @AI_GENERATED: manual mock-feed confirmation interaction
+  const requestMockDataFeed = async (task: ScheduledTaskSummary, advance = false) => {    setRowActionLoading((s) => ({ ...s, [task.task_id]: true }));
+    try {
+      const response: ManualMockDataFeedResponse = await schedulerTaskApi.manualMockDataFeed(advance);
+      setMockFeedPreview(response.preview);
+      if (response.status === 'confirmation_required') {
+        Modal.confirm({
+          title: '当前模拟业务日已投喂',
+          content: `已公开 ${response.preview.current_business_date ?? '当前业务日'}。是否推进到 ${response.preview.next_business_date ?? '下一业务日'}？取消或关闭后不会写入任何新数据。`,
+          okText: '推进下一业务日',
+          cancelText: '停留在当前日',
+          onOk: () => requestMockDataFeed(task, true),
+        });
+        return;
+      }
+      if (response.status === 'exhausted') {
+        messageApi.info(response.message);
+        return;
+      }
+      const result = response.feed_result;
+      const completeness = result?.is_complete_day ? '完整 96 点' : `不完整 ${result?.source_row_count ?? 0} 点`;
+      messageApi.success(`已投喂 ${result?.business_date ?? '业务日'}：新增 ${result?.inserted_row_count ?? 0} 行（${completeness}）`);
+      await loadTasks();
+    } catch (err: any) {
+      messageApi.error(`模拟喂数据失败：${err?.message ?? String(err)}`);
+    } finally {
+      setRowActionLoading((s) => ({ ...s, [task.task_id]: false }));
+    }
   };
+  // @AI_GENERATED: end
+
+  // @AI_GENERATED: pv mock feed interaction
+  const requestPvMockDataFeed = async (task: ScheduledTaskSummary, advance = false) => {
+    setRowActionLoading((s) => ({ ...s, [task.task_id]: true }));
+    try {
+      const response: ManualPvMockFeedResponse = await schedulerTaskApi.manualPvMockDataFeed(advance);
+      setPvMockFeedPreview(response.preview);
+      if (response.status === 'confirmation_required') {
+        Modal.confirm({
+          title: '跨日确认',
+          content: `当前业务日 ${response.preview.current_business_date ?? '—'} 已投喂完毕。是否推进到下一业务日 ${response.preview.next_business_date ?? '—'}（${response.preview.next_device_count} 台设备 × ${response.preview.next_source_row_count} 行）？`,
+          okText: '确认推进',
+          cancelText: '停留当前日',
+          onOk: () => requestPvMockDataFeed(task, true),
+        });
+        return;
+      }
+      if (response.status === 'exhausted') {
+        messageApi.info(response.message);
+        return;
+      }
+      const result = response.feed_result;
+      messageApi.success(
+        `光伏业务日 ${result?.business_date ?? '—'} 已写入：${result?.inserted_row_count ?? 0} 行新增（${result?.device_count ?? 0} 台设备），${result?.skipped_row_count ?? 0} 行重复跳过`
+      );
+      await loadTasks();
+    } catch (err: any) {
+      messageApi.error(`光伏喂数据失败：${err?.message ?? String(err)}`);
+    } finally {
+      setRowActionLoading((s) => ({ ...s, [task.task_id]: false }));
+    }
+  };
+  // @AI_GENERATED: end
+
+  const handleViewDetail = async (task: ScheduledTaskSummary) => {
+    const needsDataEvidence = task.task_id === 'lf_data_pull';
+    // @AI_GENERATED: pv_mock_data_feed 加载数据证据
+    const needsPvEvidence = task.task_id === PV_MOCK_DATA_FEED_TASK_ID;
+    // @AI_GENERATED: end
+    setDetail({
+      open: true,
+      loading: true,
+      data: null,
+      dataPullEvidence: null,
+      dataPullEvidenceLoading: needsDataEvidence,
+      dataPullEvidenceError: null,
+      pvDataEvidence: null,
+      pvDataEvidenceLoading: needsPvEvidence,
+      pvDataEvidenceError: null,
+    });
+    try {
+      const data = await schedulerTaskApi.getScheduledTask(task.task_id);
+      setDetail((previous) => ({ ...previous, loading: false, data }));
+      if (!needsDataEvidence && !needsPvEvidence) return;
+      if (needsDataEvidence) {
+        try {
+          const response = await schedulerTaskApi.getDataPullEvidence(task.task_id);
+          setDetail((previous) => ({
+            ...previous,
+            dataPullEvidence: response.evidence,
+            dataPullEvidenceLoading: false,
+          }));
+        } catch (err: any) {
+          setDetail((previous) => ({
+            ...previous,
+            dataPullEvidenceLoading: false,
+            dataPullEvidenceError: err?.message ?? String(err),
+          }));
+        }
+      }
+      // @AI_GENERATED: load pv mock feed data evidence
+      if (needsPvEvidence) {
+        try {
+          const pvResp = await schedulerTaskApi.getPvMockFeedDataEvidence(50);
+          setDetail((previous) => ({
+            ...previous,
+            pvDataEvidence: pvResp.evidence,
+            pvDataEvidenceLoading: false,
+          }));
+        } catch (err: any) {
+          setDetail((previous) => ({
+            ...previous,
+            pvDataEvidenceLoading: false,
+            pvDataEvidenceError: err?.message ?? String(err),
+          }));
+        }
+      }
+      // @AI_GENERATED: end
+    } catch (err: any) {
+      messageApi.error(`加载详情失败：${err?.message ?? String(err)}`);
+      setDetail({
+        open: true,
+        loading: false,
+        data: null,
+        dataPullEvidence: null,
+        dataPullEvidenceLoading: false,
+        dataPullEvidenceError: null,
+      });
+    }
+  };
+  // @AI_GENERATED: end
 
   const openEdit = (task: ScheduledTaskSummary) => {
     setEditTask(task);
@@ -147,20 +369,33 @@ const SchedulerTab: React.FC = () => {
   const columns: ColumnsType<ScheduledTaskSummary> = [
     { title: '任务名称', dataIndex: 'name', width: 200, render: (name: string, row) => (<Space direction="vertical" size={2}><Text strong>{name}</Text><Text code style={{ fontSize: 11 }}>{row.task_id}</Text></Space>) },
     { title: '管线', dataIndex: 'pipeline', width: 130, render: (p: string) => <Tag>{p}</Tag> },
+    { title: '部署槽位', dataIndex: 'slot', width: 180, render: (slot: string) => <Tag color={slot === 'load_forecast_e2e_demo' ? 'purple' : 'geekblue'}>{slot}</Tag> },
     { title: 'Cron 表达式', dataIndex: 'cron_expr', width: 140, render: (v: string | null) => v ? <Text code style={{ fontSize: 12 }}>{v}</Text> : <Text type="secondary" style={{ fontSize: 12 }}>（滚动触发）</Text> },
     { title: '状态', dataIndex: 'status', width: 90, render: (s: ScheduledTaskSummary['status']) => { const cfg = STATUS_TAG[s]; return <Tag color={cfg.color}>{cfg.label}</Tag>; } },
     { title: '上次执行', dataIndex: 'last_execution', width: 100, render: (r: ScheduledTaskSummary['last_execution']) => { if (!r) return <Tag>未执行</Tag>; const cfg = LAST_EXEC_TAG[r]; return <Tag color={cfg.color}>{cfg.label}</Tag>; } },
     { title: '上次执行时间', dataIndex: 'last_execution_time', width: 155, render: (t: string | null) => formatDateTime(t) },
     { title: '下次调度时间', dataIndex: 'next_scheduled_time', width: 155, render: (t: string | null) => formatDateTime(t) },
     {
-      title: '操作', key: 'actions', width: 300, fixed: 'right',
+      title: '操作', key: 'actions', width: 370, fixed: 'right',
       render: (_: unknown, row) => {
         const busy = rowActionLoading[row.task_id] ?? false;
         return (
           <Space size={4} wrap>
             {row.status !== 'running' && <Popconfirm title="确认启动？" onConfirm={() => handleStart(row)} okText="启动" cancelText="取消"><Button size="small" type="primary" icon={<PlayCircleOutlined />} loading={busy}>启动</Button></Popconfirm>}
             {row.status === 'running' && <Popconfirm title="确认停止？" description="正在执行的批次仍会跑完。" onConfirm={() => handleStop(row)} okText="停止" cancelText="取消" okButtonProps={{ danger: true }}><Button size="small" danger icon={<StopOutlined />} loading={busy}>停止</Button></Popconfirm>}
-            <Popconfirm title="立即触发一次（后台异步，不改 status）？" onConfirm={() => handleTriggerNow(row)} okText="触发" cancelText="取消"><Button size="small" icon={<ThunderboltOutlined />} loading={busy}>立即触发</Button></Popconfirm>
+            {row.task_id === MOCK_DATA_FEED_TASK_ID ? (
+              <Button size="small" type="primary" icon={<DatabaseOutlined />} loading={busy} onClick={() => requestMockDataFeed(row)}>喂数据</Button>
+            ) : row.task_id === PV_MOCK_DATA_FEED_TASK_ID ? (
+              // @AI_GENERATED: pv mock feed button
+              <Button size="small" type="primary" icon={<DatabaseOutlined />} loading={busy} onClick={() => requestPvMockDataFeed(row)}>喂数据</Button>
+              // @AI_GENERATED: end
+            ) : row.task_id === PV_DATA_PULL_TASK_ID ? (
+              // @AI_GENERATED: pv_data_pull 对光伏 mock feeder 无实际作用
+              <Text type="secondary" style={{ fontSize: 11 }}>不适用（mock feeder 直写）</Text>
+              // @AI_GENERATED: end
+            ) : (
+              <Popconfirm title="立即触发一次（后台异步，不改 status）？" onConfirm={() => handleTriggerNow(row)} okText="触发" cancelText="取消"><Button size="small" icon={<ThunderboltOutlined />} loading={busy}>立即触发</Button></Popconfirm>
+            )}            <Button size="small" icon={<FundViewOutlined />} onClick={() => navigate(`/accuracy-operations?slot=${encodeURIComponent(row.slot)}`)}>运营状态</Button>
             <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)}>编辑</Button>
             <Button size="small" icon={<ProfileOutlined />} onClick={() => handleViewDetail(row)}>详情</Button>
           </Space>
@@ -173,9 +408,36 @@ const SchedulerTab: React.FC = () => {
     <>
       {contextHolder}
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Alert type="info" showIcon message="负荷预测每日自动流程"
-          description={<Text style={{ fontSize: 13 }}><strong>01:00</strong> lf_data_pull（拉数据）→ <strong>02:00</strong> lf_daily_rolling（训练+预测 ≤T-1，预测 T+1）→ <strong>次日04:00</strong> lf_accuracy_backfill（回填精度）。编辑 cron 后保存热更新，「立即触发」跳过等待立即执行。</Text>}
+        <Alert
+          className="scheduler-flow-note"
+          type="info"
+          showIcon
+          message="负荷预测标准运行约定"
+          description={
+            <Text style={{ fontSize: 13 }}>
+              {storySlot ? <>当前故事线槽位：<Text code>{storySlot}</Text>。 </> : null}
+              数据拉取、滚动训练、T+1 预测、真值回填和精度检测构成标准顺序。列表中的“上次执行”只代表调度任务回执，是否已形成指标或告警，应进入同槽位的“运营状态”查看证据链。
+            </Text>
+          }
         />
+        {mockFeedPreview && (
+          <Alert
+            type={mockFeedPreview.exhausted ? 'info' : mockFeedPreview.requires_advance_confirmation ? 'warning' : 'success'}
+            showIcon
+            message="模拟业务日投喂闸门（负荷预测）"
+            description={formatMockFeedPreview(mockFeedPreview)}
+          />
+        )}
+        {/* @AI_GENERATED: pv mock feed status banner */}
+        {pvMockFeedPreview && (
+          <Alert
+            type={pvMockFeedPreview.exhausted ? 'info' : pvMockFeedPreview.requires_advance_confirmation ? 'warning' : 'success'}
+            showIcon
+            message="光伏模拟数据投喂闸门"
+            description={formatPvMockFeedPreview(pvMockFeedPreview)}
+          />
+        )}
+        {/* @AI_GENERATED: end */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text type="secondary">共 {tasks.length} 个任务</Text>
           <Space>
@@ -183,7 +445,7 @@ const SchedulerTab: React.FC = () => {
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建任务</Button>
           </Space>
         </div>
-        <Table<ScheduledTaskSummary> size="middle" rowKey="task_id" columns={columns} dataSource={tasks} loading={loading} pagination={{ pageSize: 10, showSizeChanger: false }} scroll={{ x: 1300 }} locale={{ emptyText: '暂无调度任务（后端启动后自动写入默认任务）' }} />
+        <Table<ScheduledTaskSummary> size="middle" rowKey="task_id" columns={columns} dataSource={tasks} loading={loading} pagination={{ pageSize: 10, showSizeChanger: false }} scroll={{ x: 1420 }} locale={{ emptyText: '暂无调度任务（后端启动后自动写入默认任务）' }} />
       </Space>
 
       <Modal open={editOpen} title={`编辑调度：${editTask?.name ?? ''}`} onCancel={() => { if (!editSubmitting) { setEditOpen(false); editForm.resetFields(); } }} onOk={submitEdit} okText="保存（热更新）" cancelText="取消" confirmLoading={editSubmitting} width={440} destroyOnClose>
@@ -208,43 +470,178 @@ const SchedulerTab: React.FC = () => {
               : <Form.Item name="trigger_time" label="每日触发时间 HH:MM"><Input placeholder="02:00" /></Form.Item>}
           </Form.Item>
           <Form.Item name="max_window_days" label="滚动窗口最大天数"><InputNumber min={1} max={3650} style={{ width: '100%' }} placeholder="365" /></Form.Item>
-          <Form.Item name="slot" label="关联槽位"><Input placeholder="default" /></Form.Item>
+          <Form.Item name="slot" label="关联槽位" rules={[{ required: true, message: '请选择部署槽位' }]}>
+            <Select options={SLOT_OPTIONS} placeholder="选择实际读写的部署槽位" />
+          </Form.Item>
           <Form.Item name="retry_on_failure" label="失败自动重试" valuePropName="checked"><Switch /></Form.Item>
           <Form.Item name="max_retries" label="最大重试次数"><InputNumber min={0} max={10} style={{ width: '100%' }} /></Form.Item>
         </Form>
       </Modal>
 
-      <TaskDetailModal open={detail.open} loading={detail.loading} data={detail.data} onClose={() => setDetail({ open: false, loading: false, data: null })} />
+      <TaskDetailModal
+        {...detail}
+        onClose={() => setDetail({
+          open: false,
+          loading: false,
+          data: null,
+          dataPullEvidence: null,
+          dataPullEvidenceLoading: false,
+          dataPullEvidenceError: null,
+          pvDataEvidence: null,
+          pvDataEvidenceLoading: false,
+          pvDataEvidenceError: null,
+        })}
+      />
     </>
   );
 };
 
-const TaskDetailModal: React.FC<{ open: boolean; loading: boolean; data: ScheduledTaskDetail | null; onClose: () => void }> = ({ open, loading, data, onClose }) => (
-  <Modal open={open} title="调度任务详情" onCancel={onClose} footer={<Button onClick={onClose}>关闭</Button>} width={640} destroyOnClose>
+const TaskDetailModal: React.FC<{
+  open: boolean;
+  loading: boolean;
+  data: ScheduledTaskDetail | null;
+  dataPullEvidence: DataPullEvidence | null;
+  dataPullEvidenceLoading: boolean;
+  dataPullEvidenceError: string | null;
+  pvDataEvidence: PvMockFeedDataEvidence | null;
+  pvDataEvidenceLoading: boolean;
+  pvDataEvidenceError: string | null;
+  onClose: () => void;
+}> = ({
+  open, loading, data, dataPullEvidence, dataPullEvidenceLoading, dataPullEvidenceError,
+  pvDataEvidence, pvDataEvidenceLoading, pvDataEvidenceError, onClose,
+}) => (
+  <Modal open={open} title="调度任务详情" onCancel={onClose} footer={<Button onClick={onClose}>关闭</Button>} width={880} destroyOnClose>
     {loading || !data ? (
       <Text type="secondary">{loading ? '加载中…' : '未获取到任务详情'}</Text>
     ) : (
-      <Descriptions column={2} size="small" labelStyle={{ width: 130, color: '#64748b' }} bordered>
-        <Descriptions.Item label="task_id" span={2}><Text code copyable={{ text: data.task_id }}>{data.task_id}</Text></Descriptions.Item>
-        <Descriptions.Item label="任务名称" span={2}>{data.name}</Descriptions.Item>
-        <Descriptions.Item label="管线">{data.pipeline}</Descriptions.Item>
-        <Descriptions.Item label="调度类型">{SCHEDULE_TYPE_LABEL[data.schedule_type] ?? data.schedule_type}</Descriptions.Item>
-        <Descriptions.Item label="Cron 表达式">{data.cron_expr ?? '—'}</Descriptions.Item>
-        <Descriptions.Item label="每日触发时间">{data.trigger_time}</Descriptions.Item>
-        <Descriptions.Item label="滚动窗口最大天数">{data.max_window_days ?? '不限'}</Descriptions.Item>
-        <Descriptions.Item label="部署槽位">{data.slot}</Descriptions.Item>
-        <Descriptions.Item label="状态"><Tag color={STATUS_TAG[data.status].color}>{STATUS_TAG[data.status].label}</Tag></Descriptions.Item>
-        <Descriptions.Item label="上次执行结果">{data.last_result ? <Tag color={LAST_EXEC_TAG[data.last_result].color}>{LAST_EXEC_TAG[data.last_result].label}</Tag> : <Tag>未执行</Tag>}</Descriptions.Item>
-        <Descriptions.Item label="上次执行时间">{formatDateTime(data.last_execution_time)}</Descriptions.Item>
-        <Descriptions.Item label="下次调度时间">{formatDateTime(data.next_scheduled_time)}</Descriptions.Item>
-        <Descriptions.Item label="失败自动重试">{data.retry_on_failure ? '开启' : '关闭'}</Descriptions.Item>
-        <Descriptions.Item label="最大重试次数">{data.max_retries}</Descriptions.Item>
-        <Descriptions.Item label="创建时间">{formatDateTime(data.created_at)}</Descriptions.Item>
-        <Descriptions.Item label="最后更新">{formatDateTime(data.updated_at)}</Descriptions.Item>
-      </Descriptions>
+      <>
+        <Descriptions column={2} size="small" labelStyle={{ width: 130, color: '#64748b' }} bordered>
+          <Descriptions.Item label="task_id" span={2}><Text code copyable={{ text: data.task_id }}>{data.task_id}</Text></Descriptions.Item>
+          <Descriptions.Item label="任务名称" span={2}>{data.name}</Descriptions.Item>
+          <Descriptions.Item label="管线">{data.pipeline}</Descriptions.Item>
+          <Descriptions.Item label="调度类型">{SCHEDULE_TYPE_LABEL[data.schedule_type] ?? data.schedule_type}</Descriptions.Item>
+          <Descriptions.Item label="Cron 表达式">{data.cron_expr ?? '—'}</Descriptions.Item>
+          <Descriptions.Item label="每日触发时间">{data.trigger_time}</Descriptions.Item>
+          <Descriptions.Item label="滚动窗口最大天数">{data.max_window_days ?? '不限'}</Descriptions.Item>
+          <Descriptions.Item label="部署槽位">{data.slot}</Descriptions.Item>
+          <Descriptions.Item label="状态"><Tag color={STATUS_TAG[data.status].color}>{STATUS_TAG[data.status].label}</Tag></Descriptions.Item>
+          <Descriptions.Item label="上次执行结果">{data.last_result ? <Tag color={LAST_EXEC_TAG[data.last_result].color}>{LAST_EXEC_TAG[data.last_result].label}</Tag> : <Tag>未执行</Tag>}</Descriptions.Item>
+          <Descriptions.Item label="上次执行时间">{formatDateTime(data.last_execution_time)}</Descriptions.Item>
+          <Descriptions.Item label="下次调度时间">{formatDateTime(data.next_scheduled_time)}</Descriptions.Item>
+          <Descriptions.Item label="失败自动重试">{data.retry_on_failure ? '开启' : '关闭'}</Descriptions.Item>
+          <Descriptions.Item label="最大重试次数">{data.max_retries}</Descriptions.Item>
+          <Descriptions.Item label="创建时间">{formatDateTime(data.created_at)}</Descriptions.Item>
+          <Descriptions.Item label="最后更新">{formatDateTime(data.updated_at)}</Descriptions.Item>
+        </Descriptions>
+        {data.task_id === 'lf_data_pull' && (
+          <DataPullEvidenceSection evidence={dataPullEvidence} loading={dataPullEvidenceLoading} error={dataPullEvidenceError} />
+        )}
+        {/* @AI_GENERATED: pv mock feed data evidence section */}
+        {data.task_id === PV_MOCK_DATA_FEED_TASK_ID && (
+          <PvDataEvidenceSection evidence={pvDataEvidence} loading={pvDataEvidenceLoading} error={pvDataEvidenceError} />
+        )}
+        {/* @AI_GENERATED: end */}
+      </>
     )}
   </Modal>
 );
+
+const DataPullEvidenceSection: React.FC<{
+  evidence: DataPullEvidence | null;
+  loading: boolean;
+  error: string | null;
+}> = ({ evidence, loading, error }) => (
+  <>
+    <Divider orientation="left" plain>平台实际拉取数据（只读）</Divider>
+    {loading ? (
+      <Text type="secondary">正在查询平台 StationData 落库记录…</Text>
+    ) : error ? (
+      <Alert type="warning" showIcon message="数据证据加载失败" description={error} />
+    ) : !evidence || evidence.total_rows === 0 ? (
+      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="该槽位尚未查询到平台已落库数据" />
+    ) : (
+      <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <Descriptions column={2} size="small" bordered>
+          <Descriptions.Item label="实际落库行数">{evidence.total_rows.toLocaleString('zh-CN')}</Descriptions.Item>
+          <Descriptions.Item label="站点数">{evidence.station_count}</Descriptions.Item>
+          <Descriptions.Item label="数据起点">{formatDateTime(evidence.time_start)}</Descriptions.Item>
+          <Descriptions.Item label="数据终点">{formatDateTime(evidence.time_end)}</Descriptions.Item>
+          <Descriptions.Item label="特征" span={2}>{evidence.feature_names.join('、') || '—'}</Descriptions.Item>
+          <Descriptions.Item label="最新业务时间">{formatDateTime(evidence.latest?.timestamp_utc)}</Descriptions.Item>
+          <Descriptions.Item label="最新值">{evidence.latest?.value ?? '—'}</Descriptions.Item>
+        </Descriptions>
+        <Table
+          size="small"
+          rowKey={(row) => `${row.station_id}-${row.feature_name}-${row.timestamp_utc}`}
+          pagination={false}
+          scroll={{ y: 260 }}
+          dataSource={evidence.samples}
+          locale={{ emptyText: '没有可展示的数据样本' }}
+          columns={[
+            { title: '业务时间', dataIndex: 'timestamp_utc', width: 180, render: (value: string) => formatDateTime(value) },
+            { title: '站点', dataIndex: 'station_id', width: 120 },
+            { title: '特征', dataIndex: 'feature_name', width: 100 },
+            { title: '实际值', dataIndex: 'value', align: 'right', render: (value: number) => value.toLocaleString('zh-CN', { maximumFractionDigits: 4 }) },
+            { title: '入库时间', dataIndex: 'ingested_at', width: 180, render: (value: string) => formatDateTime(value) },
+          ]}
+        />
+      </Space>
+    )}
+  </>
+);
+
+// @AI_GENERATED: pv mock feed data evidence display component
+const PvDataEvidenceSection: React.FC<{
+  evidence: PvMockFeedDataEvidence | null;
+  loading: boolean;
+  error: string | null;
+}> = ({ evidence, loading, error }) => (
+  <>
+    <Divider orientation="left" plain>已写入 training_samples 的光伏观测数据</Divider>
+    {loading ? (
+      <Text type="secondary">正在查询 training_samples 落库记录…</Text>
+    ) : error ? (
+      <Alert type="warning" showIcon message="数据证据加载失败" description={error} />
+    ) : !evidence || evidence.total_rows === 0 ? (
+      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={'尚未喂入任何数据（先点"喂数据"按钮）'} />
+    ) : (
+      <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <Descriptions column={3} size="small" bordered>
+          <Descriptions.Item label="总行数">{evidence.total_rows.toLocaleString('zh-CN')}</Descriptions.Item>
+          <Descriptions.Item label="设备数">{evidence.device_count}</Descriptions.Item>
+          <Descriptions.Item label="已覆盖自然日">{evidence.date_count} 天</Descriptions.Item>
+          <Descriptions.Item label="最早观测时间">{formatDateTime(evidence.earliest_time)}</Descriptions.Item>
+          <Descriptions.Item label="最新观测时间" span={2}>{formatDateTime(evidence.latest_time)}</Descriptions.Item>
+        </Descriptions>
+        <Table
+          size="small"
+          rowKey={(row) => `${row.id}`}
+          pagination={false}
+          scroll={{ y: 280 }}
+          dataSource={evidence.samples}
+          locale={{ emptyText: '无样本' }}
+          columns={[
+            { title: '观测时间', dataIndex: 'time', width: 170, render: (v: string) => formatDateTime(v) },
+            { title: '站点', dataIndex: 'site_id', width: 90, ellipsis: true },
+            { title: '设备', dataIndex: 'device_id', width: 160, ellipsis: true },
+            { title: '支路', dataIndex: 'branch_id', width: 60 },
+            { title: '实测电流', dataIndex: 'value', width: 90, align: 'right', render: (v: number | null) => v != null ? v.toFixed(4) : '—' },
+            { title: '理论电流', dataIndex: 'i_cal', width: 90, align: 'right', render: (v: number | null) => v != null ? v.toFixed(4) : '—' },
+            {
+              title: '标签', dataIndex: 'label', width: 70, align: 'center',
+              render: (v: number | null) => v != null ? <Tag color="blue">{v}</Tag> : <Tag>NULL</Tag>,
+            },
+          ]}
+        />
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          标签为 NULL 表示尚未标注（正常），预测任务将消费这些行。展示最新 50 行，按时间倒序。
+        </Text>
+      </Space>
+    )}
+  </>
+);
+// @AI_GENERATED: end
 
 export default SchedulerTab;
 // @AI_GENERATED: end

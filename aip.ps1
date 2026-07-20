@@ -38,15 +38,23 @@ function Start-Dev {
     Write-Host "AIP dev mode starting..."
     Write-Host "  Backend: :$port (reload)  Frontend: :$fport"
 
-    $beCmd = "cd '$BACKEND_DIR'; conda activate $CONDA_ENV; `$env:AUTORESEARCH_DB_DUAL_WRITE='1'; `$env:AUTORESEARCH_DB_READ='1'; `$env:AUTORESEARCH_JOB_QUEUE_BACKEND='mysql'; `$env:AIP_SKIP_ALEMBIC_MIGRATION='1'; uvicorn main:app --host 0.0.0.0 --reload --port $port"
+    # @AI_GENERATED: 用 conda run 代替 conda activate，确保子进程能正确使用 conda 环境
+    # 环境变量通过 PowerShell 在同一窗口设置后再调 conda run
+    $beCmd = "cd '$BACKEND_DIR'; " +
+             "`$env:AUTORESEARCH_DB_DUAL_WRITE='1'; " +
+             "`$env:AUTORESEARCH_DB_READ='1'; " +
+             "`$env:AUTORESEARCH_JOB_QUEUE_BACKEND='mysql'; " +
+             "`$env:AIP_SKIP_ALEMBIC_MIGRATION='1'; " +
+             "conda run --no-capture-output -n $CONDA_ENV uvicorn main:app --host 0.0.0.0 --reload --port $port"
     Start-Process powershell -ArgumentList "-NoExit", "-Command", $beCmd
+    # @AI_GENERATED: end
 
     $feCmd = "cd '$FRONTEND_DIR'; npm run dev -- --host 0.0.0.0 --port $fport"
     Start-Process powershell -ArgumentList "-NoExit", "-Command", $feCmd
 
     Write-Host ""
     Write-Host "Started:"
-    Write-Host "   Backend  -> http://localhost:$port"
+    Write-Host "   Backend  -> http://localhost:$port (reload)"
     Write-Host "   Frontend -> http://localhost:$fport"
 }
 
@@ -65,14 +73,28 @@ function Start-Experiment {
     Write-Host "AIP experiment mode starting..."
     Write-Host "  Backend: :$port  Frontend: :$fport  Worker: --loop"
 
-    $beCmd = "cd '$BACKEND_DIR'; conda activate $CONDA_ENV; `$env:AUTORESEARCH_STORAGE_PROFILE='experiment'; `$env:AUTORESEARCH_DB_DUAL_WRITE='1'; `$env:AUTORESEARCH_DB_READ='1'; `$env:AUTORESEARCH_JOB_QUEUE_BACKEND='mysql'; `$env:AIP_SKIP_ALEMBIC_MIGRATION='1'; uvicorn main:app --host 0.0.0.0 --port $port"
+    # @AI_GENERATED: conda run 代替 conda activate
+    $beCmd = "cd '$BACKEND_DIR'; " +
+             "`$env:AUTORESEARCH_STORAGE_PROFILE='experiment'; " +
+             "`$env:AUTORESEARCH_DB_DUAL_WRITE='1'; " +
+             "`$env:AUTORESEARCH_DB_READ='1'; " +
+             "`$env:AUTORESEARCH_JOB_QUEUE_BACKEND='mysql'; " +
+             "`$env:AIP_SKIP_ALEMBIC_MIGRATION='1'; " +
+             "conda run --no-capture-output -n $CONDA_ENV uvicorn main:app --host 0.0.0.0 --port $port"
     Start-Process powershell -ArgumentList "-NoExit", "-Command", $beCmd
 
     $feCmd = "cd '$FRONTEND_DIR'; `$env:VITE_API_PROXY_TARGET='http://localhost:$port'; npm run dev -- --host 0.0.0.0 --port $fport"
     Start-Process powershell -ArgumentList "-NoExit", "-Command", $feCmd
 
-    $wkCmd = "cd '$BACKEND_DIR'; conda activate $CONDA_ENV; `$env:AUTORESEARCH_STORAGE_PROFILE='experiment'; `$env:AUTORESEARCH_DB_DUAL_WRITE='1'; `$env:AUTORESEARCH_DB_READ='1'; `$env:AUTORESEARCH_JOB_QUEUE_BACKEND='mysql'; `$env:AIP_SKIP_ALEMBIC_MIGRATION='1'; python worker_autoresearch.py --loop"
+    $wkCmd = "cd '$BACKEND_DIR'; " +
+             "`$env:AUTORESEARCH_STORAGE_PROFILE='experiment'; " +
+             "`$env:AUTORESEARCH_DB_DUAL_WRITE='1'; " +
+             "`$env:AUTORESEARCH_DB_READ='1'; " +
+             "`$env:AUTORESEARCH_JOB_QUEUE_BACKEND='mysql'; " +
+             "`$env:AIP_SKIP_ALEMBIC_MIGRATION='1'; " +
+             "conda run --no-capture-output -n $CONDA_ENV python worker_autoresearch.py --loop"
     Start-Process powershell -ArgumentList "-NoExit", "-Command", $wkCmd
+    # @AI_GENERATED: end
 
     Write-Host ""
     Write-Host "Started:"

@@ -41,12 +41,31 @@ router = APIRouter(prefix="/api/scheduler", tags=["scheduler"])
 # ---------------------------------------------------------------------------
 
 _scheduler_engine: Optional[SchedulerEngine] = None
+_load_forecast_repository: Optional[Any] = None
+# @AI_GENERATED: pv_fault mock feeder 注入
+_pv_mock_feeder: Optional[Any] = None
+
+
+def set_pv_mock_feeder(feeder: Any) -> None:
+    """由 main.py 注入 PvFaultMockFeeder，供手动喂数据端点使用。"""
+    global _pv_mock_feeder
+    _pv_mock_feeder = feeder
+# @AI_GENERATED: end
 
 
 def set_scheduler_engine(engine: SchedulerEngine) -> None:
     """由 main.py startup_event 调用，注入 SchedulerEngine 实例。"""
     global _scheduler_engine
     _scheduler_engine = engine
+
+
+# @AI_GENERATED: platform StationData evidence dependency
+
+def set_load_forecast_repository(repository: Any) -> None:
+    """由 main.py 注入负荷预测仓储，供只读调度详情查询真实落库数据。"""
+    global _load_forecast_repository
+    _load_forecast_repository = repository
+# @AI_GENERATED: end
 
 
 def get_scheduler_engine() -> Optional[SchedulerEngine]:
@@ -197,6 +216,8 @@ def _task_summary(t: ScheduledTask) -> Dict[str, Any]:
       - name                — 任务名称
       - pipeline            — 所属管线
       - schedule_type       — 调度类型 rolling_daily | cron | interval
+      - cron_expr           — Cron 表达式；非 cron 调度时为 null
+      - slot                — 关联部署槽位；用于确认任务实际读写的模型分区
       - status              — 当前运行状态 running | stopped | failed
       - last_execution      — 上次执行结果（对应模型的 last_result 字段）
       - last_execution_time — 上次执行完成时间 ISO 8601
@@ -208,6 +229,8 @@ def _task_summary(t: ScheduledTask) -> Dict[str, Any]:
         "name": t.name,
         "pipeline": t.pipeline,
         "schedule_type": t.schedule_type,
+        "cron_expr": t.cron_expr,
+        "slot": t.slot,
         "status": t.status,
         "last_execution": t.last_result,  # design: response uses 'last_execution'
         "last_execution_time": t.last_execution_time,
@@ -228,6 +251,87 @@ def _load_task_or_404(task_id: str) -> ScheduledTask:
             },
         )
     return task
+
+
+# @AI_GENERATED: manual mock-feed control contract
+_MOCK_DATA_FEED_TASK_ID = "mock_data_feed"
+_DATA_PULL_TASK_ID = "lf_data_pull"
+
+
+class ManualMockFeedRequest(BaseModel):
+    """ManualMockFeedRequest — 手动模拟投喂请求。"""
+
+    advance: bool = Field(
+        default=False,
+        description="advance — 是否已由用户确认推进到下一模拟业务日",
+    )
+
+
+def _get_mock_data_feeder() -> Any:
+    """Resolve the startup-registered mock feeder without creating a second source."""
+    engine = _get_engine()
+    meta = engine._tasks.get(_MOCK_DATA_FEED_TASK_ID)
+    feeder = getattr(meta.func, "__self__", None) if meta is not None else None
+    if feeder is None or not hasattr(feeder, "get_manual_feed_preview"):
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "mock_feed_not_ready",
+                "message": "模拟数据 feeder 尚未注册完成，请等待后端启动完成。",
+            },
+        )
+    return feeder
+
+
+def _record_manual_mock_feed_receipt(task_id: str) -> None:
+    """Synchronize a completed manual feed to the existing scheduler task receipt."""
+    task = _scheduler_store.get_task(task_id)
+    if task is None:
+        return
+    completed_at = datetime.now().isoformat()
+    _scheduler_store.upsert_task(
+        task.model_copy(
+            update={
+                "last_execution_time": completed_at,
+                "last_result": "success",
+                "updated_at": completed_at,
+            }
+        )
+    )
+
+
+# @AI_GENERATED: platform StationData evidence helpers
+def _get_load_forecast_repository() -> Any:
+    if _load_forecast_repository is None:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "load_forecast_repository_not_ready",
+                "message": "负荷预测数据仓储尚未就绪，请等待后端启动完成。",
+            },
+        )
+    return _load_forecast_repository
+
+
+def _serialize_data_evidence(evidence: Dict[str, Any]) -> Dict[str, Any]:
+    def serialize_row(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if row is None:
+            return None
+        return {
+            **row,
+            "timestamp_utc": row["timestamp_utc"].isoformat(),
+            "ingested_at": row["ingested_at"].isoformat(),
+        }
+
+    return {
+        **evidence,
+        "time_start": evidence["time_start"].isoformat() if evidence["time_start"] else None,
+        "time_end": evidence["time_end"].isoformat() if evidence["time_end"] else None,
+        "latest": serialize_row(evidence["latest"]),
+        "samples": [serialize_row(row) for row in evidence["samples"]],
+    }
+# @AI_GENERATED: end
+# @AI_GENERATED: end
 
 
 @router.get("/tasks")
@@ -365,6 +469,75 @@ async def update_scheduled_task(task_id: str, payload: ScheduledTaskUpdate) -> D
     return updated.model_dump()
 
 
+# @AI_GENERATED: manual mock-feed control endpoints
+@router.get("/tasks/mock_data_feed/feed-status")
+async def get_mock_data_feed_status() -> Dict[str, Any]:
+    """Read the current mock business-day gate without writing any source data."""
+    preview = _get_mock_data_feeder().get_manual_feed_preview()
+    return {"task_id": _MOCK_DATA_FEED_TASK_ID, "preview": preview.as_dict()}
+
+
+@router.post("/tasks/mock_data_feed/manual-feed")
+async def manual_mock_data_feed(payload: ManualMockFeedRequest) -> Dict[str, Any]:
+    """Feed a new mock business day only after explicit user confirmation."""
+    feeder = _get_mock_data_feeder()
+    preview, result = feeder.feed_manually(advance=payload.advance)
+    if result is None:
+        if preview.exhausted:
+            return {
+                "task_id": _MOCK_DATA_FEED_TASK_ID,
+                "status": "exhausted",
+                "message": "CSV 模拟数据已全部投喂，不会写入新数据。",
+                "preview": preview.as_dict(),
+                "feed_result": None,
+            }
+        return {
+            "task_id": _MOCK_DATA_FEED_TASK_ID,
+            "status": "confirmation_required",
+            "message": "当前模拟业务日已投喂；请确认后才会推进到下一业务日。",
+            "preview": preview.as_dict(),
+            "feed_result": None,
+        }
+
+    _record_manual_mock_feed_receipt(_MOCK_DATA_FEED_TASK_ID)
+    return {
+        "task_id": _MOCK_DATA_FEED_TASK_ID,
+        "status": "fed",
+        "message": "模拟业务日已投喂到公司数据源。",
+        "preview": preview.as_dict(),
+        "feed_result": result.as_dict(),
+    }
+# @AI_GENERATED: end
+
+
+# @AI_GENERATED: scheduler platform-data evidence endpoint
+@router.get("/tasks/{task_id}/data-evidence")
+async def get_task_data_evidence(
+    task_id: str,
+    sample_limit: int = 48,
+) -> Dict[str, Any]:
+    """Return the persisted platform data evidence for lf_data_pull without running it."""
+    if task_id != _DATA_PULL_TASK_ID:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "data_evidence_not_supported",
+                "message": f"任务 '{task_id}' 不支持数据拉取证据查询。",
+            },
+        )
+    task = _load_task_or_404(task_id)
+    evidence = _get_load_forecast_repository().get_station_data_evidence(
+        slot=task.slot,
+        sample_limit=max(1, min(sample_limit, 200)),
+    )
+    return {
+        "task_id": task_id,
+        "slot": task.slot,
+        "evidence": _serialize_data_evidence(evidence),
+    }
+# @AI_GENERATED: end
+
+
 @router.post("/tasks/{task_id}/trigger-now")
 async def trigger_task_now(task_id: str) -> Dict[str, Any]:
     """
@@ -373,6 +546,15 @@ async def trigger_task_now(task_id: str) -> Dict[str, Any]:
     注意：本端点依赖后端 SchedulerEngine 在启动时已注册过该 task_id 的 func。
     如果后端刚重启且任务还没注册，返回 409 说明需要先调 /start。
     """
+    if task_id == _MOCK_DATA_FEED_TASK_ID:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "manual_mock_feed_confirmation_required",
+                "message": "模拟喂数据必须使用专用 manual-feed 接口完成业务日确认，不能通过通用立即触发推进。",
+            },
+        )
+
     engine = _scheduler_engine
     if engine is None:
         raise HTTPException(
@@ -592,3 +774,81 @@ async def stop_pipeline(pipeline: str) -> Dict[str, str]:
     engine = _get_engine()
     engine.stop_pipeline(pipeline)
     return {"status": "stopped", "pipeline": pipeline}
+
+
+# @AI_GENERATED: pv_fault mock feed control endpoints
+@router.get("/tasks/pv_mock_data_feed/feed-status")
+async def get_pv_mock_feed_status() -> Dict[str, Any]:
+    """返回光伏 mock 喂数据的当前业务日状态（只读，不写入数据）。
+
+    返回：
+      current_business_date — 上次已喂完的自然日
+      next_business_date    — 下一个待喂的自然日
+      requires_advance_confirmation — 是否需要人工确认才能推进
+      exhausted             — parquet 数据是否已喂完
+    """
+    if _pv_mock_feeder is None:
+        raise HTTPException(status_code=503, detail="PV mock feeder 尚未注入（需要重启后端）")
+    preview = _pv_mock_feeder.get_manual_feed_preview()
+    return {"task_id": "pv_mock_data_feed", "preview": preview.as_dict()}
+
+
+class PvManualMockFeedRequest(BaseModel):
+    """pv_fault 手动喂数据请求体。"""
+    advance: bool = Field(
+        default=False,
+        description="advance — true 表示用户已确认推进到下一个光伏业务日",
+    )
+
+
+@router.post("/tasks/pv_mock_data_feed/manual-feed")
+async def manual_pv_mock_data_feed(payload: PvManualMockFeedRequest) -> Dict[str, Any]:
+    """光伏 mock 喂数据：首次或确认推进后才写入，否则返回"需要确认"。
+
+    跨日推进需要 advance=True（人工确认当日已处理完）。
+    写入时 label=NULL，模拟真实场景下数据库新收到的原始光伏观测。
+    """
+    if _pv_mock_feeder is None:
+        raise HTTPException(status_code=503, detail="PV mock feeder 尚未注入（需要重启后端）")
+
+    preview, result = _pv_mock_feeder.feed_manually(advance=payload.advance)
+
+    if result is None:
+        if preview.exhausted:
+            return {
+                "task_id": "pv_mock_data_feed",
+                "status": "exhausted",
+                "message": "Parquet 模拟数据已全部投喂，不会写入新数据。",
+                "preview": preview.as_dict(),
+                "feed_result": None,
+            }
+        return {
+            "task_id": "pv_mock_data_feed",
+            "status": "confirmation_required",
+            "message": f"当前业务日 {preview.current_business_date} 已投喂；"
+                       f"下一日 {preview.next_business_date} 需要确认后才能推进。",
+            "preview": preview.as_dict(),
+            "feed_result": None,
+        }
+
+    # 同步写入 tasks.json（让调度面板显示最新执行时间）
+    try:
+        task = _scheduler_store.get_task("pv_mock_data_feed")
+        if task is not None:
+            now_str = datetime.now().isoformat()
+            _scheduler_store.upsert_task(task.model_copy(update={
+                "last_execution_time": now_str,
+                "last_result": "success",
+                "updated_at": now_str,
+            }))
+    except Exception:
+        pass
+
+    return {
+        "task_id": "pv_mock_data_feed",
+        "status": "fed",
+        "message": f"光伏业务日 {result.business_date} 已成功写入 training_samples。",
+        "preview": preview.as_dict(),
+        "feed_result": result.as_dict(),
+    }
+# @AI_GENERATED: end

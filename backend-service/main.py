@@ -57,7 +57,13 @@ from api.iterative_labeling import router as iterative_labeling_router
 # @AI_GENERATED
 from api.accuracy_operations import router as accuracy_operations_router  # 精度运营（新版）路由
 # @AI_GENERATED: end
-from api.scheduler import router as scheduler_router, set_scheduler_engine
+# @AI_GENERATED: inject scheduler read-only data-evidence dependency
+from api.scheduler import (
+    router as scheduler_router,
+    set_load_forecast_repository,
+    set_scheduler_engine,
+)
+# @AI_GENERATED: end
 
 # 导入数据库初始化
 from database import init_db
@@ -244,6 +250,9 @@ async def startup_event():
         _db_cfg = DBConfig()
         _db_adapter = DBAdapter(_db_cfg)
         _lf_repo = LoadForecastRepository(_db_adapter)
+        # @AI_GENERATED: inject repository for scheduler's read-only StationData evidence endpoint
+        set_load_forecast_repository(_lf_repo)
+        # @AI_GENERATED: end
         from services.precision_ops._db_helper import set_lf_repo
         set_lf_repo(_lf_repo)
         _pv_repo = PVFaultRepository(_db_adapter)
@@ -254,6 +263,14 @@ async def startup_event():
         _mock_feeder = build_default_mock_feeder(_db_adapter)
         _mock_feeder.ensure_tables()
         _mock_source = LocalDbMockDataSource(_db_adapter)
+
+        # @AI_GENERATED: 光伏故障诊断 mock 喂数据器（按自然日逐日喂，跨日需人工确认）
+        from services.db.datasources.pv_fault_mock import build_pv_mock_feeder
+        _pv_mock_feeder = build_pv_mock_feeder(_db_adapter)
+        _pv_mock_feeder.ensure_tables()
+        from api.scheduler import set_pv_mock_feeder
+        set_pv_mock_feeder(_pv_mock_feeder)
+        # @AI_GENERATED: end
 
         _sched_engine = SchedulerEngine()
 
@@ -344,6 +361,13 @@ async def startup_event():
             "pv_data_pull", make_pv_data_pull_task(_mock_source, _pv_repo),
             _db_cfg.sched_pv_pull_cron, "pv_fault"
         )
+        # @AI_GENERATED: PV mock 喂数据 cron（每天 01:30，比 pv_data_pull 早 30 分钟）
+        _sched_engine.register_task(
+            "pv_mock_data_feed",
+            _pv_mock_feeder.feed_next_batch,
+            "30 1 * * *", "pv_fault"
+        )
+        # @AI_GENERATED: end
         # @AI_GENERATED: PV 预测模型由累计训练 completed request 决定，禁止启动时硬编码工件。
         _sched_engine.register_task(
             "pv_prediction", make_pv_prediction_task(_pv_repo),
@@ -553,6 +577,16 @@ def _seed_scheduler_tasks(db_cfg) -> None:
                 "cron_expr": getattr(db_cfg, "sched_pv_predict_cron", "30 2 * * *"),
                 "slot": "default",
             },
+            # @AI_GENERATED: 光伏 mock 喂数据任务种子
+            {
+                "task_id": "pv_mock_data_feed",
+                "name": "光伏故障 — 模拟喂数据（按自然日逐日，跨日需人工确认）",
+                "pipeline": "pv_fault",
+                "schedule_type": "cron",
+                "cron_expr": "30 1 * * *",
+                "slot": "pv_fault",
+            },
+            # @AI_GENERATED: end
         ]
 
         seeded = 0
@@ -560,6 +594,8 @@ def _seed_scheduler_tasks(db_cfg) -> None:
             # @AI_GENERATED: 负荷预测任务按正式部署槽位写入，避免新环境重新种子时回退 default。
             if defaults["pipeline"] == "load_forecast":
                 defaults["slot"] = LOAD_FORECAST_SLOT
+            if defaults["pipeline"] == "pv_fault":
+                defaults["slot"] = "pv_fault"
             # @AI_GENERATED: end
             # 已存在则跳过（不覆盖用户改过的 cron_expr）
             if store.get_task(defaults["task_id"]) is not None:

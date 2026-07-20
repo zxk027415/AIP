@@ -49,13 +49,14 @@ function Start-Dev {
     Start-Process powershell -ArgumentList "-NoExit", "-Command", $beCmd
     # @AI_GENERATED: end
 
-    $feCmd = "cd '$FRONTEND_DIR'; npm run dev -- --host 0.0.0.0 --port $fport"
+    $feCmd = "cd '$FRONTEND_DIR'; `$env:VITE_API_PROXY_TARGET='http://localhost:$port'; npm run dev -- --host 0.0.0.0 --port $fport"
     Start-Process powershell -ArgumentList "-NoExit", "-Command", $feCmd
 
     Write-Host ""
     Write-Host "Started:"
     Write-Host "   Backend  -> http://localhost:$port (reload)"
     Write-Host "   Frontend -> http://localhost:$fport"
+    Write-Host "   API Proxy -> frontend:$fport -> backend:$port"
 }
 
 function Start-Experiment {

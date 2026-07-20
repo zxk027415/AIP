@@ -430,4 +430,89 @@
 
 8. WHERE 仅一名审核人参与审核时，THE Review_Window SHALL 跳过 IAA 计算，`iaa_score` 记为 null，不产生低一致性告警；单人审核为当前默认场景，本需求为多人协作场景的增量能力
 
+---
+
+## 优化方向五：夜间诊断与自由时间窗标注（`Night_Diagnostics` + `Freeform_Time_Range_Labeling`）
+
+> **本章节新增需求 25～26。**  
+> 需求 13～15 的 `daylight`/`solar_period` 默认排除夜间，是为了提升日照故障信噪比；但光伏场景中夜间也会出现故障（例如夜间本应接近零电流却出现持续电流）。  
+> 需求 25 补齐夜间诊断样本与夜间异常特征；需求 26 允许审核人在波形上任意框选时间段打标并扩充标签，突破「只能对预切分 Diagnosis_Unit 裁决」的限制。
+
+### 扩展术语（本章节新增）
+
+- **Night_Period_Sample（夜间时段样本）**：以 Night_Period 为 `time_window` 产出的独立 Diagnosis_Unit，与 Daylight_Period 样本并列，不互相覆盖。
+- **period_role（时段角色）**：样本元数据枚举：`daylight` / `night` / `peak` / `transition` / `freeform`，用于训练、审核与统计拆分。
+- **night_current_anomaly（夜间异常电流特征族）**：在 Night_Period 内计算的特征集合，至少包括：夜间非零电流占比、夜间电流均值/峰值、相对应零阈值的越限时长、夜间功率残差等。
+- **Freeform_Time_Range（自由时间窗）**：审核人在原始时序波形上手动选取的闭区间 `[t_start, t_end]`，不要求对齐系统预切分窗口。
+- **Freeform_Labeled_Unit（自由时间窗标注单元）**：由 Freeform_Time_Range + Human_Verdict 生成的新 Diagnosis_Unit，可写入已有标签或触发 Label_Expansion。
+
+---
+
+### 需求 25：夜间诊断样本与夜间异常特征
+
+**用户故事：** 作为算法工程师，我想在保留日照切分能力的同时，可选地产出夜间时段样本并提取夜间异常特征（如夜间异常电流），以便发现和训练夜间故障模式，而不是把夜间一律当作无效数据丢弃。
+
+#### 验收标准
+
+1. THE SolarWindow_Segmentation SHALL 新增可选模式 `solar_mode='night'`：仅保留 Night_Period（功率 < `irr_threshold × 当天最大功率`）的数据行，并为每个设备×日产出夜间样本；`time_window` 标记为该夜间段起始时刻或 `date + '#night'`（实现须固定一种、文档化），`period_role='night'`
+
+2. THE SolarWindow_Segmentation SHALL 新增可选模式 `solar_mode='day_and_night'`：对同一设备×日**同时**产出 Daylight_Period 样本（`period_role='daylight'`）与 Night_Period 样本（`period_role='night'`）；两套样本主键 `(id_cols + time_window)` 不得冲突
+
+3. WHEN `solar_mode='daylight'` 或 `'solar_period'` 时，THE SolarWindow_Segmentation SHALL **保持现有行为**：继续排除 Night_Period，不破坏需求 13/14 的向后兼容约定；夜间能力仅通过显式启用 `night` / `day_and_night` 开启
+
+4. WHEN 产出 Night_Period 样本时，THE FeatureEngineer 上游或专用夜间特征钩子 SHALL 计算夜间异常特征族 `night_current_anomaly`，至少包含：
+   - `night_nonzero_current_ratio`：Night_Period 内电流（或约定电流列）绝对值超过 `night_zero_epsilon`（默认可配，如 `0.01`）的点数占比
+   - `night_current_mean` / `night_current_max`：夜间电流均值与峰值
+   - `night_over_threshold_duration`：超过 `night_anomaly_current_threshold`（可配）的累计时长
+   - `night_power_residual_mean`：夜间功率相对零基线的残差均值  
+   列名须带 `night_` 前缀，避免与日照特征冲突
+
+5. WHEN Night_Period 内全部测点缺失或长度为 0 时，THE SolarWindow_Segmentation SHALL 跳过该夜间样本并产生告警（如 `night_no_sample_{device_id}_{date}`），不中断同日日照样本生成
+
+6. WHEN `diagnosis_window='night'` 或 `'day_and_night'` 被传入 `FaultDiagnosis.__init__()` 时，THE FaultDiagnosis SHALL 将对应 `solar_mode` 透传给 `set_time_window()`，并保证下游 `FeatureEngineer.transform()` 可消费带 `period_role` / `night_*` 列的数据帧
+
+7. THE Storage_Abstraction / Iteration_Tracker SHALL 在训练与预测批次元数据中记录 `period_role` 分布（daylight vs night 样本数），供审核与精度拆分使用；Accuracy_Evaluator 宜支持按 `period_role` 过滤统计，但缺省仍为全量口径
+
+8. THE 系统 SHALL 将 `night_zero_epsilon`、`night_anomaly_current_threshold`、`irr_threshold` 设计为可配置参数；非法范围须拒绝并返回参数校验错误
+
+---
+
+### 需求 26：审核界面自由时间窗打标与标签扩充
+
+**用户故事：** 作为审核人员，我想在标注/审核界面的波形图上任意框选一段时间，对该时间段直接打上已有标签或新建标签，以便发现预切分窗口无法对齐的故障片段，并把这些片段回流到累计训练集完成标签扩充。
+
+#### 验收标准
+
+1. THE Review_Window SHALL 在单元时序波形图上提供「自由时间窗标注」交互：审核人可通过刷选/拖拽选择闭区间 `[t_start, t_end]`（须落在当前加载的原始时序范围内，且 `t_end > t_start`）
+
+2. WHEN 审核人确认一个 Freeform_Time_Range 时，THE Review_Window SHALL 允许选择动作：
+   - `correct`：绑定 Label_Registry 已有 `label_id`
+   - `new_label`：先调用 Label_Registry.allocate_label() 扩充标签，再绑定新 `label_id`
+   - （可选）`confirm`：仅当该区间已存在模型预测子段时可用；否则隐藏或禁用
+
+3. WHEN Freeform_Time_Range 被提交时，THE 后端 SHALL 生成 Freeform_Labeled_Unit，至少包含：
+   - `unit_key`：稳定主键，推荐 `site|device|branch|freeform|{t_start_iso}|{t_end_iso}`
+   - `period_role='freeform'`
+   - `t_start` / `t_end`（ISO 或项目统一时间字符串）
+   - `verdict_label`、`action_type`、`reviewer`、`reviewed_at`
+   - `source_review_id`（可选，关联发起框选的审核会话）
+   - `source_unit_key`（可选，关联框选时所在的父 Diagnosis_Unit）
+
+4. THE 后端 SHALL 对 Freeform_Labeled_Unit 执行特征化（复用现有特征管线，窗口边界为 `[t_start, t_end]`），并将带标签样本写入累计训练集准入路径（与 Human_Verdict 回流同权威级别，`is_pseudo=false`）；写入须遵守相对路径规范
+
+5. IF 新区间与已有 freeform 单元在同一设备支路上时间重叠超过 `freeform_overlap_tolerance`（默认 `0`，即任意重叠即冲突）时，THE 后端 SHALL 拒绝创建并返回冲突说明（含冲突 `unit_key`），除非请求显式 `force_overwrite=true`
+
+6. THE Review_Window SHALL 在波形上可视化已提交的 freeform 区间（半透明高亮 + 标签名），支持查看与（权限允许时）撤销/改判；撤销后累计训练集须同步移除或标记失效该条目
+
+7. THE API SHALL 提供：
+   - `POST /api/iterative-labeling/review-sessions/{review_id}/freeform-labels` — 创建自由时间窗标注
+   - `GET /api/iterative-labeling/review-sessions/{review_id}/freeform-labels` — 列出本会话已创建的自由窗标注
+   - `DELETE /api/iterative-labeling/review-sessions/{review_id}/freeform-labels/{unit_key}` — 撤销（可选实现阶段二）
+
+8. THE Storage_Abstraction SHALL 持久化 Freeform_Labeled_Unit 元数据与回流结果；Iteration_Tracker / cumulative training 状态中须能统计 `freeform_labeled_count`，并与预切分单元裁决区分展示
+
+9. WHERE 当前会话为纯手工标注（无分类器预测）时，THE Review_Window SHALL 仍可用自由时间窗打标；自由窗路径不依赖 `predicted_label`
+
+10. THE 系统 SHALL 保证自由时间窗标注**不修改**原预切分 Diagnosis_Unit 的 `time_window` 定义；二者并存，训练时按配置决定是否同时纳入（默认：同时纳入累计训练集）
+
 <!-- @AI_GENERATED: end -->

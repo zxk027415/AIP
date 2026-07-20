@@ -163,7 +163,7 @@ const ModelLifecycleCard: React.FC<ModelLifecycleCardProps> = ({ slot }) => {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
               {grouped[form].map((node) => (
                 <span
-                  key={node.workflow_id}
+                  key={`${node.workflow_id}:${node.version_tag}:${node.model_form}`}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                   title={`workflow_id: ${node.workflow_id}`}
                 >

@@ -82,6 +82,47 @@ def _build_naive_forecast_point(records: Sequence[object]) -> Optional[Tuple[dat
     return latest_ts + interval, float(getattr(latest, "value"))
 
 
+# @AI_GENERATED: causal-online-forecast-input
+ONLINE_FORECAST_MARKER = "__aip_online_forecast_row"
+DEFAULT_ONLINE_FORECAST_STEPS = 96
+
+
+def _append_causal_forecast_rows(
+    input_data,
+    forecast_start: datetime,
+    interval: timedelta,
+    steps: int = DEFAULT_ONLINE_FORECAST_STEPS,
+):
+    """Append future rows using only the latest observed value as a causal placeholder.
+
+    The marker makes ``train_test_split_ts.mode=online_forecast`` exclude all
+    synthetic rows from training. Feature operators may safely use the repeated
+    latest value for lag and rolling context; no future actual value is read.
+    """
+    import pandas as pd
+
+    if input_data is None or input_data.empty:
+        raise ValueError("online forecast requires non-empty historical input")
+    if interval <= timedelta(0):
+        raise ValueError("online forecast interval must be positive")
+    if steps <= 0:
+        raise ValueError("online forecast steps must be positive")
+
+    historical = input_data.copy()
+    historical[ONLINE_FORECAST_MARKER] = False
+    template = historical.iloc[-1].to_dict()
+    placeholder_value = float(template.get("value"))
+    future_rows = []
+    for offset in range(steps):
+        row = dict(template)
+        row["record_time"] = forecast_start + interval * offset
+        row["value"] = placeholder_value
+        row[ONLINE_FORECAST_MARKER] = True
+        future_rows.append(row)
+    return pd.concat([historical, pd.DataFrame(future_rows)], ignore_index=True)
+# @AI_GENERATED: end
+
+
 # ---------------------------------------------------------------------------
 # Task 1: 数据拉取任务
 # ---------------------------------------------------------------------------
@@ -171,52 +212,49 @@ def make_daily_rolling_task(
     """
     返回 daily_rolling_task() — 每日滚动训练+预测主任务。
 
-    严格 gap-1-day 语义：
-      - 触发日 T：训练数据硬截止 T-1 23:59:59.999，绝不使用 T 日任何数据
-      - 预测目标：T+1 全天（用最后两条记录的时间间隔推算 T+1 的时间点列表）
-      - 训练窗口：最近 `slot.training_window_days` 天（默认 30）
+    严格 Gap 1 语义：
+      - 业务日 T：由平台真值高水位决定，训练与特征上下文均硬截止 T-1
+      - 预测目标：T+1 全天（96 个 15 分钟点）
+      - 训练窗口：从生产工作流的 `backtest_train_days` 推导（当前为 30 天）
+      - 启动门槛：工作流预热天数加正式训练天数必须连续、且每日完整
 
     执行顺序（生产优先）：
       1. 生产模型（production_model）—— 失败则告警，其余模型仍继续
       2. 影子模型（shadow_models）—— 限 slot.max_shadow_slots 个，排精度降序
       3. 预上线模型（prelaunch_models）—— 限 slot.max_prelaunch_slots 个，排入池时间升序
 
-    工作流内的 train_test_split_ts 节点通过 params 覆盖 mode="all_train"，
-    确保全部窗口数据都用于训练（不再内部切测试集）。
+    工作流内的 train_test_split_ts 节点使用 `online_forecast` 模式；
+    预热数据仅供特征构造，`online_training_start/end` 精确限定正式训练标签。
 
     依赖注入（均可为 None，None 时对应功能静默跳过）：
       slot_store          — services.deployment.store.DeploymentSlotStore 实例，
-                            读 slot config（training_window_days / max_shadow_slots 等）
+                            读生产/影子身份与并发槽位上限
       production_registry — precision_ops.ProductionRegistry 实例（精度运营侧生产登记）
       version_registry    — precision_ops.VersionRegistry 实例（精度运营侧影子列表）
 
     向后兼容说明：
-      如果 slot_store 为 None（未迁移完成的老路径），自动回退到
-      production_registry + version_registry + 默认 7 天窗口（旧行为）。
+      如果 slot_store 为 None，自动回退到 production_registry 读取生产工作流；
+      无法解析生产工作流契约时拒绝运行，避免用错误历史窗口产生预测。
     """
 
     def daily_rolling_task() -> Optional[str]:
-        import pandas as pd
-        from datetime import date, timezone
-
         from services.deployment.rolling_window import compute_training_window
 
-        trigger_date = date.today()  # 触发日 T
-
-        # ---- Step 1: 从 slot store 读取配置 ----
-        training_window_days = 30      # 默认值
-        max_shadow = MAX_SHADOW_PREDICTIONS  # 默认 3
-        max_prelaunch = 2              # 默认 2
+        # ---- Step 1: 读取部署模型并从生产工作流推导历史数据契约 ----
+        training_window_days = 30
+        max_shadow = MAX_SHADOW_PREDICTIONS
+        max_prelaunch = 2
         prelaunch_workflow_ids: list = []
+        production_workflow_id: Optional[str] = None
 
         if slot_store is not None:
             try:
                 slot_obj = slot_store.get(slot)
                 if slot_obj is not None:
-                    training_window_days = slot_obj.training_window_days
                     max_shadow = slot_obj.max_shadow_slots
                     max_prelaunch = slot_obj.max_prelaunch_slots
-                    # 预上线模型：按入池时间升序，限 max_prelaunch 个
+                    if slot_obj.production_model is not None:
+                        production_workflow_id = slot_obj.production_model.workflow_id
                     active_prelaunches = sorted(
                         [m for m in slot_obj.prelaunch_models if m.status == "prelaunch"],
                         key=lambda m: (
@@ -227,7 +265,33 @@ def make_daily_rolling_task(
                         (m.workflow_id, m.version_tag) for m in active_prelaunches
                     ]
             except Exception as exc:
-                logger.warning("daily_rolling_task: slot_store 读取失败，使用默认配置: %s", exc)
+                logger.warning("daily_rolling_task: slot_store 读取失败: %s", exc)
+
+        if production_workflow_id is None and production_registry is not None:
+            try:
+                registered_production = production_registry.get(slot)
+                if registered_production is not None:
+                    production_workflow_id = registered_production.get("workflow_id")
+            except Exception as exc:
+                logger.warning("daily_rolling_task: 读取生产登记失败: %s", exc)
+
+        if not production_workflow_id:
+            logger.info("daily_rolling_task: slot=%s 无生产模型登记，跳过", slot)
+            return None
+
+        from services.deployment.rolling_window import derive_workflow_history_requirement
+        from services.scheduler.tasks.workflow_predictor import load_workflow_json
+
+        production_workflow = load_workflow_json(production_workflow_id)
+        if production_workflow is None:
+            logger.error(
+                "daily_rolling_task: slot=%s 无法加载生产工作流 %s，拒绝运行",
+                slot,
+                production_workflow_id,
+            )
+            return None
+        history_requirement = derive_workflow_history_requirement(production_workflow)
+        training_window_days = history_requirement.training_days
 
         # ---- Step 2: 获取可用数据日期集合（用于窗口计算）----
         try:
@@ -241,12 +305,43 @@ def make_daily_rolling_task(
                     )
                     .all()
                 )
-            available_dates = [r[0].date() for r in date_rows if r[0] is not None]
+            available_timestamps = [r[0] for r in date_rows if r[0] is not None]
+            available_dates = [timestamp.date() for timestamp in available_timestamps]
         except Exception as exc:
             logger.warning("daily_rolling_task: 获取可用日期失败: %s", exc)
+            available_timestamps = []
             available_dates = []
 
-        # ---- Step 3: 严格 gap-1-day 窗口计算 ----
+        # @AI_GENERATED: data-watermark-business-clock
+        if not available_dates:
+            logger.info(
+                "daily_rolling_task: slot=%s 无可用业务日期，跳过",
+                slot,
+            )
+            return None
+        # 历史 CSV 回放与真实公司数据共用此规则：业务日由已入库真值高水位决定。
+        latest_available_ts = max(available_timestamps)
+        trigger_date = latest_available_ts.date()
+        # @AI_GENERATED: end
+
+        # ---- Step 3: 校验 预热 + 正式训练 的连续完整历史，再计算严格 Gap 1 窗口 ----
+        from services.deployment.rolling_window import assess_history_readiness
+
+        history_readiness = assess_history_readiness(
+            trigger_date=trigger_date,
+            requirement=history_requirement,
+            timestamps=available_timestamps,
+        )
+        if not history_readiness.ready:
+            logger.info(
+                "daily_rolling_task: slot=%s workflow=%s business_date=%s 跳过：%s",
+                slot,
+                production_workflow_id,
+                trigger_date.isoformat(),
+                history_readiness.reason(),
+            )
+            return None
+
         window = compute_training_window(
             trigger_date=trigger_date,
             max_window_days=training_window_days,
@@ -260,26 +355,30 @@ def make_daily_rolling_task(
             )
             return None
 
-        # ---- Step 4: 从 DB 拉取训练+推理数据（窗口内数据 + T 日数据供推理特征）----
-        # 训练数据：[training_start, T-1 23:59:59.999]（gap-1-day 约束）
-        # 推理数据：需要 T 日数据构造特征（滞后等），但不作为训练标签
-        import numpy as np
+        # ---- Step 4: 从 DB 拉取严格 Gap 1 的训练与特征上下文 ----
+        # 训练标签和全部特征上下文均截止到 T-1 23:59:59.999。
+        # T 日真实值不进入本轮输入；T+1 的特征仅由此前可观测历史构造。
         from datetime import datetime as dt_cls
 
+        # @AI_GENERATED: strict-gap-one-feature-boundary
+        # Gap=1 is a single causality contract: neither training labels nor
+        # feature context may see any T-day truth. The last observable input
+        # is therefore T-1 23:59:59.999; T+1 rows are synthetic inputs only.
         train_end_dt = dt_cls.combine(
             window.training_end,
             dt_cls.max.time(),
         ).replace(microsecond=999999)
 
-        # 从 DB 中拉取 [training_start - 14天 lag热身, T-1末] 的数据
-        # 热身 14 天供 lag_feature 等算子用，不改变"不使用 T 日数据"的约束
+        # 从 DB 中拉取 [training_start - workflow_warmup_days, T-1末] 的数据。
+        # 预热数据仅供特征算子回看；后续 online_training_start 会将监督训练
+        # 严格限制在 window.training_start ~ T-1。
         import pandas as pd
         from datetime import timedelta
 
         lag_warmup_start = dt_cls.combine(
-            window.training_start - timedelta(days=14),
+            history_readiness.warmup_start,
             dt_cls.min.time(),
-        ) if window.training_start else None
+        )
 
         try:
             with lf_repo._adapter.get_sync_session() as session:
@@ -289,13 +388,14 @@ def make_daily_rolling_task(
                         StationData.slot == slot,
                         StationData.station_id == station_id,
                         StationData.feature_name == feature_name,
-                        StationData.timestamp_utc <= train_end_dt,  # 严格 ≤ T-1 末
+                        StationData.timestamp_utc <= train_end_dt,
                     )
                     .order_by(StationData.timestamp_utc.asc())
                 )
                 if lag_warmup_start is not None:
                     q = q.filter(StationData.timestamp_utc >= lag_warmup_start)
                 rows = q.all()
+        # @AI_GENERATED: end
         except Exception as exc:
             logger.error("daily_rolling_task: 拉取训练数据失败: %s", exc)
             return None
@@ -318,9 +418,9 @@ def make_daily_rolling_task(
             for r in rows
         ])
 
-        # ---- Step 5: 推算预测目标时间戳（T+1 全天）----
-        # forecast_ts = T+1 的第一个点位（基于最后两条记录的时间间隔）
-        last_ts = rows[-1].timestamp_utc
+        # ---- Step 5: 基于业务日 T 构造 T+1 的 96 个因果预测时间点 ----
+        # 不读取 T/T+1 的真实值。未来行仅携带最近已观测值作为 lag/rolling 特征占位，
+        # train_test_split_ts 会凭 marker 将其完全排除在训练标签之外。
         if len(rows) >= 2:
             interval = rows[-1].timestamp_utc - rows[-2].timestamp_utc
             if interval <= timedelta(0):
@@ -328,13 +428,22 @@ def make_daily_rolling_task(
         else:
             interval = timedelta(minutes=15)
 
-        # T+1 第一个预测点（绕开 T 日，直接跳到 T+1）
-        from datetime import datetime as dt_cls2, date as date_cls
-        t_plus_1_start = dt_cls2.combine(
-            trigger_date + timedelta(days=1),
+        from datetime import datetime as dt_cls2
+
+        forecast_start = dt_cls2.combine(
+            window.predict_target,
             dt_cls2.min.time(),
-        ) + interval  # 第一个点在 T+1 00:00 + interval
-        forecast_ts = t_plus_1_start
+        )
+        forecast_timestamps = [
+            forecast_start + interval * offset
+            for offset in range(DEFAULT_ONLINE_FORECAST_STEPS)
+        ]
+        online_input_data = _append_causal_forecast_rows(
+            input_data,
+            forecast_start=forecast_start,
+            interval=interval,
+            steps=DEFAULT_ONLINE_FORECAST_STEPS,
+        )
 
         # ---- Step 6: 逐个 workflow 执行 ----
         # 先收集所有需要跑的 workflow 列表（production + shadow + prelaunch）
@@ -426,17 +535,33 @@ def make_daily_rolling_task(
                     slot=slot,
                     workflow_id=wf["workflow_id"],
                     version_tag=wf["version_tag"],
-                    input_data=input_data,
-                    forecast_ts=forecast_ts,
+                    input_data=online_input_data,
+                    forecast_timestamps=forecast_timestamps,
                     is_shadow=wf["is_shadow"],
-                    # 覆盖 train_test_split_ts 使用 all_train 模式
-                    operator_param_overrides={"train_test_split_ts": {"mode": "all_train"}},
+                    # 未来标记行只用作 T+1 推理特征，绝不参与训练或回测评分。
+                    operator_param_overrides={
+                        "train_test_split_ts": {
+                            "mode": "online_forecast",
+                            "online_training_start": dt_cls.combine(
+                                window.training_start,
+                                dt_cls.min.time(),
+                            ).isoformat(),
+                            "online_training_end": train_end_dt.isoformat(),
+                        }
+                    },
+                    online_mode=True,
                 )
                 if first_cycle_id is None and not wf["is_shadow"]:
                     first_cycle_id = cid
                 logger.info(
-                    "daily_rolling_task: slot=%s role=%s workflow=%s forecast_ts=%s OK",
-                    slot, wf["role"], wf["workflow_id"], forecast_ts,
+                    "daily_rolling_task: slot=%s role=%s workflow=%s business_date=%s "
+                    "forecast_start=%s points=%d OK",
+                    slot,
+                    wf["role"],
+                    wf["workflow_id"],
+                    trigger_date,
+                    forecast_start,
+                    len(forecast_timestamps),
                 )
             except Exception as exc:
                 logger.warning(
@@ -467,7 +592,7 @@ def make_prediction_task(
     """
     向后兼容 alias — 内部调用新版 make_daily_rolling_task。
 
-    config_manager 参数已忽略（training_window_days 现在从 slot_store 读取）。
+    config_manager 参数已忽略。正式训练天数与预热天数由生产工作流定义推导；
     如需完整功能，请直接使用 make_daily_rolling_task 并传入 slot_store。
     """
     return make_daily_rolling_task(
@@ -482,36 +607,32 @@ def make_prediction_task(
 # @AI_GENERATED: end
 
 
-# @AI_GENERATED: 新增 operator_param_overrides 参数
+# @AI_GENERATED: online-forecast-result-persistence
 def _run_single_prediction(
     lf_repo: "LoadForecastRepository",
     slot: str,
     workflow_id: str,
     version_tag: str,
     input_data,
-    forecast_ts: datetime,
+    forecast_timestamps: Sequence[datetime],
     is_shadow: bool,
     operator_param_overrides: Optional[dict] = None,
+    *,
+    online_mode: bool = False,
 ) -> Optional[str]:
-    """
-    Run one workflow prediction and write PredictionResult. Returns cycle_id.
-
-    operator_param_overrides — 按 functionId 覆盖算子参数的字典，例如：
-      {"train_test_split_ts": {"mode": "all_train"}}
-    传入 workflow_predictor.run_prediction 后，该 functionId 的节点 params
-    会被 merge 覆盖，优先级高于工作流 JSON 里的节点 config。
-    """
+    """Run one version and persist exactly one forecast value per target timestamp."""
     from services.scheduler.tasks.workflow_predictor import run_prediction
-# @AI_GENERATED: end
-
-    # @AI_GENERATED: cycle_id 列为 String(128)，使用版本标签短哈希保留完整身份且避免长标签溢出
     import hashlib
 
-    version_digest = hashlib.sha256(version_tag.encode("utf-8")).hexdigest()[:16]
-    cycle_id = f"{workflow_id[:70]}:{version_digest}:{forecast_ts.strftime('%Y%m%d%H%M%S')}"
-    # @AI_GENERATED: end
+    if not forecast_timestamps:
+        raise ValueError("forecast_timestamps must not be empty")
 
-    # Check if already predicted for this cycle
+    version_digest = hashlib.sha256(version_tag.encode("utf-8")).hexdigest()[:16]
+    cycle_id = (
+        f"{workflow_id[:70]}:{version_digest}:"
+        f"{forecast_timestamps[0].strftime('%Y%m%d%H%M%S')}"
+    )
+
     with lf_repo._adapter.get_sync_session() as session:
         existing = (
             session.query(PredictionResult.id)
@@ -527,14 +648,24 @@ def _run_single_prediction(
             logger.info("prediction_task: cycle already exists: %s", cycle_id)
             return cycle_id
 
-    # Execute workflow pipeline
-    # @AI_GENERATED: 传入 operator_param_overrides 覆盖节点参数（如 mode="all_train"）
-    result = run_prediction(workflow_id, input_data, slot,
-                            operator_param_overrides=operator_param_overrides)
-    # @AI_GENERATED: end
+    result = run_prediction(
+        workflow_id,
+        input_data,
+        slot,
+        operator_param_overrides=operator_param_overrides,
+        online_mode=online_mode,
+    )
+    predicted_values = result.get("predicted_values") or []
+    valid_result = (
+        bool(result.get("success"))
+        and len(predicted_values) == len(forecast_timestamps)
+    )
 
-    if not result["success"] or result["predicted_value"] is None:
-        # Write a failed prediction record
+    if not valid_result:
+        error = result.get("error") or (
+            "Prediction value count mismatch: "
+            f"expected={len(forecast_timestamps)}, actual={len(predicted_values)}"
+        )
         with lf_repo._adapter.get_sync_session() as session:
             session.add(
                 PredictionResult(
@@ -542,7 +673,7 @@ def _run_single_prediction(
                     workflow_id=workflow_id,
                     version_tag=version_tag,
                     prediction_cycle_id=cycle_id,
-                    forecast_timestamp=forecast_ts,
+                    forecast_timestamp=forecast_timestamps[0],
                     predicted_value=0.0,
                     actual_value=None,
                     status="failed",
@@ -551,34 +682,49 @@ def _run_single_prediction(
                 )
             )
         logger.warning(
-            "prediction_task: workflow %s prediction failed: %s",
-            workflow_id, result.get("error"),
+            "prediction_task: workflow=%s version=%s failed: %s",
+            workflow_id,
+            version_tag,
+            error,
         )
         return cycle_id
 
-    # Write successful prediction
-    predicted_value = result["predicted_value"]
     with lf_repo._adapter.get_sync_session() as session:
-        session.add(
-            PredictionResult(
-                slot=slot,
-                workflow_id=workflow_id,
-                version_tag=version_tag,
-                prediction_cycle_id=cycle_id,
-                forecast_timestamp=forecast_ts,
-                predicted_value=predicted_value,
-                actual_value=None,
-                status="predicted",
-                is_shadow=is_shadow,
-                created_at=datetime.utcnow(),
-            )
+        session.add_all(
+            [
+                PredictionResult(
+                    slot=slot,
+                    workflow_id=workflow_id,
+                    version_tag=version_tag,
+                    prediction_cycle_id=cycle_id,
+                    forecast_timestamp=forecast_timestamp,
+                    predicted_value=float(predicted_value),
+                    actual_value=None,
+                    status="predicted",
+                    is_shadow=is_shadow,
+                    created_at=datetime.utcnow(),
+                )
+                for forecast_timestamp, predicted_value in zip(
+                    forecast_timestamps,
+                    predicted_values,
+                )
+            ]
         )
 
     logger.info(
-        "prediction_task: slot=%s workflow=%s forecast_ts=%s predicted=%.4f is_shadow=%s",
-        slot, workflow_id, forecast_ts, predicted_value, is_shadow,
+        "prediction_task: slot=%s workflow=%s version=%s cycle=%s points=%d "
+        "range=%s~%s is_shadow=%s",
+        slot,
+        workflow_id,
+        version_tag,
+        cycle_id,
+        len(predicted_values),
+        forecast_timestamps[0],
+        forecast_timestamps[-1],
+        is_shadow,
     )
     return cycle_id
+# @AI_GENERATED: end
 
 
 # @AI_GENERATED: deprecated — 该旧回填实现仅保留源码审计；下方版本级工厂是唯一新调用入口

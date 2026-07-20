@@ -2613,6 +2613,24 @@ def _execute_pipeline_sync(
                     training_metrics["recall"] = output["macro_recall_mean"]
                 if output.get("macro_f1_mean") is not None:
                     training_metrics["f1"] = output["macro_f1_mean"]
+                for _rich_key in (
+                    "accuracy_mean",
+                    "accuracy_std",
+                    "macro_precision_mean",
+                    "macro_recall_mean",
+                    "macro_f1_mean",
+                    "macro_f1_std",
+                    "per_repeat_macro_f1",
+                    "per_class_recall_mean",
+                    "per_class_metrics",
+                    "class_distribution",
+                    "n_repeats",
+                    "n_samples",
+                    "n_classes",
+                    "warnings",
+                ):
+                    if _rich_key in output:
+                        training_metrics[_rich_key] = output[_rich_key]
                 _cm = output.get("confusion_matrix")
                 if isinstance(_cm, dict) and "labels" in _cm and "data" in _cm:
                     training_metrics["confusion_matrix"] = {

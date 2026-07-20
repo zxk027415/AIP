@@ -1,47 +1,28 @@
 // @AI_GENERATED
 /**
- * AlertPanel.tsx — 精度告警面板
+ * AlertPanel.tsx — 精度退化告警列表。
  *
- * 展示当前 slot 下 production / shadow 形态的精度告警列表。
- * 支持按 AlertStatus 过滤，点击行触发 onSelectAlert 回调。
- * 数据来源：GET /accuracy-operations/alerts（经 accuracyOperationsStore.fetchAlerts）。
- *
- * 相关 spec：.kiro/specs/accuracy-operations/
- *   - Requirements 10.5（告警列表展示）
- *   - Task 13.5
+ * 用户可从每条 open（待处理）告警发起 RCA，或选择已有 RCA/恢复决策的告警，
+ * 继续在精度运营主页面查看根因、仲裁和通道 A 状态。
  */
-
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Tag, Select, Spin, Alert as AntAlert, Button, Empty, Badge } from 'antd';
+import { Alert as AntAlert, Badge, Button, Card, Empty, Select, Space, Spin, Table, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { ReloadOutlined } from '@ant-design/icons';
+import { ExperimentOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useAccuracyOperationsStore } from '../../stores/accuracyOperationsStore';
-import type {
-  AccuracyAlert,
-  AlertStatus,
-  ModelForm,
-  AlertSeverity,
-} from '../../types/accuracy-operations';
-
-// ===========================================================================
-// Props
-// ===========================================================================
+import type { AccuracyAlert, AlertSeverity, AlertStatus, ModelForm } from '../../types/accuracy-operations';
 
 interface AlertPanelProps {
-  /** slot — 当前操作槽位名称（如 "default"） */
+  /** slot — 当前精度运营分区槽位。 */
   slot: string;
-  /**
-   * onSelectAlert — 点击告警行时的回调
-   * @param alert — 被点击的 AccuracyAlert 实体
-   */
+  /** onSelectAlert — 选择告警后由父级加载 RCA/恢复决策。 */
   onSelectAlert?: (alert: AccuracyAlert) => void;
+  /** onTriggerRCA — 对 open 告警启动 RCA 状态机。 */
+  onTriggerRCA?: (alert: AccuracyAlert) => Promise<void>;
+  /** rcaLoading — RCA 请求中的统一禁用状态。 */
+  rcaLoading?: boolean;
 }
 
-// ===========================================================================
-// 常量
-// ===========================================================================
-
-/** STATUS_OPTIONS — 告警状态过滤下拉选项 */
 const STATUS_OPTIONS: Array<{ label: string; value: AlertStatus | '' }> = [
   { label: '全部状态', value: '' },
   { label: '待处理 (open)', value: 'open' },
@@ -51,263 +32,150 @@ const STATUS_OPTIONS: Array<{ label: string; value: AlertStatus | '' }> = [
   { label: '已关闭 (closed)', value: 'closed' },
 ];
 
-// ===========================================================================
-// 工具函数
-// ===========================================================================
-
-/** getModelFormBadge — model_form（形态）→ Badge */
 function getModelFormBadge(form: ModelForm): React.ReactNode {
   const map: Record<ModelForm, { color: string; text: string }> = {
     production: { color: 'green', text: '生产' },
     shadow: { color: 'blue', text: '影子' },
   };
-  const cfg = map[form];
-  return <Badge color={cfg.color} text={cfg.text} />;
+  const config = map[form];
+  return <Badge color={config.color} text={config.text} />;
 }
 
-/** getSeverityTag — severity（严重级别）→ Tag */
 function getSeverityTag(severity: AlertSeverity): React.ReactNode {
-  const map: Record<AlertSeverity, string> = {
-    warning: 'orange',
-    critical: 'red',
-  };
-  const labelMap: Record<AlertSeverity, string> = {
-    warning: '警告',
-    critical: '严重',
-  };
-  return <Tag color={map[severity]}>{labelMap[severity]}</Tag>;
+  return <Tag color={severity === 'critical' ? 'red' : 'orange'}>{severity === 'critical' ? '严重' : '警告'}</Tag>;
 }
 
-/** getStatusTag — status（告警状态）→ Tag */
 function getStatusTag(status: AlertStatus): React.ReactNode {
-  const map: Record<AlertStatus, string> = {
-    open: 'blue',
-    rca_running: 'processing',
-    recovering: 'orange',
-    observing: 'purple',
-    closed: 'default',
+  const config: Record<AlertStatus, { color: string; label: string }> = {
+    open: { color: 'blue', label: '待处理' },
+    rca_running: { color: 'processing', label: 'RCA 中' },
+    recovering: { color: 'orange', label: '恢复中' },
+    observing: { color: 'purple', label: '观察中' },
+    closed: { color: 'default', label: '已关闭' },
   };
-  const labelMap: Record<AlertStatus, string> = {
-    open: '待处理',
-    rca_running: 'RCA 中',
-    recovering: '恢复中',
-    observing: '观察中',
-    closed: '已关闭',
-  };
-  return <Tag color={map[status]}>{labelMap[status]}</Tag>;
+  return <Tag color={config[status].color}>{config[status].label}</Tag>;
 }
 
-/** formatDate — ISO8601 时间 → 本地可读格式 */
 function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString('zh-CN', { hour12: false });
 }
-
-// ===========================================================================
-// 表格列定义
-// ===========================================================================
 
 function buildColumns(
   onSelectAlert?: (alert: AccuracyAlert) => void,
+  onTriggerRCA?: (alert: AccuracyAlert) => Promise<void>,
+  rcaLoading = false,
 ): ColumnsType<AccuracyAlert> {
   return [
+    { title: '告警 ID', dataIndex: 'alert_id', width: 135, render: (value: string) => <code style={{ fontSize: 12 }}>{value}</code> },
+    { title: '形态', dataIndex: 'model_form', width: 80, render: getModelFormBadge },
+    { title: '版本', dataIndex: 'version_tag', width: 130, render: (value: string) => <code>{value}</code> },
     {
-      title: '告警 ID',
-      dataIndex: 'alert_id',
-      key: 'alert_id',
-      width: 140,
-      render: (v: string) => (
-        <code style={{ fontSize: '12px', wordBreak: 'break-all' }}>{v}</code>
+      title: '基线 / 当前',
+      key: 'metrics',
+      width: 130,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <span>基线 {record.baseline_mape.toFixed(2)}%</span>
+          <span>当前 {record.current_rolling_mape.toFixed(2)}%</span>
+        </Space>
       ),
     },
+    { title: '退化幅度', dataIndex: 'degradation_pct', align: 'right' as const, width: 95, render: (value: number) => `${value.toFixed(2)}%` },
     {
-      title: '形态',
-      dataIndex: 'model_form',
-      key: 'model_form',
-      width: 80,
-      render: (form: ModelForm) => getModelFormBadge(form),
-    },
-    {
-      title: '版本',
-      dataIndex: 'version_tag',
-      key: 'version_tag',
-      render: (v: string) => <code>{v}</code>,
-    },
-    {
-      title: '退化幅度',
-      dataIndex: 'degradation_pct',
-      key: 'degradation_pct',
-      align: 'right' as const,
-      width: 90,
-      render: (v: number) => `${v.toFixed(2)}%`,
-    },
-    {
-      title: '严重级别',
-      dataIndex: 'severity',
-      key: 'severity',
-      width: 90,
-      render: (v: AlertSeverity) => getSeverityTag(v),
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      width: 90,
-      render: (v: AlertStatus) => getStatusTag(v),
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
+      title: '趋势 / 冷却',
+      key: 'trend',
       width: 150,
-      render: (v: string) => formatDate(v),
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Tag color={record.degradation_trend === 'sudden' ? 'red' : record.degradation_trend === 'gradual' ? 'orange' : 'default'}>
+            {record.degradation_trend === 'sudden' ? '骤升' : record.degradation_trend === 'gradual' ? '渐升' : '持续高位'}
+          </Tag>
+          <span style={{ fontSize: 11, color: '#64748b' }}>
+            {record.cooldown_until ? `冷却至 ${formatDate(record.cooldown_until)}` : '无冷却期'}
+          </span>
+        </Space>
+      ),
     },
-    ...(onSelectAlert
-      ? [
-          {
-            title: '操作',
-            key: 'action',
-            width: 80,
-            render: (_: unknown, record: AccuracyAlert) => (
-              <Button
-                type="link"
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelectAlert(record);
-                }}
-              >
-                查看详情
-              </Button>
-            ),
-          },
-        ]
-      : []),
+    { title: '严重级别', dataIndex: 'severity', width: 90, render: getSeverityTag },
+    { title: '状态', dataIndex: 'status', width: 90, render: getStatusTag },
+    {
+      title: 'RCA / 仲裁引用',
+      key: 'references',
+      width: 165,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <code style={{ fontSize: 11 }}>{record.rca_report_id ?? 'RCA 未生成'}</code>
+          <code style={{ fontSize: 11 }}>{record.recovery_decision_id ?? '仲裁未生成'}</code>
+        </Space>
+      ),
+    },
+    { title: '创建时间', dataIndex: 'created_at', width: 160, render: formatDate },
+    {
+      title: '操作',
+      key: 'action',
+      width: 160,
+      fixed: 'right',
+      render: (_, record) => (
+        <Space size={2} wrap>
+          {record.status === 'open' && !record.rca_report_id && onTriggerRCA ? (
+            <Button
+              size="small"
+              type="primary"
+              icon={<ExperimentOutlined />}
+              loading={rcaLoading}
+              onClick={(event) => { event.stopPropagation(); void onTriggerRCA(record); }}
+            >
+              触发 RCA
+            </Button>
+          ) : null}
+          {onSelectAlert ? (
+            <Button size="small" onClick={(event) => { event.stopPropagation(); onSelectAlert(record); }}>
+              {record.rca_report_id ? '查看 RCA' : '查看详情'}
+            </Button>
+          ) : null}
+        </Space>
+      ),
+    },
   ];
 }
 
-// ===========================================================================
-// 组件
-// ===========================================================================
-
-/**
- * AlertPanel — 精度告警面板组件
- *
- * - 展示 production / shadow 形态的告警列表（API 已过滤，客户端二次校验）
- * - 支持按状态过滤
- * - 点击行触发 onSelectAlert
- */
-const AlertPanel: React.FC<AlertPanelProps> = ({ slot, onSelectAlert }) => {
+const AlertPanel: React.FC<AlertPanelProps> = ({ slot, onSelectAlert, onTriggerRCA, rcaLoading = false }) => {
   const { alerts, loading, error, fetchAlerts } = useAccuracyOperationsStore();
-
-  /** statusFilter — 当前状态过滤值（'' 表示全部） */
   const [statusFilter, setStatusFilter] = useState<AlertStatus | ''>('');
 
-  // 挂载或 slot 变更时拉取告警列表
-  useEffect(() => {
-    fetchAlerts(slot);
-  }, [slot, fetchAlerts]);
+  useEffect(() => { void fetchAlerts(slot); }, [slot, fetchAlerts]);
 
-  // ---------- 加载态 ----------
-  if (loading.alerts) {
-    return (
-      <Card title="精度告警" aria-label="精度告警面板">
-        <div style={{ textAlign: 'center', padding: '32px 0' }}>
-          <Spin tip="加载中..." />
-        </div>
-      </Card>
-    );
-  }
-
-  // ---------- 错误态 ----------
-  if (error.alerts) {
-    return (
-      <Card title="精度告警" aria-label="精度告警面板">
-        <AntAlert
-          type="error"
-          message="加载失败"
-          description={error.alerts}
-          action={
-            <Button
-              size="small"
-              icon={<ReloadOutlined />}
-              onClick={() => fetchAlerts(slot)}
-            >
-              重试
-            </Button>
-          }
-        />
-      </Card>
-    );
-  }
-
-  // ---------- 客户端过滤：仅保留 production / shadow 形态，并按状态筛选 ----------
-  const productionShadowAlerts = alerts.filter(
-    (a) => a.model_form === 'production' || a.model_form === 'shadow',
-  );
-
-  const filteredAlerts = statusFilter
-    ? productionShadowAlerts.filter((a) => a.status === statusFilter)
-    : productionShadowAlerts;
-
-  // ---------- 工具栏：状态过滤 ----------
   const toolbar = (
-    <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-      <span style={{ fontSize: '13px', color: '#666' }}>状态过滤：</span>
-      <Select<AlertStatus | ''>
-        value={statusFilter}
-        onChange={setStatusFilter}
-        style={{ width: 180 }}
-        options={STATUS_OPTIONS}
-        aria-label="按告警状态过滤"
-      />
-      <Button
-        size="small"
-        icon={<ReloadOutlined />}
-        onClick={() => fetchAlerts(slot, statusFilter || undefined)}
-        aria-label="刷新告警列表"
-      >
-        刷新
-      </Button>
+    <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 13, color: '#666' }}>状态过滤：</span>
+      <Select<AlertStatus | ''> value={statusFilter} onChange={setStatusFilter} style={{ width: 180 }} options={STATUS_OPTIONS} aria-label="按告警状态过滤" />
+      <Button size="small" icon={<ReloadOutlined />} onClick={() => void fetchAlerts(slot, statusFilter || undefined)}>刷新</Button>
     </div>
   );
 
-  // ---------- 空态 ----------
-  if (filteredAlerts.length === 0) {
-    return (
-      <Card title="精度告警" aria-label="精度告警面板">
-        {toolbar}
-        <Empty description="暂无数据" />
-      </Card>
-    );
-  }
+  if (loading.alerts) return <Card title="精度告警"><div style={{ textAlign: 'center', padding: '32px 0' }}><Spin tip="加载中…" /></div></Card>;
+  if (error.alerts) return <Card title="精度告警"><AntAlert type="error" message="加载失败" description={error.alerts} action={<Button size="small" onClick={() => void fetchAlerts(slot)}>重试</Button>} /></Card>;
 
-  // ---------- 正常态 ----------
+  const visibleAlerts = alerts.filter((alert) => (
+    (alert.model_form === 'production' || alert.model_form === 'shadow')
+    && (!statusFilter || alert.status === statusFilter)
+  ));
+
   return (
     <Card title="精度告警" aria-label="精度告警面板">
       {toolbar}
-      <Table<AccuracyAlert>
-        rowKey="alert_id"
-        columns={buildColumns(onSelectAlert)}
-        dataSource={filteredAlerts}
-        pagination={{ pageSize: 20, showSizeChanger: false }}
-        size="small"
-        onRow={(record) => ({
-          onClick: () => onSelectAlert?.(record),
-          style: { cursor: onSelectAlert ? 'pointer' : 'default' },
-          'aria-label': `告警 ${record.alert_id}`,
-        })}
-        aria-label="精度告警列表"
-      />
+      {visibleAlerts.length === 0 ? <Empty description="暂无精度退化告警" /> : (
+        <Table<AccuracyAlert>
+          rowKey="alert_id"
+          size="small"
+          columns={buildColumns(onSelectAlert, onTriggerRCA, rcaLoading)}
+          dataSource={visibleAlerts}
+          pagination={{ pageSize: 20, showSizeChanger: false }}
+          scroll={{ x: 1440 }}
+          onRow={(record) => ({ onClick: () => onSelectAlert?.(record), style: { cursor: onSelectAlert ? 'pointer' : 'default' } })}
+        />
+      )}
     </Card>
   );
 };

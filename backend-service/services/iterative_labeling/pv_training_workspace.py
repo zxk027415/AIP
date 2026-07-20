@@ -23,7 +23,7 @@ import uuid
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
@@ -381,20 +381,193 @@ class PVTrainingWorkspaceService:
     # 预测批次列表/详情
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _summarize_prediction_payload(
+        data: Dict[str, Any],
+        *,
+        batch_id: str,
+        label_names: Optional[Dict[Any, str]] = None,
+        sample_limit: int = 0,
+    ) -> Dict[str, Any]:
+        """从预测批次 JSON 提取可展示摘要：时间窗、标签分布、置信度与可选样本。"""
+        predictions = data.get("predictions") or []
+        if not isinstance(predictions, list):
+            predictions = []
+
+        time_windows: List[str] = []
+        label_counts: Dict[str, int] = defaultdict(int)
+        confidence_buckets = {"high": 0, "medium": 0, "low": 0, "unknown": 0}
+        names = label_names or {}
+
+        for item in predictions:
+            if not isinstance(item, dict):
+                continue
+            tw = item.get("time_window")
+            if tw is not None and str(tw).strip():
+                time_windows.append(str(tw))
+            pred_label = item.get("predicted_label")
+            if pred_label is not None:
+                display = names.get(pred_label) or names.get(str(pred_label)) or f"label_{pred_label}"
+                label_counts[str(display)] += 1
+            conf = item.get("confidence")
+            if conf is None:
+                confidence_buckets["unknown"] += 1
+            else:
+                try:
+                    conf_f = float(conf)
+                except (TypeError, ValueError):
+                    confidence_buckets["unknown"] += 1
+                else:
+                    if conf_f >= 0.8:
+                        confidence_buckets["high"] += 1
+                    elif conf_f >= 0.5:
+                        confidence_buckets["medium"] += 1
+                    else:
+                        confidence_buckets["low"] += 1
+
+        summary: Dict[str, Any] = {
+            "batch_id": batch_id,
+            "model_ref": data.get("model_ref"),
+            "model_path": data.get("model_path"),
+            "dataset_version": data.get("dataset_version"),
+            "prediction_count": len(predictions),
+            "created_at": data.get("created_at"),
+            "time_window_min": min(time_windows) if time_windows else None,
+            "time_window_max": max(time_windows) if time_windows else None,
+            "label_distribution": dict(label_counts),
+            "confidence_distribution": confidence_buckets,
+        }
+        if sample_limit > 0:
+            summary["sample_predictions"] = predictions[:sample_limit]
+        return summary
+
+    def _load_label_names(self, slot: str) -> Dict[Any, str]:
+        try:
+            from services.iterative_labeling.label_registry import LabelRegistryService
+            from services.iterative_labeling.storage.file_backend import FileLabelRegistryRepository
+
+            registry = LabelRegistryService(slot=slot, registry_repo=FileLabelRegistryRepository())
+            reg_data = registry.get_current()
+            return {l["label_id"]: l["label_name"] for l in reg_data.get("labels", [])}
+        except Exception:
+            return {}
+
+    def _build_review_quality_metrics(
+        self,
+        slot: str,
+        label_names: Dict[Any, str],
+        *,
+        batch_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """按槽位或指定预测批次汇总人工真值与模型预测的分类指标。"""
+        sessions_dir = _BACKEND_SERVICE_DIR / "data" / "iterative_labeling" / "review_results" / slot
+        if not sessions_dir.exists():
+            return None
+
+        correct = 0
+        total_counted = 0
+        per_class_tp: Dict[int, int] = defaultdict(int)
+        per_class_fp: Dict[int, int] = defaultdict(int)
+        per_class_fn: Dict[int, int] = defaultdict(int)
+        confusion_counts: Dict[Tuple[int, int], int] = defaultdict(int)
+        class_ids: Set[int] = set()
+
+        for sess_file in sessions_dir.glob("*.json"):
+            try:
+                session = json.loads(sess_file.read_text(encoding="utf-8"))
+                if batch_id and str(session.get("prediction_batch_id") or "") != batch_id:
+                    continue
+                for unit in session.get("units", []):
+                    verdict = unit.get("current_verdict")
+                    if not verdict or verdict.get("action_type") == "skip":
+                        continue
+                    true_label = verdict.get("verdict_label")
+                    prediction = unit.get("classifier_prediction") or {}
+                    predicted_label = prediction.get("predicted_label")
+                    if true_label is None or predicted_label is None:
+                        continue
+                    try:
+                        true_id = int(true_label)
+                        predicted_id = int(predicted_label)
+                    except (TypeError, ValueError):
+                        continue
+                    total_counted += 1
+                    class_ids.update((true_id, predicted_id))
+                    confusion_counts[(true_id, predicted_id)] += 1
+                    if true_id == predicted_id:
+                        correct += 1
+                        per_class_tp[true_id] += 1
+                    else:
+                        per_class_fn[true_id] += 1
+                        per_class_fp[predicted_id] += 1
+            except Exception:
+                continue
+
+        if total_counted <= 0:
+            return None
+
+        ordered_labels = sorted(class_ids | set(per_class_tp) | set(per_class_fp) | set(per_class_fn))
+        per_class_metrics = []
+        for class_id in ordered_labels:
+            tp = per_class_tp.get(class_id, 0)
+            fp = per_class_fp.get(class_id, 0)
+            fn = per_class_fn.get(class_id, 0)
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+            f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
+            per_class_metrics.append(
+                {
+                    "label": str(class_id),
+                    "label_name": (
+                        label_names.get(class_id)
+                        or label_names.get(str(class_id))
+                        or f"label_{class_id}"
+                    ),
+                    "precision": round(precision, 4),
+                    "recall": round(recall, 4),
+                    "f1": round(f1, 4),
+                    "support": tp + fn,
+                }
+            )
+
+        macro_precision = sum(item["precision"] for item in per_class_metrics) / len(per_class_metrics)
+        macro_recall = sum(item["recall"] for item in per_class_metrics) / len(per_class_metrics)
+        macro_f1 = sum(item["f1"] for item in per_class_metrics) / len(per_class_metrics)
+        return {
+            "accuracy": round(correct / total_counted, 4),
+            "macro_precision": round(macro_precision, 4),
+            "macro_recall": round(macro_recall, 4),
+            "macro_f1": round(macro_f1, 4),
+            "counted_units": total_counted,
+            "per_class_metrics": per_class_metrics,
+            "confusion_matrix": {
+                "labels": ordered_labels,
+                "label_names": [item["label_name"] for item in per_class_metrics],
+                "matrix": [
+                    [int(confusion_counts.get((true_id, predicted_id), 0)) for predicted_id in ordered_labels]
+                    for true_id in ordered_labels
+                ],
+            },
+        }
+
     def list_prediction_batches(self, slot: str = "pv_fault") -> List[Dict[str, Any]]:
         batch_dir = _BACKEND_SERVICE_DIR / "data" / "iterative_labeling" / "prediction_batches" / slot
         if not batch_dir.exists():
             return []
+
+        label_names = self._load_label_names(slot)
         batches = []
         for f in sorted(batch_dir.glob("*.json"), reverse=True):
             try:
                 data = json.loads(f.read_text(encoding="utf-8"))
-                batches.append({
-                    "batch_id": f.stem,
-                    "model_ref": data.get("model_ref"),
-                    "prediction_count": len(data.get("predictions", [])),
-                    "created_at": data.get("created_at"),
-                })
+                batches.append(
+                    self._summarize_prediction_payload(
+                        data,
+                        batch_id=f.stem,
+                        label_names=label_names,
+                        sample_limit=0,
+                    )
+                )
             except Exception:
                 pass
         return batches
@@ -405,7 +578,35 @@ class PVTrainingWorkspaceService:
         )
         if not batch_path.exists():
             return None
-        return json.loads(batch_path.read_text(encoding="utf-8"))
+        data = json.loads(batch_path.read_text(encoding="utf-8"))
+        label_names = self._load_label_names(slot)
+        summary = self._summarize_prediction_payload(
+            data,
+            batch_id=batch_id,
+            label_names=label_names,
+            sample_limit=50,
+        )
+        quality_metrics = self._build_review_quality_metrics(
+            slot,
+            label_names,
+            batch_id=batch_id,
+        )
+        prediction_count = int(summary.get("prediction_count") or 0)
+        counted_units = int((quality_metrics or {}).get("counted_units") or 0)
+        return {
+            **data,
+            **summary,
+            "predictions": data.get("predictions") or [],
+            "quality_metrics": quality_metrics,
+            "ground_truth_summary": {
+                "has_ground_truth": counted_units > 0,
+                "counted_units": counted_units,
+                "pending_ground_truth_units": max(0, prediction_count - counted_units),
+                "coverage_rate": (
+                    round(counted_units / prediction_count, 4) if prediction_count > 0 else None
+                ),
+            },
+        }
 
     # ------------------------------------------------------------------
     # 槽位运营总览
@@ -419,6 +620,10 @@ class PVTrainingWorkspaceService:
             "latest_prediction_batch": None,
             "prediction_batch_id": None,
             "prediction_summary": {"total_batches": 0, "total_predictions": 0},
+            "prediction_batches": [],
+            "latest_prediction_detail": None,
+            "batch_label_distribution": {},
+            "batch_confidence_distribution": {},
             "label_distribution": {},
             "confidence_distribution": {},
             "review_progress": {"total_sessions": 0, "reviewed_sessions": 0, "total_units": 0, "reviewed_units": 0},
@@ -426,31 +631,65 @@ class PVTrainingWorkspaceService:
             "updated_at": datetime.utcnow().isoformat(),
         }
 
-        # 预测批次
+        # 预测批次（含时间窗与分布摘要）
         batches = self.list_prediction_batches(slot)
         overview["prediction_summary"]["total_batches"] = len(batches)
+        overview["prediction_batches"] = batches[:20]
         if batches:
-            latest = batches[0]
-            overview["latest_prediction_batch"] = latest
-            overview["prediction_batch_id"] = latest["batch_id"]
+            latest_meta = batches[0]
+            overview["latest_prediction_batch"] = latest_meta
+            overview["prediction_batch_id"] = latest_meta["batch_id"]
             overview["prediction_summary"]["total_predictions"] = sum(
-                b.get("prediction_count", 0) for b in batches
+                int(b.get("prediction_count") or 0) for b in batches
             )
+            # 最新批次明细（含样本），便于精度运营核对“预测是否成功写出”
+            latest_detail = self.get_prediction_batch(str(latest_meta["batch_id"]), slot)
+            if latest_detail is not None:
+                overview["latest_prediction_detail"] = {
+                    key: latest_detail.get(key)
+                    for key in (
+                        "batch_id",
+                        "model_ref",
+                        "model_path",
+                        "dataset_version",
+                        "prediction_count",
+                        "created_at",
+                        "time_window_min",
+                        "time_window_max",
+                        "label_distribution",
+                        "confidence_distribution",
+                        "sample_predictions",
+                        "quality_metrics",
+                        "ground_truth_summary",
+                    )
+                }
+                # 预测侧分布优先展示最新批次（审核侧分布仍可从会话聚合）
+                overview["batch_label_distribution"] = latest_detail.get("label_distribution") or {}
+                overview["batch_confidence_distribution"] = latest_detail.get("confidence_distribution") or {}
 
-        # 累计训练状态 → 模型
+        # 累计训练状态 → 模型 + StoryRail 所需摘要
         from services.iterative_labeling.cumulative_training import CumulativeTrainingService
 
         ct = CumulativeTrainingService(slot=slot)
         ct_state = ct.get_state()
         overview["model_ref"] = ct_state.get("latest_completed_model_ref")
+        latest_snapshot = ct_state.get("latest_snapshot") or {}
+        latest_retrain = ct_state.get("latest_retrain_request") or {}
+        overview["cumulative_training"] = {
+            "effective_labeled_unit_count": ct_state.get("effective_labeled_unit_count", 0),
+            "labeled_import_count": ct_state.get("labeled_import_count", 0),
+            "pending_change_count": ct_state.get("pending_change_count", 0),
+            "retrain_label_threshold": ct_state.get("retrain_label_threshold", 20),
+            "next_retrain_in": ct_state.get("next_retrain_in", 0),
+            "retrain_blocker": ct_state.get("retrain_blocker"),
+            "latest_snapshot_id": latest_snapshot.get("snapshot_id") or latest_snapshot.get("id"),
+            "latest_retrain_status": latest_retrain.get("status"),
+            "latest_retrain_request_id": latest_retrain.get("request_id"),
+            "latest_completed_model_ref": ct_state.get("latest_completed_model_ref"),
+        }
 
         # 标签注册表
-        from services.iterative_labeling.label_registry import LabelRegistryService
-        from services.iterative_labeling.storage.file_backend import FileLabelRegistryRepository
-
-        registry = LabelRegistryService(slot=slot, registry_repo=FileLabelRegistryRepository())
-        reg_data = registry.get_current()
-        label_names = {l["label_id"]: l["label_name"] for l in reg_data.get("labels", [])}
+        label_names = self._load_label_names(slot)
 
         # 审核会话
         sessions_dir = _BACKEND_SERVICE_DIR / "data" / "iterative_labeling" / "review_results" / slot
@@ -516,6 +755,8 @@ class PVTrainingWorkspaceService:
             per_class_tp: Dict[int, int] = defaultdict(int)
             per_class_fp: Dict[int, int] = defaultdict(int)
             per_class_fn: Dict[int, int] = defaultdict(int)
+            confusion_counts: Dict[Tuple[int, int], int] = defaultdict(int)
+            class_ids: Set[int] = set()
 
             for sess_file in (sessions_dir.glob("*.json") if sessions_dir.exists() else []):
                 try:
@@ -529,22 +770,31 @@ class PVTrainingWorkspaceService:
                         pred_label = cp.get("predicted_label")
                         if true_label is None or pred_label is None:
                             continue
+                        try:
+                            true_id = int(true_label)
+                            pred_id = int(pred_label)
+                        except (TypeError, ValueError):
+                            continue
                         total_counted += 1
-                        if true_label == pred_label:
+                        class_ids.add(true_id)
+                        class_ids.add(pred_id)
+                        confusion_counts[(true_id, pred_id)] += 1
+                        if true_id == pred_id:
                             correct += 1
-                            per_class_tp[true_label] += 1
+                            per_class_tp[true_id] += 1
                         else:
-                            per_class_fn[true_label] += 1
-                            per_class_fp[pred_label] += 1
+                            per_class_fn[true_id] += 1
+                            per_class_fp[pred_id] += 1
                 except Exception:
                     pass
 
             if total_counted > 0:
                 accuracy = correct / total_counted
-                all_classes = set(per_class_tp) | set(per_class_fp) | set(per_class_fn)
+                all_classes = set(per_class_tp) | set(per_class_fp) | set(per_class_fn) | class_ids
+                ordered_labels = sorted(all_classes)
                 precisions = []
                 recalls = []
-                for cls in all_classes:
+                for cls in ordered_labels:
                     tp = per_class_tp.get(cls, 0)
                     fp = per_class_fp.get(cls, 0)
                     fn = per_class_fn.get(cls, 0)
@@ -556,13 +806,39 @@ class PVTrainingWorkspaceService:
                 macro_r = sum(recalls) / len(recalls) if recalls else 0.0
                 macro_f1 = (2 * macro_p * macro_r / (macro_p + macro_r)) if (macro_p + macro_r) > 0 else 0.0
 
+                matrix = [
+                    [int(confusion_counts.get((true_id, pred_id), 0)) for pred_id in ordered_labels]
+                    for true_id in ordered_labels
+                ]
                 overview["quality_metrics"] = {
                     "accuracy": round(accuracy, 4),
                     "macro_precision": round(macro_p, 4),
                     "macro_recall": round(macro_r, 4),
                     "macro_f1": round(macro_f1, 4),
                     "counted_units": total_counted,
+                    "confusion_matrix": {
+                        "labels": ordered_labels,
+                        "label_names": [
+                            label_names.get(lbl) or label_names.get(str(lbl)) or f"label_{lbl}"
+                            for lbl in ordered_labels
+                        ],
+                        "matrix": matrix,
+                    },
                 }
+
+        # 统一由结构化汇总器覆盖，补充各类别 Precision / Recall / F1，并保持批次详情同口径。
+        overview["quality_metrics"] = self._build_review_quality_metrics(slot, label_names)
+        review_coverage_rate = (
+            round(reviewed_units / total_units, 4) if total_units > 0 else None
+        )
+        overview["review_progress"]["review_coverage_rate"] = review_coverage_rate
+        counted_units = int((overview["quality_metrics"] or {}).get("counted_units") or 0)
+        overview["ground_truth_summary"] = {
+            "has_ground_truth": counted_units > 0,
+            "counted_units": counted_units,
+            "pending_review_units": max(0, total_units - reviewed_units),
+            "review_coverage_rate": review_coverage_rate,
+        }
 
         # 部署槽位
         try:

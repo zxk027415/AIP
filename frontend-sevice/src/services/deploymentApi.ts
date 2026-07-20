@@ -587,6 +587,14 @@ export const schedulerTaskApi = {
   /** 读取 pv_mock_data_feed 已写入 training_samples 的数据摘要和样本。 */
   getPvMockFeedDataEvidence: (sampleLimit = 50): Promise<PvMockFeedDataEvidenceResponse> =>
     api.get('/scheduler/tasks/pv_mock_data_feed/data-evidence', { params: { sample_limit: sampleLimit } }),
+
+  /** 读取光伏预测游标与最近一次跳过/成功原因。 */
+  getPvPredictionCursorStatus: (): Promise<PvPredictionCursorStatusResponse> =>
+    api.get('/scheduler/tasks/pv_prediction/cursor-status'),
+
+  /** 手动重置光伏预测进度。 */
+  resetPvPredictionCursor: (): Promise<{ task_id: string; status: string; message: string; cursor: Record<string, unknown> }> =>
+    api.post('/scheduler/tasks/pv_prediction/reset-cursor', {}),
   // @AI_GENERATED: end
 };
 
@@ -675,6 +683,7 @@ export interface PvMockFeedPreview {
   next_device_count: number;
   requires_advance_confirmation: boolean;
   exhausted: boolean;
+  source_fingerprint?: PvSourceFingerprint | null;
 }
 
 /** PvMockFeedResult — 一次已执行的光伏 mock 喂数据回执。 */
@@ -723,5 +732,39 @@ export interface PvMockFeedDataEvidenceResponse {
   task_id: string;
   evidence: PvMockFeedDataEvidence;
   feed_preview: PvMockFeedPreview;
+}
+
+/** PvSourceFingerprint — mock 数据源指纹。 */
+export interface PvSourceFingerprint {
+  source_path?: string;
+  date_min?: string;
+  date_max?: string;
+  row_count?: number;
+  fingerprint?: string;
+  error?: string;
+}
+
+/** PvPredictionCursorStatusResponse — 预测游标与最近运行状态。 */
+export interface PvPredictionCursorStatusResponse {
+  task_id: string;
+  cursor: {
+    last_predicted_time?: string | null;
+    batch_id?: string | null;
+    updated_at?: string | null;
+    source_fingerprint?: PvSourceFingerprint | null;
+    reset_reason?: string | null;
+  };
+  current_source_fingerprint: PvSourceFingerprint | null;
+  fingerprint_aligned: boolean;
+  fingerprint_error?: string | null;
+  last_run: {
+    status?: string;
+    reason?: string;
+    message?: string;
+    batch_id?: string;
+    review_id?: string;
+    cursor_reset?: boolean;
+    updated_at?: string;
+  };
 }
 // @AI_GENERATED: end

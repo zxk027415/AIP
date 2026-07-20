@@ -1,240 +1,100 @@
 // @AI_GENERATED
 /**
- * MonitoringPanel.tsx — 精度监控面板
+ * MonitoringPanel.tsx — 精度监控面板。
  *
- * 只读展示当前 slot 下所有模型形态（生产/影子/预上线）的精度监控指标：
- * version_tag、model_form、rolling_mape、rolling_mae、valid_cycle_count、status。
- * 数据来源：GET /accuracy-operations/monitoring/snapshot（经 accuracyOperationsStore.fetchMonitoringSnapshot）。
- *
- * 相关 spec：.kiro/specs/accuracy-operations/
- *   - Requirements 10.5（精度监控展示，只读）
- *   - Task 13.4
+ * 展示 production/shadow/prelaunch 的版本级 MAPE、WMAPE、真值覆盖率和有效周期数；
+ * WMAPE 是退化告警优先比较的指标，缺失时后端才回退 MAPE。
  */
-
 import React, { useEffect } from 'react';
-import { Card, Table, Tag, Spin, Alert, Button, Empty, Badge } from 'antd';
+import { Alert, Badge, Button, Card, Empty, Spin, Table, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { ReloadOutlined } from '@ant-design/icons';
 import { useAccuracyOperationsStore } from '../../stores/accuracyOperationsStore';
 import type { MonitoringMetrics } from '../../types/accuracy-operations';
 
-// ===========================================================================
-// Props
-// ===========================================================================
-
 interface MonitoringPanelProps {
-  /** slot — 当前操作槽位名称（如 "default"） */
+  /** slot — 当前精度运营分区槽位。 */
   slot: string;
 }
 
-// ===========================================================================
-// 内部类型：带形态标注的 MonitoringMetrics 行
-// ===========================================================================
-
 interface MetricsRow extends MonitoringMetrics {
-  /** model_form — 展示用形态标签 */
+  /** model_form — 展示用模型形态。 */
   model_form: 'production' | 'shadow' | 'prelaunch';
-  /** _rowKey — 表格 rowKey */
+  /** _rowKey — 同一 workflow 多版本时仍保持唯一。 */
   _rowKey: string;
 }
 
-// ===========================================================================
-// 工具函数
-// ===========================================================================
-
-/** getFormBadge — 形态 → Badge 颜色 + 中文标签 */
 function getFormBadge(form: MetricsRow['model_form']): React.ReactNode {
   const map: Record<MetricsRow['model_form'], { color: string; text: string }> = {
     production: { color: 'green', text: '生产' },
     shadow: { color: 'blue', text: '影子' },
     prelaunch: { color: 'orange', text: '预上线' },
   };
-  const cfg = map[form];
-  return <Badge color={cfg.color} text={cfg.text} />;
+  return <Badge color={map[form].color} text={map[form].text} />;
 }
 
-/** formatMetric — 格式化数值型监控指标，null 时显示 "-" */
-function formatMetric(val: number | null, decimals = 4): string {
-  if (val === null || val === undefined) return '-';
-  return val.toFixed(decimals);
+function formatMetric(value: number | null | undefined, decimals = 4): string {
+  return value === null || value === undefined ? '—' : value.toFixed(decimals);
 }
 
-// ===========================================================================
-// 表格列定义
-// ===========================================================================
+function formatRate(value: number | null | undefined): string {
+  return value === null || value === undefined ? '—' : `${(value * 100).toFixed(1)}%`;
+}
 
 const columns: ColumnsType<MetricsRow> = [
+  { title: '版本', dataIndex: 'version_tag', render: (value: string) => <code>{value}</code> },
+  { title: '形态', dataIndex: 'model_form', width: 80, render: getFormBadge },
+  { title: '滚动 MAPE', dataIndex: 'rolling_mape', align: 'right' as const, render: (value: number | null) => formatMetric(value) },
   {
-    title: '版本',
-    dataIndex: 'version_tag',
-    key: 'version_tag',
-    render: (v: string) => <code>{v}</code>,
-  },
-  {
-    title: '形态',
-    dataIndex: 'model_form',
-    key: 'model_form',
-    render: (form: MetricsRow['model_form']) => getFormBadge(form),
-  },
-  {
-    title: '滚动 MAPE',
-    dataIndex: 'rolling_mape',
-    key: 'rolling_mape',
+    title: '滚动 WMAPE',
+    dataIndex: 'rolling_wmape',
     align: 'right' as const,
-    render: (v: number | null) => formatMetric(v),
+    render: (value: number | null | undefined) => formatMetric(value),
   },
+  { title: '滚动 MAE', dataIndex: 'rolling_mae', align: 'right' as const, render: (value: number | null) => formatMetric(value) },
+  { title: '有效周期', dataIndex: 'valid_cycle_count', align: 'right' as const, render: (value: number | null) => value ?? '—' },
   {
-    title: '滚动 MAE',
-    dataIndex: 'rolling_mae',
-    key: 'rolling_mae',
+    title: '真值覆盖率',
+    dataIndex: 'coverage_rate',
     align: 'right' as const,
-    render: (v: number | null) => formatMetric(v),
-  },
-  {
-    title: '有效周期数',
-    dataIndex: 'valid_cycle_count',
-    key: 'valid_cycle_count',
-    align: 'right' as const,
-    render: (v: number | null) => (v === null ? '-' : v),
+    render: (value: number | null | undefined) => formatRate(value),
   },
   {
     title: '状态',
     dataIndex: 'status',
-    key: 'status',
-    render: (v: string | null) => {
-      if (!v) return '-';
-      const colorMap: Record<string, string> = {
-        active: 'green',
-        degraded: 'red',
-        warning: 'orange',
-        unknown: 'default',
-      };
-      return <Tag color={colorMap[v] ?? 'default'}>{v}</Tag>;
+    width: 100,
+    render: (value: string | null) => {
+      if (!value) return '—';
+      const color: Record<string, string> = { active: 'green', insufficient_data: 'default', degraded: 'red', warning: 'orange' };
+      return <Tag color={color[value] ?? 'default'}>{value}</Tag>;
     },
   },
 ];
 
-// ===========================================================================
-// 组件
-// ===========================================================================
-
-/**
- * MonitoringPanel — 精度监控面板组件
- *
- * 按 生产模型 / 影子模型 / 预上线模型 三节展示监控快照。
- * 纯只读，无 RCA / 恢复操作按钮。
- */
 const MonitoringPanel: React.FC<MonitoringPanelProps> = ({ slot }) => {
-  const { monitoringSnapshot, loading, error, fetchMonitoringSnapshot } =
-    useAccuracyOperationsStore();
+  const { monitoringSnapshot, loading, error, fetchMonitoringSnapshot } = useAccuracyOperationsStore();
 
-  // 挂载或 slot 变更时拉取快照
-  useEffect(() => {
-    fetchMonitoringSnapshot(slot);
-  }, [slot, fetchMonitoringSnapshot]);
+  useEffect(() => { void fetchMonitoringSnapshot(slot); }, [slot, fetchMonitoringSnapshot]);
 
-  // ---------- 加载态 ----------
-  if (loading.snapshot) {
-    return (
-      <Card title="精度监控" aria-label="精度监控面板">
-        <div style={{ textAlign: 'center', padding: '32px 0' }}>
-          <Spin tip="加载中..." />
-        </div>
-      </Card>
-    );
-  }
+  if (loading.snapshot) return <Card title="精度监控"><div style={{ textAlign: 'center', padding: '32px 0' }}><Spin tip="加载中…" /></div></Card>;
+  if (error.snapshot) return <Card title="精度监控"><Alert type="error" message="加载失败" description={error.snapshot} action={<Button size="small" icon={<ReloadOutlined />} onClick={() => void fetchMonitoringSnapshot(slot)}>重试</Button>} /></Card>;
+  if (!monitoringSnapshot) return <Card title="精度监控"><Empty description="暂无监控快照" /></Card>;
 
-  // ---------- 错误态 ----------
-  if (error.snapshot) {
-    return (
-      <Card title="精度监控" aria-label="精度监控面板">
-        <Alert
-          type="error"
-          message="加载失败"
-          description={error.snapshot}
-          action={
-            <Button
-              size="small"
-              icon={<ReloadOutlined />}
-              onClick={() => fetchMonitoringSnapshot(slot)}
-            >
-              重试
-            </Button>
-          }
-        />
-      </Card>
-    );
-  }
+  const productionRows: MetricsRow[] = monitoringSnapshot.production ? [{ ...monitoringSnapshot.production, model_form: 'production', _rowKey: `production:${monitoringSnapshot.production.workflow_id}:${monitoringSnapshot.production.version_tag}` }] : [];
+  const shadowRows: MetricsRow[] = monitoringSnapshot.shadows.map((metrics) => ({ ...metrics, model_form: 'shadow', _rowKey: `shadow:${metrics.workflow_id}:${metrics.version_tag}` }));
+  const prelaunchRows: MetricsRow[] = monitoringSnapshot.prelaunches.map((metrics) => ({ ...metrics, model_form: 'prelaunch', _rowKey: `prelaunch:${metrics.workflow_id}:${metrics.version_tag}` }));
 
-  // ---------- 空态 ----------
-  if (!monitoringSnapshot) {
-    return (
-      <Card title="精度监控" aria-label="精度监控面板">
-        <Empty description="暂无数据" />
-      </Card>
-    );
-  }
+  const renderSection = (title: string, rows: MetricsRow[]) => rows.length ? (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ fontWeight: 600, fontSize: 13, color: '#666', marginBottom: 8 }}>{title}</div>
+      <Table<MetricsRow> rowKey="_rowKey" columns={columns} dataSource={rows} pagination={false} size="small" scroll={{ x: 820 }} />
+    </div>
+  ) : null;
 
-  // ---------- 构建各节表格数据 ----------
-  const productionRows: MetricsRow[] = monitoringSnapshot.production
-    ? [{ ...monitoringSnapshot.production, model_form: 'production', _rowKey: 'production-0' }]
-    : [];
-
-  const shadowRows: MetricsRow[] = monitoringSnapshot.shadows.map((m, i) => ({
-    ...m,
-    model_form: 'shadow',
-    _rowKey: `shadow-${i}`,
-  }));
-
-  const prelaunchRows: MetricsRow[] = monitoringSnapshot.prelaunches.map((m, i) => ({
-    ...m,
-    model_form: 'prelaunch',
-    _rowKey: `prelaunch-${i}`,
-  }));
-
-  const hasAnyData =
-    productionRows.length > 0 || shadowRows.length > 0 || prelaunchRows.length > 0;
-
-  if (!hasAnyData) {
-    return (
-      <Card title="精度监控" aria-label="精度监控面板">
-        <Empty description="暂无数据" />
-      </Card>
-    );
-  }
-
-  // ---------- Section 渲染工具 ----------
-  const renderSection = (title: string, rows: MetricsRow[]) => {
-    if (rows.length === 0) return null;
-    return (
-      <div style={{ marginBottom: '20px' }}>
-        <div
-          style={{
-            fontWeight: 600,
-            fontSize: '13px',
-            color: '#666',
-            marginBottom: '8px',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-          }}
-        >
-          {title}
-        </div>
-        <Table<MetricsRow>
-          rowKey="_rowKey"
-          columns={columns}
-          dataSource={rows}
-          pagination={false}
-          size="small"
-          bordered={false}
-          aria-label={`${title}监控数据表`}
-        />
-      </div>
-    );
-  };
+  if (!productionRows.length && !shadowRows.length && !prelaunchRows.length) return <Card title="精度监控"><Empty description="该槽位尚无已部署模型的指标" /></Card>;
 
   return (
-    <Card title="精度监控" aria-label="精度监控面板">
+    <Card title="精度监控" extra={<Button size="small" icon={<ReloadOutlined />} onClick={() => void fetchMonitoringSnapshot(slot)}>刷新</Button>}>
       {renderSection('生产模型', productionRows)}
       {renderSection('影子模型', shadowRows)}
       {renderSection('预上线模型', prelaunchRows)}

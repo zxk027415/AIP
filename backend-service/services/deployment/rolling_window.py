@@ -1,60 +1,19 @@
 # @AI_GENERATED
-"""
-services/deployment/rolling_window — 滚动训练窗口计算器
-
-职责（Responsibilities）：
-  - 根据每日触发日期 T，从可用历史数据中挑选训练窗口
-  - 强制 Gap-One-Day 约束：训练数据截止 T-1，绝不使用 T 日或更新日期数据
-  - 支持窗口截断（`max_window_days`）：仅保留最近 M 天数据，超出部分从最早端截断
-  - 计算预测目标日期 = T + 1 日
-
-用法（Usage）：
-  被 `SchedulerEngine`（调度引擎）每日调用一次，输入为触发日期、最大窗口天数
-  和当前可用的历史数据日期集合，输出一个纯值对象 `TrainingWindow`，描述本次
-  训练应使用的日期范围与实际入选的日期列表。
-
-设计要点（Design notes）：
-  - 纯函数、无 I/O、无副作用，便于属性测试（Property Test）
-  - 只依赖标准库（datetime、dataclasses、typing）
-  - 输入可以是 `datetime.date`，也可以是 `datetime.datetime`（会规范化为 date）
-  - 输入无序、含重复均可容忍，内部会去重并升序排序
-  - 对应 design.md 中 Correctness Property 1 与 requirements 4.2/4.3/4.4/4.7
-
-术语对照（Terminology）：
-  - `trigger_date` — 触发日期（记为 T），一般为当日日期
-  - `max_window_days` — 最大窗口天数 M；None 表示不限制
-  - `available_data` — 可用的历史数据日期集合（每条数据的日期，通常是数据落库日）
-  - `training_end` — 训练窗口结束日期（含），受 Gap-One-Day 约束 ≤ T-1
-  - `training_start` — 训练窗口起始日期（含）
-  - `predict_target` — 预测目标日期，恒等于 T+1（即便没有训练数据）
-"""
-
+"""Pure strict-Gap-1 history contracts for deployed load-forecast workflows."""
 from __future__ import annotations
 
+import json
+import math
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
-from typing import Iterable, List, Optional, Union
+from typing import Any, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
 DateLike = Union[date, datetime]
 
 
 @dataclass(frozen=True)
 class TrainingWindow:
-    """训练窗口计算结果 — 不可变值对象
-
-    字段说明（Fields）：
-      trigger_date         — 触发日期 T（保留用于审计与日志）
-      training_start       — 训练窗口起始日期（含）；无可用数据时为 None
-      training_end         — 训练窗口结束日期（含）；无可用数据时为 None
-                             恒 ≤ trigger_date - 1（Gap-One-Day 约束）
-      predict_target       — 预测目标日期 = trigger_date + 1 日（总是有值）
-      window_days          — 实际窗口天数 = training_end - training_start + 1
-                             无可用数据时为 0（注意：≠ max_window_days）
-      truncated            — 是否因 max_window_days 触发了从最早端的截断
-                             为 True 表示原始数据中存在早于窗口起点的日期被丢弃
-      included_dates       — 实际入选参与训练的日期（去重、升序）
-                             严格满足 date ≤ trigger_date - 1
-    """
+    """A Gap-1 training window derived from a business day T."""
 
     trigger_date: date
     training_start: Optional[date]
@@ -65,20 +24,239 @@ class TrainingWindow:
     included_dates: List[date] = field(default_factory=list)
 
 
-def _to_date(value: DateLike) -> date:
-    """将 `date` 或 `datetime` 规范化为 `date`
+@dataclass(frozen=True)
+class WorkflowHistoryRequirement:
+    """History requirements inferred from one immutable workflow definition."""
 
-    说明：`datetime` 是 `date` 的子类，`isinstance(dt, date)` 会为 True。
-    这里显式判断 `datetime` 并取其 `.date()`，避免把带时分秒的对象直接塞进
-    日期集合造成排序 / 去重语义混乱。
-    """
+    training_days: int
+    feature_warmup_days: int
+    points_per_day: int
+
+    @property
+    def required_history_days(self) -> int:
+        """Number of complete days required before the business day T."""
+        return self.training_days + self.feature_warmup_days
+
+
+@dataclass(frozen=True)
+class HistoryReadiness:
+    """Whether all pre-T warmup and training days are complete and continuous."""
+
+    trigger_date: date
+    warmup_start: date
+    training_start: date
+    training_end: date
+    required_history_days: int
+    expected_points_per_day: int
+    missing_dates: Tuple[date, ...]
+    incomplete_days: Tuple[Tuple[date, int], ...]
+
+    @property
+    def ready(self) -> bool:
+        return not self.missing_dates and not self.incomplete_days
+
+    def reason(self) -> str:
+        """Return a scheduler-safe, non-sensitive explanation for a skipped run."""
+        if self.ready:
+            return "history_ready"
+        parts = [
+            "history_not_ready",
+            f"required_range={self.warmup_start.isoformat()}~{self.training_end.isoformat()}",
+            f"required_days={self.required_history_days}",
+            f"expected_points_per_day={self.expected_points_per_day}",
+        ]
+        if self.missing_dates:
+            parts.append(
+                "missing_dates=" + ",".join(day.isoformat() for day in self.missing_dates)
+            )
+        if self.incomplete_days:
+            parts.append(
+                "incomplete_days="
+                + ",".join(f"{day.isoformat()}:{count}" for day, count in self.incomplete_days)
+            )
+        return " ".join(parts)
+
+
+def _to_date(value: DateLike) -> date:
+    """Normalize a date-like value without allowing a datetime to leak into sets."""
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, date):
         return value
     raise TypeError(
-        f"available_data 中的元素必须是 datetime.date 或 datetime.datetime，"
-        f"实际收到：{type(value).__name__}"
+        "available_data elements must be datetime.date or datetime.datetime; "
+        f"received {type(value).__name__}"
+    )
+
+
+def _positive_int(value: Any, default: int) -> int:
+    """Read a positive integer from workflow JSON while retaining a safe default."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _numeric_list(value: Any) -> list[float]:
+    """Accept JSON lists or JSON-encoded lists used by older workflow exports."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return []
+
+    values: list[float] = []
+    for item in value:
+        try:
+            number = float(item)
+        except (TypeError, ValueError):
+            continue
+        if number > 0:
+            values.append(number)
+    return values
+
+
+def _to_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def derive_workflow_history_requirement(
+    workflow: Mapping[str, Any],
+    *,
+    default_training_days: int = 30,
+    default_points_per_day: int = 96,
+) -> WorkflowHistoryRequirement:
+    """Infer training and feature-lookback needs from a deployed workflow JSON.
+
+    The result is deliberately conservative. It understands the platform's
+    time-series feature operators and takes their maximum required lookback;
+    unknown nodes never reduce the inferred requirement.
+    """
+    metadata = workflow.get("metadata") or {}
+    global_config = metadata.get("global_config") or workflow.get("global_config") or {}
+    training_days = _positive_int(
+        global_config.get("backtest_train_days"), default_training_days
+    )
+    points_per_day = _positive_int(
+        global_config.get("backtest_daily_horizon"), default_points_per_day
+    )
+    max_lookback_points = 0
+
+    for raw_node in workflow.get("nodes") or []:
+        config = ((raw_node.get("data") or {}).get("config") or {})
+        function_id = config.get("functionId")
+        node_points_per_day = _positive_int(
+            config.get("horizon_per_day"), points_per_day
+        )
+
+        if function_id == "create_lag_features":
+            lag_steps = _numeric_list(config.get("lags"))
+            lag_days = _numeric_list(config.get("lag_days"))
+            max_lookback_points = max(
+                max_lookback_points,
+                int(max(lag_steps, default=0)),
+                math.ceil(max(lag_days, default=0) * node_points_per_day),
+            )
+        elif function_id == "rolling_statistics":
+            window_sizes = _numeric_list(config.get("window_sizes"))
+            base_shift = _positive_int(config.get("base_shift"), 0)
+            max_lookback_points = max(
+                max_lookback_points,
+                base_shift + math.ceil(max(window_sizes, default=0)),
+            )
+        elif function_id == "sliding_window":
+            max_lookback_points = max(
+                max_lookback_points,
+                _positive_int(config.get("window_size"), 0),
+            )
+        elif function_id == "extract_statistical_features":
+            group_shift = _positive_int(config.get("group_shift"), 0)
+            max_lookback_points = max(
+                max_lookback_points,
+                group_shift * node_points_per_day,
+            )
+        elif function_id == "diff_features":
+            diff_periods = _numeric_list(config.get("diff_periods"))
+            seasonal_period = _positive_int(config.get("seasonal_period"), 0)
+            no_leak_mode = _to_bool(config.get("no_leak_mode"))
+            if no_leak_mode:
+                no_leak_points = max(
+                    1 + math.ceil(max(diff_periods, default=0)),
+                    1 + 2 * node_points_per_day,
+                )
+                max_lookback_points = max(max_lookback_points, no_leak_points)
+            else:
+                max_lookback_points = max(
+                    max_lookback_points,
+                    math.ceil(max(max(diff_periods, default=0), seasonal_period)),
+                )
+
+    return WorkflowHistoryRequirement(
+        training_days=training_days,
+        feature_warmup_days=math.ceil(max_lookback_points / points_per_day),
+        points_per_day=points_per_day,
+    )
+
+
+def assess_history_readiness(
+    trigger_date: DateLike,
+    requirement: WorkflowHistoryRequirement,
+    timestamps: Iterable[datetime],
+) -> HistoryReadiness:
+    """Require all warmup and training days before T to be continuous and complete.
+
+    A complete day has exactly the configured 15-minute slots. The business day
+    itself is intentionally excluded: strict Gap 1 must never use T-day truth.
+    """
+    trigger_d = _to_date(trigger_date)
+    training_end = trigger_d - timedelta(days=1)
+    training_start = trigger_d - timedelta(days=requirement.training_days)
+    warmup_start = training_start - timedelta(days=requirement.feature_warmup_days)
+    expected_minutes = {
+        slot * (24 * 60 // requirement.points_per_day)
+        for slot in range(requirement.points_per_day)
+    }
+    observed_slots: dict[date, set[int]] = {}
+
+    for timestamp in timestamps:
+        if not isinstance(timestamp, datetime):
+            continue
+        current_date = timestamp.date()
+        if current_date < warmup_start or current_date > training_end:
+            continue
+        minute_of_day = timestamp.hour * 60 + timestamp.minute
+        if timestamp.second == 0 and timestamp.microsecond == 0:
+            observed_slots.setdefault(current_date, set()).add(minute_of_day)
+        else:
+            observed_slots.setdefault(current_date, set())
+
+    missing_dates: list[date] = []
+    incomplete_days: list[tuple[date, int]] = []
+    current_date = warmup_start
+    while current_date <= training_end:
+        slots = observed_slots.get(current_date)
+        if not slots:
+            missing_dates.append(current_date)
+        elif slots != expected_minutes:
+            incomplete_days.append((current_date, len(slots)))
+        current_date += timedelta(days=1)
+
+    return HistoryReadiness(
+        trigger_date=trigger_d,
+        warmup_start=warmup_start,
+        training_start=training_start,
+        training_end=training_end,
+        required_history_days=requirement.required_history_days,
+        expected_points_per_day=requirement.points_per_day,
+        missing_dates=tuple(missing_dates),
+        incomplete_days=tuple(incomplete_days),
     )
 
 
@@ -87,52 +265,21 @@ def compute_training_window(
     max_window_days: Optional[int],
     available_data: Iterable[DateLike],
 ) -> TrainingWindow:
-    """根据触发日期与可用数据计算训练窗口
+    """Build a Gap-1 window; readiness is checked separately from truncation."""
+    trigger_d = _to_date(trigger_date)
+    predict_target = trigger_d + timedelta(days=1)
 
-    参数（Parameters）：
-      trigger_date       — 触发日期 T（`date` 或 `datetime`）
-      max_window_days    — 最大窗口天数 M；`None` 表示不做长度截断；
-                           必须为 `None` 或正整数（> 0），否则抛 ValueError
-      available_data     — 可用历史数据的日期集合（可迭代，允许重复 / 乱序）
-
-    返回（Returns）：
-      TrainingWindow — 见类文档
-
-    语义（Semantics，对应 Correctness Property 1）：
-      (a) training_end ≤ T-1（Gap-One-Day，绝不使用 T 日或未来数据）
-      (b) 训练集包含 available_data 中所有 date ≤ T-1 的记录
-      (c) 若可用数据跨度超过 M 天，只保留最近 M 天，即窗口起点 = T-1-M+1
-      (d) predict_target = T+1
-      (e) 新数据到达后无需重配，下一次调用自动纳入
-      (f) 结果中不会出现 date ≥ T 的任何记录（Gap 强制执行）
-    """
-    trigger_d: date = _to_date(trigger_date)
-
-    # (d) 预测目标 = T + 1（无论训练窗口是否为空，预测目标恒有值）
-    predict_target: date = trigger_d + timedelta(days=1)
-
-    # 校验 max_window_days：允许 None 或正整数
     if max_window_days is not None:
         if not isinstance(max_window_days, int) or isinstance(max_window_days, bool):
             raise TypeError(
-                f"max_window_days 必须是 int 或 None，实际收到：{type(max_window_days).__name__}"
+                "max_window_days must be an int or None; "
+                f"received {type(max_window_days).__name__}"
             )
         if max_window_days <= 0:
-            raise ValueError(
-                f"max_window_days 必须为正整数或 None，实际收到：{max_window_days}"
-            )
+            raise ValueError(f"max_window_days must be positive; received {max_window_days}")
 
-    # Gap-One-Day 边界：训练允许的最晚日期
-    gap_cutoff: date = trigger_d - timedelta(days=1)
-
-    # (a)(b)(f) 过滤：只保留 date ≤ T-1 的记录；顺便去重
-    filtered: set[date] = set()
-    for raw in available_data:
-        d = _to_date(raw)
-        if d <= gap_cutoff:
-            filtered.add(d)
-
-    # 无可用训练数据 → 返回空窗口
+    gap_cutoff = trigger_d - timedelta(days=1)
+    filtered = {_to_date(raw) for raw in available_data if _to_date(raw) <= gap_cutoff}
     if not filtered:
         return TrainingWindow(
             trigger_date=trigger_d,
@@ -145,45 +292,31 @@ def compute_training_window(
         )
 
     sorted_dates: List[date] = sorted(filtered)
-    earliest: date = sorted_dates[0]
-
-    # (c) 窗口长度截断：若指定 M，则起点 = max(earliest, T-1-M+1)
     truncated = False
     if max_window_days is not None:
-        # 窗口最早允许的日期：T-1 减去 (M-1) 天
-        window_floor: date = gap_cutoff - timedelta(days=max_window_days - 1)
-        if earliest < window_floor:
+        window_floor = gap_cutoff - timedelta(days=max_window_days - 1)
+        if sorted_dates[0] < window_floor:
             truncated = True
-            sorted_dates = [d for d in sorted_dates if d >= window_floor]
-            # 过滤后可能变空（数据都比 max_window_days 窗口还老）
-            if not sorted_dates:
-                return TrainingWindow(
-                    trigger_date=trigger_d,
-                    training_start=None,
-                    training_end=None,
-                    predict_target=predict_target,
-                    window_days=0,
-                    truncated=True,
-                    included_dates=[],
-                )
+            sorted_dates = [value for value in sorted_dates if value >= window_floor]
 
-    training_start: date = sorted_dates[0]
-    training_end: date = sorted_dates[-1]
-    window_days: int = (training_end - training_start).days + 1
+    if not sorted_dates:
+        return TrainingWindow(
+            trigger_date=trigger_d,
+            training_start=None,
+            training_end=None,
+            predict_target=predict_target,
+            window_days=0,
+            truncated=truncated,
+            included_dates=[],
+        )
 
     return TrainingWindow(
         trigger_date=trigger_d,
-        training_start=training_start,
-        training_end=training_end,
+        training_start=sorted_dates[0],
+        training_end=sorted_dates[-1],
         predict_target=predict_target,
-        window_days=window_days,
+        window_days=(sorted_dates[-1] - sorted_dates[0]).days + 1,
         truncated=truncated,
         included_dates=sorted_dates,
     )
-
-
-__all__ = [
-    "TrainingWindow",
-    "compute_training_window",
-]
 # @AI_GENERATED: end

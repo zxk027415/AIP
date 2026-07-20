@@ -128,6 +128,17 @@ export const accuracyOperationsApi = {
     }),
 
   /**
+   * getRecoveryDecision — 获取一条已持久化的恢复决策。
+   *
+   * 用途：页面刷新或重新选择告警后，按 `recovery_decision_id`（恢复决策 ID）恢复
+   * 通道 A / observe（观察）状态；这是只读请求，不会再次触发仲裁。
+   */
+  getRecoveryDecision: (decisionId: string, slot: string): Promise<RecoveryDecision> =>
+    api.get(`/accuracy-operations/recovery/decisions/${encodeURIComponent(decisionId)}`, {
+      params: { slot },
+    }),
+
+  /**
    * getMonitoringSnapshot — 获取精度监控快照
    *
    * 用途：MonitoringPanel 展示所有形态（生产/影子/预上线）当前 MAPE/MAE，只读。

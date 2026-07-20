@@ -2,7 +2,7 @@
 """
 services/scheduler/tasks/workflow_predictor.py — 工作流预测执行器
 
-封装"给定 workflow_id + 输入数据 → 跑完整 pipeline → 返回预测值"的逻辑。
+封装“给定 workflow_id + 输入数据 → 跑完整 pipeline → 返回预测值”的逻辑。
 供 prediction_task 调用，用于生产模型和影子模型的在线定时预测。
 
 复用现有 _execute_pipeline_sync 引擎和 operator_backends 算子。
@@ -13,7 +13,6 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime
 from typing import Any, Dict, Optional
 
 import pandas as pd
@@ -33,6 +32,7 @@ if _BACKEND_DIR not in sys.path:
 def load_workflow_json(workflow_id: str) -> Optional[Dict[str, Any]]:
     """Load a workflow JSON by ID from data/workflows_enhanced/."""
     import json
+
     path = os.path.join(_WORKFLOWS_DIR, f"{workflow_id}.json")
     if not os.path.exists(path):
         logger.warning("workflow_predictor: workflow file not found: %s", path)
@@ -41,249 +41,259 @@ def load_workflow_json(workflow_id: str) -> Optional[Dict[str, Any]]:
         return json.load(f)
 
 
+# @AI_GENERATED: strict-gap-online-workflow-execution
+_ONLINE_SCORE_FUNCTION_IDS = frozenset({"smape_score", "mse_rmse_mae", "mape_score", "accuracy_score"})
+
+
 def run_prediction(
     workflow_id: str,
     input_data: pd.DataFrame,
     slot: str = "default",
     operator_param_overrides: Optional[Dict[str, Any]] = None,
+    online_mode: bool = False,
 ) -> Dict[str, Any]:
-    """
-    Execute a workflow pipeline for online prediction.
+    """Execute one workflow and return its prediction values.
 
-    Args:
-        workflow_id:              The workflow template ID to load and execute.
-        input_data:               DataFrame with station data to feed into the pipeline
-                                  (injected as the output of the first load_csv node).
-        slot:                     Slot identifier for context.
-        operator_param_overrides: 按 functionId 覆盖节点参数，例如：
-                                  {"train_test_split_ts": {"mode": "all_train"}}
-                                  匹配 functionId 的节点其 params 会被 merge（override 优先）。
-                                  用于生产 cron 强制 mode="all_train" 不切测试集。
-
-    Returns:
-        {
-            "success": bool,
-            "predicted_value": float | None,
-            "execution_time": float,
-            "error": str | None,
-            "node_count": int,
-        }
+    ``online_mode`` preserves the same algorithm graph used by AutoResearch,
+    while changing only the execution contract: the caller supplies a causally
+    constructed forecast horizon, ``train_test_split_ts`` separates it from
+    historical labels, and score-only leaves are skipped because truth is not
+    available until the later accuracy-backfill task.
     """
-    from services.operator_execution import (
-        OperatorRouter,
-        GlobalConfigInjector,
-    )
+    from services.operator_execution import GlobalConfigInjector, OperatorRouter
 
     start_time = time.time()
-
-    # 1. Load workflow
     wf_data = load_workflow_json(workflow_id)
     if wf_data is None:
-        return {
-            "success": False,
-            "predicted_value": None,
-            "execution_time": time.time() - start_time,
-            "error": f"Workflow not found: {workflow_id}",
-            "node_count": 0,
-        }
+        return _failure_result(start_time, f"Workflow not found: {workflow_id}", 0)
 
     nodes_raw = wf_data.get("nodes", [])
     edges_raw = wf_data.get("edges", [])
     metadata = wf_data.get("metadata") or {}
-    global_config = metadata.get("global_config", {})
+    global_config = dict(metadata.get("global_config") or {})
+    if online_mode:
+        global_config.update({"operate_status": "online", "run_mode": "online"})
 
     if not nodes_raw:
-        return {
-            "success": False,
-            "predicted_value": None,
-            "execution_time": time.time() - start_time,
-            "error": "Workflow has no nodes",
-            "node_count": 0,
-        }
+        return _failure_result(start_time, "Workflow has no nodes", 0)
 
-    # 2. Initialize execution framework
     config_injector = GlobalConfigInjector(global_config)
     op_router = OperatorRouter()
     op_router.auto_discover(_OPERATOR_BACKENDS_DIR)
 
-    # 3. Topological sort
     try:
         execution_order = _topological_sort(nodes_raw, edges_raw)
-    except ValueError as e:
-        return {
-            "success": False,
-            "predicted_value": None,
-            "execution_time": time.time() - start_time,
-            "error": f"Topology error: {e}",
-            "node_count": len(nodes_raw),
-        }
+    except ValueError as exc:
+        return _failure_result(start_time, f"Topology error: {exc}", len(nodes_raw))
 
-    # 4. Execute nodes in order
+    nodes_by_id = {node.get("id"): node for node in nodes_raw if node.get("id")}
     node_outputs: Dict[str, Any] = {}
-    last_output = None
 
     for node_id in execution_order:
-        node = next((n for n in nodes_raw if n.get("id") == node_id), None)
+        node = nodes_by_id.get(node_id)
         if not node:
             continue
 
-        data_block = node.get("data", {})
-        config = data_block.get("config", {})
+        config = (node.get("data") or {}).get("config") or {}
         function_id = config.get("functionId")
+        inputs = _collect_upstream(node_id, edges_raw, node_outputs)
 
-        # Skip disabled nodes
         if not config.get("enabled", True):
-            # Pass through upstream data
-            inputs = _collect_upstream(node_id, edges_raw, node_outputs)
-            passthrough = next(iter(inputs.values())) if len(inputs) == 1 else inputs
-            node_outputs[node_id] = passthrough
+            node_outputs[node_id] = _passthrough(inputs)
             continue
-
         if not function_id:
             continue
 
-        # Collect upstream inputs
-        inputs = _collect_upstream(node_id, edges_raw, node_outputs)
+        # The online prediction contract delegates accuracy to later truth
+        # backfill. These terminal score nodes require y_true and must never
+        # consume synthetic future labels.
+        if online_mode and function_id in _ONLINE_SCORE_FUNCTION_IDS:
+            node_outputs[node_id] = {"status": "skipped_online_score"}
+            continue
 
-        # For the first data-loading node (load_csv), inject our input_data
         if function_id == "load_csv" and input_data is not None and not input_data.empty:
             node_outputs[node_id] = input_data
             continue
 
-        # Build params
-        params = {k: v for k, v in config.items() if k not in ("functionId", "operation", "chartType", "enabled")}
+        params = {
+            key: value
+            for key, value in config.items()
+            if key not in ("functionId", "operation", "chartType", "enabled")
+        }
         params = config_injector.inject(params)
-        # @AI_GENERATED: 合并 operator_param_overrides（生产 cron 传 mode="all_train" 等）
         if operator_param_overrides and function_id in operator_param_overrides:
             params.update(operator_param_overrides[function_id])
-        # @AI_GENERATED: end
-        params["_log_fn"] = lambda msg, t="info": None  # suppress logs in batch
+        params["_log_fn"] = lambda _message, _type="info": None
         params["_cancel_event"] = None
 
-        # Determine input to pass
-        if isinstance(inputs, dict) and len(inputs) == 1:
-            execute_input = next(iter(inputs.values()))
-        elif isinstance(inputs, dict) and len(inputs) > 1:
-            execute_input = inputs
-        else:
-            execute_input = None
-
         try:
-            result = op_router.execute(function_id, execute_input, params)
-            node_outputs[node_id] = result
-            last_output = result
-        except Exception as exc:
+            # Keep the same params/inputs ordering and edge-port flattening as
+            # api.workflows_enhanced._execute_pipeline_sync.
+            node_outputs[node_id] = op_router.execute(function_id, params, inputs)
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "workflow_predictor: node %s (%s) failed: %s",
-                node_id, function_id, exc,
+                node_id,
+                function_id,
+                exc,
             )
-            return {
-                "success": False,
-                "predicted_value": None,
-                "execution_time": time.time() - start_time,
-                "error": f"Node {function_id} failed: {exc}",
-                "node_count": len(nodes_raw),
-            }
+            return _failure_result(
+                start_time,
+                f"Node {function_id} failed: {exc}",
+                len(nodes_raw),
+            )
 
-    # 5. Extract predicted value from last output
-    predicted_value = _extract_prediction(last_output)
+    prediction_values: list[float] = []
+    for node_id in reversed(execution_order):
+        values = _extract_prediction_values(node_outputs.get(node_id))
+        if values:
+            prediction_values = values
+            break
+
+    if not prediction_values:
+        return _failure_result(
+            start_time,
+            "Could not extract prediction values from pipeline output",
+            len(nodes_raw),
+        )
 
     return {
-        "success": predicted_value is not None,
-        "predicted_value": predicted_value,
+        "success": True,
+        "predicted_value": prediction_values[0],
+        "predicted_values": prediction_values,
         "execution_time": time.time() - start_time,
-        "error": None if predicted_value is not None else "Could not extract prediction from pipeline output",
+        "error": None,
         "node_count": len(nodes_raw),
     }
 
 
-def _extract_prediction(output: Any) -> Optional[float]:
-    """
-    Extract a single predicted value from pipeline output.
+def _failure_result(start_time: float, error: str, node_count: int) -> Dict[str, Any]:
+    """Build one stable failure result for the scheduler task boundary."""
+    return {
+        "success": False,
+        "predicted_value": None,
+        "predicted_values": [],
+        "execution_time": time.time() - start_time,
+        "error": error,
+        "node_count": node_count,
+    }
 
-    Supports:
-    - dict with 'prediction' or 'predicted_value' or 'y_pred' key
-    - DataFrame with a prediction column → last row value
-    - scalar number
-    """
+
+def _extract_prediction_values(output: Any) -> list[float]:
+    """Extract a finite ordered forecast sequence from a node output."""
     if output is None:
-        return None
+        return []
 
-    if isinstance(output, (int, float)):
-        return float(output)
-
+    value = output
     if isinstance(output, dict):
-        for key in ("prediction", "predicted_value", "y_pred", "forecast", "predicted"):
+        for key in (
+            "forecast_values",
+            "y_pred",
+            "predictions",
+            "prediction",
+            "predicted_value",
+            "forecast",
+            "predicted",
+        ):
             if key in output:
-                val = output[key]
-                if isinstance(val, (int, float)):
-                    return float(val)
-                if isinstance(val, pd.Series):
-                    return float(val.iloc[-1]) if len(val) > 0 else None
-                if isinstance(val, pd.DataFrame):
-                    return float(val.iloc[-1, 0]) if len(val) > 0 else None
-        # Try 'metrics' sub-dict
-        if "metrics" in output and isinstance(output["metrics"], dict):
-            for key in ("mape", "rmse"):
-                if key in output["metrics"]:
-                    pass  # metrics are not predictions
-        return None
+                value = output[key]
+                break
+        else:
+            return []
 
-    if isinstance(output, pd.DataFrame):
-        # Look for prediction-like columns
-        for col in ("prediction", "predicted_value", "y_pred", "forecast"):
-            if col in output.columns:
-                return float(output[col].iloc[-1]) if len(output) > 0 else None
-        # Fallback: last column, last row
-        if len(output) > 0 and len(output.columns) > 0:
-            return float(output.iloc[-1, -1])
-        return None
+    if isinstance(value, pd.DataFrame):
+        for column in ("prediction", "predicted_value", "y_pred", "forecast"):
+            if column in value.columns:
+                value = value[column]
+                break
+        else:
+            return []
 
-    if isinstance(output, pd.Series):
-        return float(output.iloc[-1]) if len(output) > 0 else None
+    if isinstance(value, pd.Series):
+        raw_values = value.tolist()
+    elif hasattr(value, "tolist"):
+        raw_values = value.tolist()
+    elif isinstance(value, (list, tuple)):
+        raw_values = list(value)
+    else:
+        raw_values = [value]
 
-    return None
+    if not isinstance(raw_values, list):
+        raw_values = [raw_values]
+
+    numeric = pd.to_numeric(pd.Series(raw_values), errors="coerce")
+    return [float(item) for item in numeric if pd.notna(item)]
+
+
+def _passthrough(inputs: Dict[str, Any]) -> Any:
+    """Retain the existing disabled-node pass-through behavior."""
+    if len(inputs) == 1:
+        return next(iter(inputs.values()))
+    return inputs
 
 
 def _topological_sort(nodes: list, edges: list) -> list:
     """Simple topological sort of node IDs based on edges."""
     from collections import deque
 
-    node_ids = [n.get("id") for n in nodes if n.get("id")]
-    in_degree = {nid: 0 for nid in node_ids}
-    adj = {nid: [] for nid in node_ids}
+    node_ids = [node.get("id") for node in nodes if node.get("id")]
+    in_degree = {node_id: 0 for node_id in node_ids}
+    adjacency = {node_id: [] for node_id in node_ids}
 
     for edge in edges:
-        src = edge.get("source")
-        tgt = edge.get("target")
-        if src in adj and tgt in in_degree:
-            adj[src].append(tgt)
-            in_degree[tgt] += 1
+        source = edge.get("source")
+        target = edge.get("target")
+        if source in adjacency and target in in_degree:
+            adjacency[source].append(target)
+            in_degree[target] += 1
 
-    queue = deque([nid for nid, deg in in_degree.items() if deg == 0])
-    order = []
-
+    queue = deque([node_id for node_id, degree in in_degree.items() if degree == 0])
+    order: list[str] = []
     while queue:
-        nid = queue.popleft()
-        order.append(nid)
-        for neighbor in adj.get(nid, []):
+        node_id = queue.popleft()
+        order.append(node_id)
+        for neighbor in adjacency.get(node_id, []):
             in_degree[neighbor] -= 1
             if in_degree[neighbor] == 0:
                 queue.append(neighbor)
 
     if len(order) != len(node_ids):
         raise ValueError("Workflow graph has cycles")
-
     return order
 
 
-def _collect_upstream(node_id: str, edges: list, node_outputs: dict) -> dict:
-    """Collect outputs from upstream nodes connected to this node."""
-    inputs = {}
-    for edge in edges:
-        if edge.get("target") == node_id:
-            src = edge.get("source")
-            if src in node_outputs:
-                src_handle = edge.get("sourceHandle") or src
-                inputs[src_handle] = node_outputs[src]
+def _collect_upstream(node_id: str, edges: list, node_outputs: Dict[str, Any]) -> Dict[str, Any]:
+    """Flatten upstream outputs using the platform's existing port convention."""
+    incoming = [edge for edge in edges if edge.get("target") == node_id]
+    key_counts: Dict[str, int] = {}
+    for edge in incoming:
+        source_output = node_outputs.get(edge.get("source"))
+        if source_output is None:
+            continue
+        if isinstance(source_output, dict):
+            for key in source_output:
+                key_counts[key] = key_counts.get(key, 0) + 1
+        else:
+            key_counts["data"] = key_counts.get("data", 0) + 1
+
+    inputs: Dict[str, Any] = {}
+    for edge in incoming:
+        source_output = node_outputs.get(edge.get("source"))
+        if source_output is None:
+            continue
+
+        target_handle = edge.get("targetHandle") or ""
+        alias = target_handle if target_handle and "-" not in target_handle else None
+        if isinstance(source_output, dict):
+            for key, value in source_output.items():
+                destination = alias if key_counts.get(key, 0) > 1 and alias else key
+                if destination not in inputs:
+                    inputs[destination] = value
+        else:
+            destination = alias or (
+                target_handle.split("-")[-1] if "-" in target_handle else "data"
+            )
+            if destination not in inputs:
+                inputs[destination] = source_output
     return inputs
+# @AI_GENERATED: end

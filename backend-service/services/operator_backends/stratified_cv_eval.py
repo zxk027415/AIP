@@ -314,11 +314,28 @@ def execute(params: dict, inputs: dict) -> dict:
     agg_pred = np.array(all_y_pred)
     cm = sk_confusion_matrix(agg_true, agg_pred, labels=labels_sorted)
     report = classification_report(agg_true, agg_pred, labels=labels_sorted, zero_division=0)
+    report_dict = classification_report(
+        agg_true,
+        agg_pred,
+        labels=labels_sorted,
+        zero_division=0,
+        output_dict=True,
+    )
 
     per_class_recall_mean = {
         str(lbl): (round(float(np.mean(v)), 4) if v else None)
         for lbl, v in per_class_recall_runs.items()
     }
+    per_class_metrics = [
+        {
+            "label": str(lbl),
+            "precision": round(float(report_dict.get(str(lbl), {}).get("precision", 0.0)), 4),
+            "recall": round(float(report_dict.get(str(lbl), {}).get("recall", 0.0)), 4),
+            "f1": round(float(report_dict.get(str(lbl), {}).get("f1-score", 0.0)), 4),
+            "support": int(report_dict.get(str(lbl), {}).get("support", 0)),
+        }
+        for lbl in labels_sorted
+    ]
 
     result = {
         "n_repeats": len(f1_list),
@@ -336,6 +353,7 @@ def execute(params: dict, inputs: dict) -> dict:
         "macro_f1_std": _std(f1_list),
         "per_repeat_macro_f1": [round(x, 4) for x in f1_list],
         "per_class_recall_mean": per_class_recall_mean,
+        "per_class_metrics": per_class_metrics,
         "confusion_matrix": {
             "labels": [str(x) for x in labels_sorted],
             "data": cm.tolist(),
@@ -354,7 +372,8 @@ def execute(params: dict, inputs: dict) -> dict:
     # ── 评估完成后，用全量数据训练最终模型并保存 ─────────────────────────────
     save_final = str(params.get("save_final_model", "true")).lower() not in ("false", "0", "no")
     if save_final:
-        import os, time as _time, uuid, pickle
+        import os, uuid, pickle
+        from datetime import datetime, timezone
 
         # 全量 mRMR
         try:
@@ -373,7 +392,8 @@ def execute(params: dict, inputs: dict) -> dict:
         # 保存到磁盘
         models_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'models')
         os.makedirs(models_dir, exist_ok=True)
-        model_id = f"pv_fault_rfc_{int(_time.time())}_{uuid.uuid4().hex[:6]}"
+        trained_at = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        model_id = f"pv_fault_rfc_{trained_at}_{uuid.uuid4().hex[:6]}"
         model_path = os.path.join(models_dir, f"{model_id}.pkl")
         with open(model_path, "wb") as f:
             pickle.dump({"model": final_clf, "feature_list": final_feat_list}, f)
@@ -382,13 +402,7 @@ def execute(params: dict, inputs: dict) -> dict:
         import json as _json
         metrics_path = os.path.join(models_dir, f"{model_id}_metrics.json")
         with open(metrics_path, "w", encoding="utf-8") as f:
-            _json.dump({
-                "accuracy_mean": result["accuracy_mean"],
-                "macro_f1_mean": result["macro_f1_mean"],
-                "n_samples": result["n_samples"],
-                "n_classes": result["n_classes"],
-                "class_distribution": result["class_distribution"],
-            }, f, ensure_ascii=False, indent=2)
+            _json.dump(result, f, ensure_ascii=False, indent=2)
 
         result["model_id"] = model_id
         result["model_path"] = os.path.relpath(model_path, start=os.path.join(os.path.dirname(__file__), '..', '..'))

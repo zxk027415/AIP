@@ -292,6 +292,18 @@ class AddLabelResponse(BaseModel):
     label_id: int = Field(..., description="标签编码 — 新分配的唯一ID")
     label_space_version: str = Field(..., description="标签空间版本 — 扩充后的新版本号")
 
+
+class ReconcileLabelItem(BaseModel):
+    """按训练数据中的既有编码补登记业务名称。"""
+    label_id: int = Field(..., ge=0, description="训练快照中已存在的标签编码")
+    label_name: str = Field(..., min_length=1, description="人工确认的业务名称")
+
+
+class ReconcileLabelsRequest(BaseModel):
+    """批量补齐快照标签到注册表。"""
+    labels: List[ReconcileLabelItem] = Field(..., min_length=1)
+
+
 class GetLabelVersionsResponse(BaseModel):
     """读取历史版本快照响应"""
     history: List[Dict[str, Any]] = Field(..., description="历史版本快照 — 含label_space_version/label_ids/snapshot_at")
@@ -330,6 +342,15 @@ class CreateReviewSessionFromPredictionRequest(BaseModel):
     loop_id: Optional[str] = Field(None, description="所属迭代闭环 — 可选,编辑器驱动可不传")
     reviewer: Optional[str] = Field("operator", description="审核人标识")
     slot: str = Field("default", description="槽位 — 审核、标签和累计训练集的隔离分区")
+
+
+class CreateManualReviewFromDatasetRequest(BaseModel):
+    """从无标签数据集创建逐单元人工标注会话。"""
+    dataset_path: str = Field(..., description="相对项目根目录的数据集路径")
+    slot: str = Field("pv_fault", description="审核槽位")
+    reviewer: str = Field("operator", description="审核人")
+    max_units: int = Field(500, ge=1, le=5000, description="单次人工标注单元上限")
+
 
 class BackfillToDatasetRequest(BaseModel):
     """从审核会话回流产出原始时序数据集"""
@@ -589,7 +610,7 @@ async def list_review_sessions(slot: str = "default"):
         sessions_dir = Path(data_root) / 'review_results' / resolved_slot
         sessions = []
         if sessions_dir.exists():
-            for f in sorted(sessions_dir.glob('*.json'), reverse=True):
+            for f in sessions_dir.glob('*.json'):
                 try:
                     d = json.loads(f.read_text(encoding='utf-8'))
                     sessions.append({
@@ -599,9 +620,13 @@ async def list_review_sessions(slot: str = "default"):
                         'total_count': d.get('total_count', 0),
                         'loop_id': d.get('loop_id', ''),
                         'prediction_batch_id': d.get('prediction_batch_id', ''),
+                        '_updated_timestamp': f.stat().st_mtime,
                     })
                 except Exception:
                     pass
+        sessions.sort(key=lambda item: item.get('_updated_timestamp', 0), reverse=True)
+        for session in sessions:
+            session.pop('_updated_timestamp', None)
         return {'sessions': sessions}
     except Exception as e:
         logger.error(f"Failed to list review sessions: {e}", exc_info=True)
@@ -816,6 +841,93 @@ async def create_review_session_from_prediction(request: CreateReviewSessionFrom
         raise HTTPException(status_code=500, detail=f"从预测结果创建审核会话失败: {str(e)}")
 
 
+@router.post("/review-sessions/from-dataset", response_model=CreateReviewSessionResponse)
+async def create_manual_review_from_dataset(request: CreateManualReviewFromDatasetRequest):
+    """把上传的无标签 CSV/Parquet 按设备×日期聚合为人工标注会话。"""
+    try:
+        import pandas as pd
+
+        slot = _normalize_slot(request.slot)
+        if _os.path.isabs(request.dataset_path):
+            raise HTTPException(status_code=422, detail="dataset_path 必须使用相对项目根目录路径")
+        resolved = _resolve_data_path(request.dataset_path)
+        if not _os.path.exists(resolved):
+            raise HTTPException(status_code=404, detail=f"数据集不存在: {request.dataset_path}")
+        extension = _os.path.splitext(resolved)[1].lower()
+        frame = pd.read_parquet(resolved) if extension == ".parquet" else pd.read_csv(resolved)
+        if frame.empty:
+            raise HTTPException(status_code=422, detail="数据集为空，无法创建人工标注会话")
+        if "device_id" not in frame.columns:
+            raise HTTPException(status_code=422, detail="手工标注数据集缺少 device_id 列")
+
+        if "time_window" in frame.columns:
+            time_windows = frame["time_window"].astype(str)
+        elif "time" in frame.columns:
+            time_windows = pd.to_datetime(frame["time"], errors="coerce").dt.strftime("%Y-%m-%d")
+        else:
+            raise HTTPException(status_code=422, detail="手工标注数据集缺少 time 或 time_window 列")
+
+        working = frame.copy()
+        working["_manual_time_window"] = time_windows
+        working = working[working["_manual_time_window"].notna()]
+        unit_fields = [
+            field
+            for field in ("site_id", "device_id", "branch_id", "_manual_time_window")
+            if field in working.columns
+        ]
+        units_frame = working.drop_duplicates(subset=unit_fields).head(request.max_units)
+        prediction_units = []
+        for _, row in units_frame.iterrows():
+            site = row.get("site_id")
+            device = row.get("device_id")
+            branch = row.get("branch_id")
+            time_window = row.get("_manual_time_window")
+            raw_label = row.get("label")
+            try:
+                predicted_label = int(raw_label) if pd.notna(raw_label) else None
+            except (TypeError, ValueError):
+                predicted_label = None
+            prediction_units.append(
+                {
+                    "unit_key": (
+                        f"{_norm_id_str(site)}|{_norm_id_str(device)}|"
+                        f"{_norm_id_str(branch)}|{time_window}"
+                    ),
+                    "site_id": site,
+                    "device_id": device,
+                    "branch_id": branch,
+                    "time_window": time_window,
+                    "predicted_label": predicted_label,
+                    "confidence": 1.0 if predicted_label is not None else 0.0,
+                }
+            )
+        if not prediction_units:
+            raise HTTPException(status_code=422, detail="未生成可标注的设备×日期单元")
+
+        session = _review_service_for_slot(slot).create_session(
+            loop_id=f"manual-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            prediction_batch_id=f"manual-dataset-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            prediction_units=prediction_units,
+            llm_suggestions={},
+            prediction_context={
+                "source_csv_path": request.dataset_path,
+                "manual_labeling": True,
+                "reviewer": request.reviewer,
+                "window_config": {"time_field": "time", "window": "1D"},
+            },
+        )
+        _accuracy_evaluators[_accuracy_key(slot, session["review_id"])] = AccuracyEvaluator()
+        return CreateReviewSessionResponse(
+            review_id=session["review_id"],
+            total_count=session["total_count"],
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("create_manual_review_from_dataset failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建人工标注会话失败: {exc}")
+
+
 # @AI_GENERATED: end
 
 # @AI_GENERATED: 回流数据集按 slot 隔离，并保持 API 返回相对路径
@@ -893,7 +1005,7 @@ _reference_waveform_cache: Dict[str, Dict[int, Dict[str, Any]]] = {}
 
 # @AI_GENERATED: 参考波形标签名按 slot 解析，缓存键包含 slot
 @router.get("/reference-waveforms")
-async def get_reference_waveforms(
+def get_reference_waveforms(
     train_csv_path: str,
     label_csv_path: Optional[str] = None,
     slot: str = "default",
@@ -1296,7 +1408,9 @@ async def register_cumulative_training_import(
 
 @router.post("/cumulative-training/retrain-requests/{request_id}/run")
 async def run_cumulative_retrain_request(request_id: str, slot: str = "default"):
-    """使用请求绑定的不可变累计快照执行训练；训练完成不自动发布模型。"""
+    """使用不可变累计快照训练；成功后原子切换为该槽位生产模型。"""
+    import asyncio
+
     resolved_slot = _normalize_slot(slot)
     service = _cumulative_training_for_slot(resolved_slot)
     try:
@@ -1307,26 +1421,71 @@ async def run_cumulative_retrain_request(request_id: str, slot: str = "default")
                 detail=f"重训请求当前状态为 {retrain_request.get('status')}，仅 queued 状态可执行",
             )
         service.mark_retrain_request(request_id, "running")
-        orchestrator = _orchestrator_for_slot(resolved_slot)
-        loop = orchestrator.create_loop(base_dataset_version=retrain_request["dataset_path"])
+        service.update_retrain_progress(
+            request_id,
+            stage="preparing_snapshot",
+            percent=10,
+            message="正在校验不可变训练快照",
+        )
         try:
-            train_result = orchestrator.trigger_train_eval(
+            orchestrator = _orchestrator_for_slot(resolved_slot)
+            loop = orchestrator.create_loop(base_dataset_version=retrain_request["dataset_path"])
+            service.update_retrain_progress(
+                request_id,
+                stage="training_and_evaluation",
+                percent=25,
+                message="正在训练模型并执行分层交叉验证",
+            )
+            train_result = await asyncio.to_thread(
+                orchestrator.trigger_train_eval,
                 loop_id=loop["loop_id"],
                 dataset_version=retrain_request["dataset_path"],
+            )
+            service.update_retrain_progress(
+                request_id,
+                stage="registering_model",
+                percent=82,
+                message="训练评估完成，正在登记模型版本",
+            )
+            if resolved_slot == "pv_fault":
+                if _pv_repo_instance is None:
+                    raise RuntimeError("PVFaultRepository 未注入，模型版本无法登记，生产模型未切换")
+                label_space = train_result.get("label_space_snapshot") or {}
+                _pv_repo_instance.save_model_version(
+                    {
+                        "id": train_result["model_ref"],
+                        "version_tag": train_result["model_ref"],
+                        "training_sample_count": retrain_request.get("sample_count"),
+                        "label_space_version": label_space.get("label_space_version"),
+                        "artifact_path": train_result.get("model_path"),
+                    }
+                )
+            service.update_retrain_progress(
+                request_id,
+                stage="promoting_model",
+                percent=94,
+                message="正在原子切换生产模型",
+            )
+            completed = service.mark_retrain_request(
+                request_id,
+                "completed",
+                model_ref=train_result["model_ref"],
+                train_summary={
+                    "model_ref": train_result.get("model_ref"),
+                    "model_path": train_result.get("model_path"),
+                    "accuracy_record": train_result.get("accuracy_record"),
+                    "label_space_snapshot": train_result.get("label_space_snapshot"),
+                },
             )
         except Exception as training_error:
             service.mark_retrain_request(request_id, "failed", error=str(training_error))
             raise
-        completed = service.mark_retrain_request(
-            request_id,
-            "completed",
-            model_ref=train_result["model_ref"],
-        )
         return {
             "request": completed,
             "loop_id": loop["loop_id"],
             "train_result": train_result,
-            "publication": "not_published",
+            "publication": "auto_promoted",
+            "production_model_ref": completed.get("model_ref"),
         }
     except HTTPException:
         raise
@@ -1381,6 +1540,28 @@ async def add_label(request: AddLabelRequest, slot: str = "default"):
         logger.error(f"Failed to add label: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"新增标签失败: {str(e)}")
 # @AI_GENERATED: end
+
+
+@router.post("/label-registry/reconcile", response_model=GetLabelRegistryResponse)
+async def reconcile_label_registry(request: ReconcileLabelsRequest, slot: str = "default"):
+    """保留训练快照中的原始 label_id，补齐业务名称并生成注册表新版本。"""
+    try:
+        labels_by_id: Dict[int, str] = {}
+        for item in request.labels:
+            if item.label_id in labels_by_id:
+                raise ValueError(f"标签 ID {item.label_id} 重复提交")
+            labels_by_id[item.label_id] = item.label_name
+        registry = _registry_for_slot(_normalize_slot(slot)).reconcile_labels(labels_by_id)
+        return GetLabelRegistryResponse(
+            label_space_version=registry["label_space_version"],
+            labels=registry["labels"],
+            label_map=registry["label_map"],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.error("Failed to reconcile label registry: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"标签注册表对账失败: {exc}")
 
 
 @router.get("/label-registry/versions", response_model=GetLabelVersionsResponse)
@@ -1438,6 +1619,7 @@ class CreateClusteringRunRequest(BaseModel):
     time_start: Optional[str] = Field(None, description="起始时间 ISO")
     time_end: Optional[str] = Field(None, description="结束时间 ISO")
     reviewer: str = Field("operator", description="操作者")
+    dataset_path: Optional[str] = Field(None, description="可选：相对项目根目录的数据集路径")
 
 
 class UpdateClusterRequest(BaseModel):
@@ -1505,22 +1687,34 @@ async def get_training_candidates(
 
 @router.post("/clustering/runs")
 async def create_clustering_run(request: CreateClusteringRunRequest):
-    """从数据库候选样本创建聚类 run，供人工命名和二次确认。"""
-    if _pv_repo_instance is None:
-        raise HTTPException(status_code=503, detail="PV 数据源未连接")
+    """从上传数据集或数据库候选样本创建聚类 run。"""
     try:
-        from datetime import datetime as _dt
-        ts = _dt.fromisoformat(request.time_start) if request.time_start else None
-        te = _dt.fromisoformat(request.time_end) if request.time_end else None
-        result = _pv_repo_instance.query_training_sample_page(
-            page=1,
-            page_size=request.page_size,
-            label_status=request.label_status if request.label_status != "all" else None,
-            site_id=request.site_id,
-            time_start=ts,
-            time_end=te,
-        )
-        samples = result.get("items", [])
+        if request.dataset_path:
+            import pandas as pd
+
+            if _os.path.isabs(request.dataset_path):
+                raise HTTPException(status_code=422, detail="dataset_path 必须使用相对项目根目录路径")
+            resolved = _resolve_data_path(request.dataset_path)
+            if not _os.path.exists(resolved):
+                raise HTTPException(status_code=404, detail=f"数据集不存在: {request.dataset_path}")
+            extension = _os.path.splitext(resolved)[1].lower()
+            frame = pd.read_parquet(resolved) if extension == ".parquet" else pd.read_csv(resolved)
+            samples = frame.head(request.page_size).where(frame.notna(), None).to_dict(orient="records")
+        else:
+            if _pv_repo_instance is None:
+                raise HTTPException(status_code=503, detail="PV 数据源未连接")
+            from datetime import datetime as _dt
+            ts = _dt.fromisoformat(request.time_start) if request.time_start else None
+            te = _dt.fromisoformat(request.time_end) if request.time_end else None
+            result = _pv_repo_instance.query_training_sample_page(
+                page=1,
+                page_size=request.page_size,
+                label_status=request.label_status if request.label_status != "all" else None,
+                site_id=request.site_id,
+                time_start=ts,
+                time_end=te,
+            )
+            samples = result.get("items", [])
         if not samples:
             raise HTTPException(status_code=422, detail="筛选条件下无候选样本")
         workspace = _get_pv_workspace()

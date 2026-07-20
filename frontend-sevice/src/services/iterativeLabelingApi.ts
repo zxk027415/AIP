@@ -259,10 +259,11 @@ export interface RegisterCumulativeTrainingImportRequest {
 
 export interface CumulativeRetrainRunResponse {
   request: Record<string, unknown>;
-  loopId: string;
-  trainResult: Record<string, unknown>;
-  /** 模型训练完成后仍需走发布流程，API 不会自动发布 */
-  publication: 'not_published';
+  loop_id: string;
+  train_result: Record<string, unknown>;
+  /** 训练成功后自动成为 pv_fault 当前生产模型 */
+  publication: 'auto_promoted';
+  production_model_ref: string;
 }
 // @AI_GENERATED: end
 
@@ -526,8 +527,18 @@ export const trainingWorkspaceApi = {
     time_start?: string;
     time_end?: string;
     reviewer?: string;
+    dataset_path?: string;
   }): Promise<Record<string, unknown>> =>
     api.post('/iterative-labeling/clustering/runs', body),
+
+  /** 从上传的无标签数据集创建旧版逐单元人工打标会话 */
+  createManualReviewFromDataset: (body: {
+    dataset_path: string;
+    slot?: string;
+    reviewer?: string;
+    max_units?: number;
+  }): Promise<{ review_id: string; total_count: number }> =>
+    api.post('/iterative-labeling/review-sessions/from-dataset', body),
 
   /** 读取聚类 run */
   getClusteringRun: (runId: string): Promise<Record<string, unknown>> =>

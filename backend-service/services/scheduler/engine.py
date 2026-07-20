@@ -28,6 +28,13 @@ from apscheduler.triggers.cron import CronTrigger
 logger = logging.getLogger(__name__)
 
 
+# @AI_GENERATED: scheduler-task-result-listener
+# 任务实际执行完成后的只读回执监听器：task_id、结果、完成时间、下次计划时间。
+# 监听器异常必须被引擎隔离，不能反向影响业务任务执行。
+TaskResultListener = Callable[[str, str, datetime, Optional[datetime]], None]
+# @AI_GENERATED: end
+
+
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
@@ -93,9 +100,20 @@ class SchedulerEngine:
         self._task_running: Dict[str, bool] = {}
         self._task_lock = threading.Lock()
 
+        # @AI_GENERATED: scheduler-task-result-listener
+        # 仅同步调度回执；不参与预测、回填、告警或部署决策。
+        self._task_result_listeners: List[TaskResultListener] = []
+        # @AI_GENERATED: end
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    # @AI_GENERATED: scheduler-task-result-listener
+    def add_task_result_listener(self, listener: TaskResultListener) -> None:
+        """订阅任务执行回执；监听器只用于外部证据同步，异常会被隔离。"""
+        self._task_result_listeners.append(listener)
+    # @AI_GENERATED: end
 
     def register_task(
         self,
@@ -215,6 +233,30 @@ class SchedulerEngine:
             misfire_grace_time=None,  # skip misfired triggers; catch-up is manual
         )
 
+    # @AI_GENERATED: scheduler-task-result-listener
+    def _publish_task_result(self, meta: _TaskMeta) -> None:
+        """向监听器发布已完成任务的回执，监听器失败不会影响调度主流程。"""
+        completed_at = meta.last_execution_time or datetime.now()
+        next_scheduled_time = self._get_next_run_time(
+            self._schedulers.get(meta.pipeline),
+            meta.task_id,
+        )
+        for listener in tuple(self._task_result_listeners):
+            try:
+                listener(
+                    meta.task_id,
+                    meta.last_result,
+                    completed_at,
+                    next_scheduled_time,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Task result listener failed for '%s': %s",
+                    meta.task_id,
+                    exc,
+                )
+    # @AI_GENERATED: end
+
     def _make_job_wrapper(self, meta: _TaskMeta) -> Callable:
         """Return a closure that wraps the user function with overlap/retry logic."""
 
@@ -237,6 +279,10 @@ class SchedulerEngine:
                     trigger_time,
                 )
                 meta.last_result = "skipped"
+                # @AI_GENERATED: scheduler-task-result-listener
+                meta.last_execution_time = trigger_time
+                self._publish_task_result(meta)
+                # @AI_GENERATED: end
                 return
             self._task_running[task_id] = True
 
@@ -244,6 +290,9 @@ class SchedulerEngine:
             meta.func()
             meta.last_execution_time = datetime.now()
             meta.last_result = "success"
+            # @AI_GENERATED: scheduler-task-result-listener
+            self._publish_task_result(meta)
+            # @AI_GENERATED: end
             logger.debug("Task '%s' completed successfully.", task_id)
         except Exception as exc:
             error_msg = str(exc)
@@ -274,6 +323,11 @@ class SchedulerEngine:
                 logger.error(
                     "Task '%s' retry also failed; cycle marked as failed.", task_id
                 )
+
+            # @AI_GENERATED: scheduler-task-result-listener
+            meta.last_execution_time = datetime.now()
+            self._publish_task_result(meta)
+            # @AI_GENERATED: end
         finally:
             with self._task_lock:
                 self._task_running[task_id] = False

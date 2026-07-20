@@ -47,6 +47,53 @@ _SCHEMA = "aip_algo_platform"
 _CURSOR_TABLE = "pv_mock_feed_cursor"
 
 
+def _project_relative_parquet_path(path: Path) -> str:
+    """返回相对于项目根（backend-service 父目录）的 POSIX 路径。"""
+    project_root = _BACKEND_ROOT.parent
+    try:
+        return path.resolve().relative_to(project_root).as_posix()
+    except ValueError:
+        try:
+            return path.resolve().relative_to(_BACKEND_ROOT).as_posix()
+        except ValueError:
+            return path.name
+
+
+def compute_pv_source_fingerprint(parquet_path: Optional[str] = None) -> Dict[str, Any]:
+    """计算当前 mock 数据源指纹（相对路径 + 日期范围 + 行数）。
+
+    换文件或同路径覆盖成另一套日历时，指纹会变化，供预测游标自动重置。
+    """
+    import hashlib
+
+    raw = parquet_path or os.environ.get("PV_MOCK_PARQUET_PATH", _DEFAULT_PARQUET_PATH)
+    resolved = _resolve_path(raw)
+    if not resolved.exists():
+        raise DataSourceError(f"PV mock 数据文件不存在: {resolved}")
+
+    df = pd.read_parquet(resolved, columns=["time"])
+    times = pd.to_datetime(df["time"])
+    if getattr(times.dt, "tz", None) is not None:
+        times = times.dt.tz_convert("UTC").dt.tz_localize(None)
+    if times.empty:
+        raise DataSourceError(f"PV mock parquet 无 time 数据: {resolved}")
+
+    date_min = times.min().date().isoformat()
+    date_max = times.max().date().isoformat()
+    row_count = int(len(times))
+    source_path = _project_relative_parquet_path(resolved)
+    digest = hashlib.sha256(
+        f"{source_path}|{date_min}|{date_max}|{row_count}".encode("utf-8")
+    ).hexdigest()[:16]
+    return {
+        "source_path": source_path,
+        "date_min": date_min,
+        "date_max": date_max,
+        "row_count": row_count,
+        "fingerprint": digest,
+    }
+
+
 def _resolve_path(path: str) -> Path:
     p = Path(path)
     if p.is_absolute():
@@ -89,6 +136,7 @@ class PvMockFeedPreview:
     next_device_count: int
     requires_advance_confirmation: bool
     exhausted: bool
+    source_fingerprint: Optional[Dict[str, Any]] = None
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -103,6 +151,7 @@ class PvMockFeedPreview:
             "next_device_count": self.next_device_count,
             "requires_advance_confirmation": self.requires_advance_confirmation,
             "exhausted": self.exhausted,
+            "source_fingerprint": self.source_fingerprint,
         }
 
 
@@ -217,10 +266,18 @@ class PvFaultMockFeeder:
         with self._feed_lock:
             return self._build_preview()
 
+    def get_source_fingerprint(self) -> Dict[str, Any]:
+        """返回当前 parquet 数据源指纹，供预测游标对齐。"""
+        return compute_pv_source_fingerprint(str(self._parquet_path))
+
     def _build_preview(self) -> PvMockFeedPreview:
         self._load_df()
         last_date = self._last_fed_date()
         next_date = self._next_unfed_date()
+        try:
+            source_fp = self.get_source_fingerprint()
+        except Exception:
+            source_fp = None
 
         if next_date is None:
             return PvMockFeedPreview(
@@ -231,6 +288,7 @@ class PvFaultMockFeeder:
                 next_device_count=0,
                 requires_advance_confirmation=False,
                 exhausted=True,
+                source_fingerprint=source_fp,
             )
 
         next_rows = self._rows_for_date(next_date)
@@ -252,6 +310,7 @@ class PvFaultMockFeeder:
             next_device_count=next_device_count,
             requires_advance_confirmation=requires_confirm,
             exhausted=False,
+            source_fingerprint=source_fp,
         )
 
     def feed_manually(self, advance: bool = False) -> Tuple[PvMockFeedPreview, Optional[PvMockFeedResult]]:

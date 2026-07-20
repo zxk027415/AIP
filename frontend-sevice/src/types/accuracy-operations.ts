@@ -259,6 +259,10 @@ export interface RecoveryDecision {
   sla_deadline: string;
   /** rollback_of — 若此决策是回滚操作，指向被回滚的 decision_id */
   rollback_of: string | null;
+  /** target_workflow_id — 通道 A 要提升的影子工作流 ID；观察通道时为 null。 */
+  target_workflow_id?: string | null;
+  /** target_version_tag — 通道 A 要提升的影子版本标签；观察通道时为 null。 */
+  target_version_tag?: string | null;
   /** status — 决策执行状态 */
   status: DecisionStatus;
   /** created_at — 决策创建时间 ISO8601 */
@@ -286,6 +290,16 @@ export interface MonitoringMetrics {
   rolling_mae: number | null;
   /** valid_cycle_count — 有效评估周期数（null 表示尚未统计） */
   valid_cycle_count: number | null;
+  /** baseline_mape — 部署登记时的 MAPE 基线，null 表示未登记。 */
+  baseline_mape?: number | null;
+  /** baseline_wmape — 部署登记时的 WMAPE 基线，null 时监控安全回退 MAPE。 */
+  baseline_wmape?: number | null;
+  /** rolling_wmape — 当前滚动 WMAPE，退化告警优先使用该指标。 */
+  rolling_wmape?: number | null;
+  /** coverage_rate — 当前评估窗口中已回填真实值的覆盖率，范围 0~1。 */
+  coverage_rate?: number | null;
+  /** window_days — 滚动评估窗口天数。 */
+  window_days?: number | null;
   /** status — 模型状态描述（null 表示状态未知） */
   status: string | null;
 }

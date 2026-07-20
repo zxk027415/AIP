@@ -18,23 +18,39 @@ import DataPipelinePanel from '../../components/data-management/DataPipelinePane
 
 const { Text } = Typography;
 
-const PipelineTab: React.FC = () => (
-  <Space direction="vertical" size={16} style={{ width: '100%' }}>
-    <Alert
-      type="info"
-      showIcon
-      message="数据管线已迁入算法部署"
-      description={
-        <Text style={{ fontSize: 13 }}>
-          本面板复用原 scheduler API：可继续在这里启动/停止 <code>load_forecast</code> 与
-          <code>&nbsp;pv_fault</code> 两条管线，并查看各子任务的最近执行结果与失败记录。
-          旧路径 <code>/industry-data/pipelines</code> 已重定向到本 Tab。
-        </Text>
-      }
-    />
-    <DataPipelinePanel />
-  </Space>
-);
+interface PipelineTabProps {
+  /** storySlot — 当前部署页选中槽位，用于只展示对应管线 */
+  storySlot?: string;
+}
+
+const PipelineTab: React.FC<PipelineTabProps> = ({ storySlot }) => {
+  const isPv = storySlot === 'pv_fault';
+  return (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Alert
+        type="info"
+        showIcon
+        message={isPv ? '光伏故障诊断数据管线' : '负荷预测数据管线'}
+        description={
+          <Text style={{ fontSize: 13 }}>
+            {isPv ? (
+              <>
+                本槽位仅管理 <code>pv_fault</code> 管线：模拟喂数据 → 故障预测。
+                数据由 mock feeder 直写 <code>training_samples</code>，不再使用独立的数据拉取任务。
+              </>
+            ) : (
+              <>
+                本槽位仅管理 <code>load_forecast</code> 管线：数据拉取 → 滚动训练+预测 → 精度回填与监控。
+                旧路径 <code>/industry-data/pipelines</code> 已重定向到本 Tab。
+              </>
+            )}
+          </Text>
+        }
+      />
+      <DataPipelinePanel storySlot={storySlot} />
+    </Space>
+  );
+};
 
 export default PipelineTab;
 // @AI_GENERATED: end

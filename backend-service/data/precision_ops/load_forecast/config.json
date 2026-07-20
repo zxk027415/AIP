@@ -4,7 +4,7 @@
   "degradation_threshold_pct": 15,
   "switch_margin_pct": 10,
   "cooldown_hours": 24,
-  "min_valid_cycles": 3,
+  "min_valid_cycles": 1,
   "shadow_timeout_seconds": 300,
   "production_timeout_seconds": 120,
   "max_shadow_versions": 5,

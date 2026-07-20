@@ -234,9 +234,7 @@ async def startup_event():
             make_data_pull_task, make_daily_rolling_task, make_accuracy_backfill_task,
             make_accuracy_monitor_task,
         )
-        from services.scheduler.tasks.pv_fault_tasks import (
-            make_pv_data_pull_task, make_pv_prediction_task
-        )
+        from services.scheduler.tasks.pv_fault_tasks import make_pv_prediction_task
         from services.precision_ops.production_registry import ProductionRegistry
         from services.precision_ops.version_registry import VersionRegistry
         from services.precision_ops.config_manager import ConfigManager
@@ -357,11 +355,7 @@ async def startup_event():
             "5 4 * * *", "load_forecast",
         )
         # @AI_GENERATED: end
-        _sched_engine.register_task(
-            "pv_data_pull", make_pv_data_pull_task(_mock_source, _pv_repo),
-            _db_cfg.sched_pv_pull_cron, "pv_fault"
-        )
-        # @AI_GENERATED: PV mock 喂数据 cron（每天 01:30，比 pv_data_pull 早 30 分钟）
+        # @AI_GENERATED: PV mock 喂数据 cron（每天 01:30，先于预测任务）
         _sched_engine.register_task(
             "pv_mock_data_feed",
             _pv_mock_feeder.feed_next_batch,
@@ -506,11 +500,11 @@ def _seed_scheduler_tasks(db_cfg) -> None:
       - 初次启动时 tasks.json 不存在 → 全部写入
       - 后续启动时 tasks.json 已有记录 → 保留用户改过的 cron_expr，不覆盖
 
-    默认 5 条任务（cron 表达式来自 configs/db.yaml）：
+    默认任务（cron 表达式来自 configs/db.yaml）：
       lf_data_pull      — 负荷预测数据拉取
       lf_daily_rolling  — 负荷预测每日滚动训练+预测
       lf_accuracy_backfill — 负荷预测精度回填
-      pv_data_pull      — 光伏故障数据拉取
+      pv_mock_data_feed — 光伏故障模拟喂数据
       pv_prediction     — 光伏故障预测
     """
     try:
@@ -519,6 +513,10 @@ def _seed_scheduler_tasks(db_cfg) -> None:
 
         store = SchedulerStore()
         now = __import__('datetime').datetime.now().isoformat()
+
+        if store.get_task("pv_data_pull") is not None:
+            store.delete_task("pv_data_pull")
+            print("✓ 已移除废弃任务 pv_data_pull")
 
         _DEFAULT_TASKS = [
             {
@@ -559,14 +557,6 @@ def _seed_scheduler_tasks(db_cfg) -> None:
                 "pipeline": "load_forecast",
                 "schedule_type": "cron",
                 "cron_expr": "5 4 * * *",
-                "slot": "default",
-            },
-            {
-                "task_id": "pv_data_pull",
-                "name": "光伏故障 — 数据拉取",
-                "pipeline": "pv_fault",
-                "schedule_type": "cron",
-                "cron_expr": getattr(db_cfg, "sched_pv_pull_cron", "0 2 * * *"),
                 "slot": "default",
             },
             {

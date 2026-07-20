@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Badge,
@@ -21,18 +21,36 @@ const PIPELINE_LABELS: Record<string, string> = {
 };
 
 const TASK_LABELS: Record<string, string> = {
+  mock_data_feed: '模拟喂数据',
   lf_data_pull: '数据拉取',
-  lf_prediction: '滚动预测',
-  lf_backfill: '精度回填',
-  pv_data_pull: 'PV 数据拉取',
-  pv_prediction: 'PV 故障预测',
+  lf_daily_rolling: '滚动训练+预测',
+  lf_accuracy_backfill: '精度回填',
+  lf_accuracy_monitor: '精度监控',
+  pv_mock_data_feed: '模拟喂数据',
+  pv_prediction: '故障预测',
 };
 
-const DataPipelinePanel: React.FC = () => {
+const DEPRECATED_TASK_IDS = new Set(['pv_data_pull']);
+
+function resolvePipelineFilter(storySlot?: string): Pipeline | null {
+  if (storySlot === 'pv_fault') return 'pv_fault';
+  if (!storySlot || storySlot === 'load_forecast' || storySlot === 'default') return 'load_forecast';
+  return null;
+}
+
+interface DataPipelinePanelProps {
+  /** storySlot — 传入时只展示该槽位对应的一条管线 */
+  storySlot?: string;
+}
+
+const DataPipelinePanel: React.FC<DataPipelinePanelProps> = ({ storySlot }) => {
   const [messageApi, contextHolder] = message.useMessage();
   const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatusResponse | null>(null);
   const [schedulerLoading, setSchedulerLoading] = useState(false);
   const [pipelineActionLoading, setPipelineActionLoading] = useState<Record<string, boolean>>({});
+
+  const pipelineFilter = resolvePipelineFilter(storySlot);
+  const isPv = pipelineFilter === 'pv_fault';
 
   const loadSchedulerStatus = useCallback(async () => {
     setSchedulerLoading(true);
@@ -69,13 +87,25 @@ const DataPipelinePanel: React.FC = () => {
     loadSchedulerStatus();
   }, [loadSchedulerStatus]);
 
+  const visiblePipelines = useMemo(() => {
+    if (!schedulerStatus) return [];
+    return Object.entries(schedulerStatus.pipelines).filter(([pipelineName]) => {
+      if (!pipelineFilter) return true;
+      return pipelineName === pipelineFilter;
+    });
+  }, [schedulerStatus, pipelineFilter]);
+
   return (
     <>
       {contextHolder}
       <Spin spinning={schedulerLoading}>
         <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: '#8c98a8' }}>
-            管理两条独立数据管线的定时任务：负荷预测（数据拉取 → 滚动预测 → 精度回填）和光伏故障诊断（数据拉取 → 故障预测）。
+            {isPv
+              ? '管理光伏故障诊断定时任务：模拟喂数据 → 故障预测。'
+              : pipelineFilter
+                ? '管理负荷预测定时任务：数据拉取 → 滚动训练+预测 → 精度回填与监控。'
+                : '管理两条独立数据管线的定时任务：负荷预测与光伏故障诊断。'}
           </span>
           <Button size="small" icon={<SyncOutlined />} onClick={loadSchedulerStatus}>
             刷新
@@ -84,11 +114,16 @@ const DataPipelinePanel: React.FC = () => {
 
         {!schedulerStatus ? (
           <Alert type="info" message="调度器未初始化或后端不可达，请确认后端已启动且 DB_ENABLED=true。" />
+        ) : visiblePipelines.length === 0 ? (
+          <Alert type="info" message="当前槽位没有可展示的管线状态。" />
         ) : (
-          Object.entries(schedulerStatus.pipelines).map(([pipelineName, status]) => {
+          visiblePipelines.map(([pipelineName, status]) => {
             const pipeline = pipelineName as Pipeline;
             const isRunning = (status as PipelineStatus).running;
             const isActioning = pipelineActionLoading[pipeline] ?? false;
+            const tasks = (status as PipelineStatus).tasks.filter(
+              (task) => !DEPRECATED_TASK_IDS.has(task.task_id),
+            );
 
             return (
               <div
@@ -115,7 +150,7 @@ const DataPipelinePanel: React.FC = () => {
 
                 <List
                   size="small"
-                  dataSource={(status as PipelineStatus).tasks}
+                  dataSource={tasks}
                   renderItem={(task: TaskStatus) => (
                     <List.Item style={{ paddingLeft: 8 }}>
                       <div style={{ width: '100%' }}>
@@ -182,19 +217,21 @@ const DataPipelinePanel: React.FC = () => {
           })
         )}
 
-        <Alert
-          type="success"
-          showIcon
-          style={{ marginTop: 16 }}
-          message="MySQL 双写验证方法"
-          description={
-            <div style={{ fontSize: 12 }}>
-              <p>1. 在精度运营其他 Tab 做任意操作（注册版本、回填精度等）</p>
-              <p>2. 在 MySQL 中查询：<code>SELECT * FROM load_forecast.accuracy_metric LIMIT 5;</code></p>
-              <p>3. 或调用：<code>GET /api/scheduler/status</code> 查看调度器状态 JSON</p>
-            </div>
-          }
-        />
+        {!isPv && (
+          <Alert
+            type="success"
+            showIcon
+            style={{ marginTop: 16 }}
+            message="MySQL 双写验证方法"
+            description={
+              <div style={{ fontSize: 12 }}>
+                <p>1. 在精度运营其他 Tab 做任意操作（注册版本、回填精度等）</p>
+                <p>2. 在 MySQL 中查询：<code>SELECT * FROM load_forecast.accuracy_metric LIMIT 5;</code></p>
+                <p>3. 或调用：<code>GET /api/scheduler/status</code> 查看调度器状态 JSON</p>
+              </div>
+            }
+          />
+        )}
       </Spin>
     </>
   );

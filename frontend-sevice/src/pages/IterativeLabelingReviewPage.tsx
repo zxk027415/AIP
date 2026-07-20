@@ -64,7 +64,7 @@ interface DiagnosisUnit {
   
   // 分类器预测（Classifier_Prediction）
   classifier_prediction: {
-    predicted_label: number;           // 预测标签 label_id
+    predicted_label: number | null;    // 预测标签 label_id；纯手工标注时为空
     predicted_label_name?: string;     // 预测标签名称（用于展示）
     confidence: number;                // 置信度 0~1
   };
@@ -96,6 +96,10 @@ interface ReviewSession {
   reviewed_count: number;              // 已审核数
   total_count: number;                 // 总数
   units: DiagnosisUnit[];              // 待审核单元数组
+  prediction_context?: {
+    manual_labeling?: boolean;
+    source_csv_path?: string;
+  };
 }
 
 /**
@@ -130,8 +134,8 @@ interface LabelRegistry {
 const IterativeLabelingReviewPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const reviewId = searchParams.get('review_id');
-  // @AI_GENERATED: 审核页面所有读取与写入请求都复用 URL 的 slot，防止跨槽位串数据
-  const slot = searchParams.get('slot') || 'default';
+  // @AI_GENERATED: 审核页面默认进入正式 pv_fault 槽位，并将 URL 槽位透传给全部读取与写入请求，防止跨业务线串数据。
+  const slot = searchParams.get('slot') || 'pv_fault';
   const slotQuery = `slot=${encodeURIComponent(slot)}`;
   // @AI_GENERATED: end
   
@@ -332,7 +336,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
     '0': '正常', '1': '组串遮挡', '4': '直流侧异常', '7': '汇流箱告警',
     '8': '汇流箱故障', '11': '组串开路', '12': '组串短路', '16': '其他故障',
   };
-  const getLabelName = (labelId?: number): string => {
+  const getLabelName = (labelId?: number | null): string => {
     if (labelId === undefined || labelId === null) return '未知';
     const fromReg = labelRegistry?.labels.find((l) => l.label_id === labelId)?.label_name;
     return fromReg || FAULT_NAMES[String(labelId)] || `故障${labelId}`;
@@ -402,6 +406,10 @@ const IterativeLabelingReviewPage: React.FC = () => {
   const handleConfirm = () => {
     const currentUnit = session?.units[currentUnitIndex];
     if (!currentUnit) return;
+    if (currentUnit.classifier_prediction.predicted_label === null) {
+      message.warning('纯手工标注没有可直接确认的模型标签，请选择已有标签或创建新标签');
+      return;
+    }
     
     // 需求 5.1：确认正确，以分类器 predicted_label 作为裁决
     Modal.confirm({
@@ -444,7 +452,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
    */
   const handleActionModalOk = async () => {
     if (currentAction === 'correct') {
-      if (!selectedLabel) {
+      if (selectedLabel === undefined) {
         message.warning('请选择纠正标签');
         return;
       }
@@ -520,6 +528,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
   }
 
   const currentUnit = session.units[currentUnitIndex];
+  const manualLabeling = Boolean(session.prediction_context?.manual_labeling);
   const progressPercent = session.total_count > 0
     ? Math.round((session.reviewed_count / session.total_count) * 100)
     : 0;
@@ -527,7 +536,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
   return (
     <div style={{ padding: '24px' }}>
       <Title level={2}>
-        <FileTextOutlined /> 人工审核预测准确率
+        <FileTextOutlined /> {manualLabeling ? '人工打标' : '人工审核预测准确率'}
       </Title>
       
       {/* 需求 3.3：显示审核进度 */}
@@ -734,7 +743,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
               const predId = currentUnit.classifier_prediction?.predicted_label;
               const predName = getLabelName(predId);
               const predConf = currentUnit.classifier_prediction?.confidence ?? 0;
-              const isFault = predId !== undefined && predId !== 0 && predId !== 7; // 0正常/7汇流箱告警视为非严重
+              const isFault = predId !== undefined && predId !== null && predId !== 0 && predId !== 7; // 0正常/7汇流箱告警视为非严重
               const seriesEntries = Object.entries(unitTimeseries.series);
               const SERIES_NAMES: Record<string, string> = { value: '实测电流', i_cal: '理论电流' };
               return (
@@ -742,8 +751,8 @@ const IterativeLabelingReviewPage: React.FC = () => {
                   style={{ height: 320 }}
                   option={{
                     title: {
-                      text: `分类器预测：${predName}（label_${predId}）`,
-                      subtext: predConf > 0 ? `置信度 ${(predConf * 100).toFixed(1)}%` : '置信度不可用（模型未输出概率）',
+                      text: manualLabeling ? '待人工标注' : `分类器预测：${predName}（label_${predId}）`,
+                      subtext: manualLabeling ? '请结合波形选择正确标签' : predConf > 0 ? `置信度 ${(predConf * 100).toFixed(1)}%` : '置信度不可用（模型未输出概率）',
                       left: 'center',
                       textStyle: { fontSize: 13, color: isFault ? '#cf1322' : '#389e0d' },
                       subtextStyle: { fontSize: 11 },
@@ -799,9 +808,18 @@ const IterativeLabelingReviewPage: React.FC = () => {
           )}
 
           {/* 需求 4：双来源并列展示 */}
-          <Divider>双来源预测对比</Divider>
+          <Divider>{manualLabeling ? '标注依据' : '双来源预测对比'}</Divider>
+          {manualLabeling && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="这是从累计训练集扩充流程创建的纯手工标注会话"
+              description="该数据集没有模型预测真值，请根据设备波形选择“纠正为已有标签”或“打成新标签”。完成后的标签会回流到累计训练集。"
+            />
+          )}
           
-          <Row gutter={16}>
+          {!manualLabeling && <Row gutter={16}>
             {/* 需求 4.1：分类器预测 */}
             <Col span={12}>
               <Card
@@ -898,7 +916,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
                 )}
               </Card>
             </Col>
-          </Row>
+          </Row>}
 
           {/* 需求 4.2：不一致高亮提示 */}
           {currentUnit.disagreement && (
@@ -921,7 +939,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
               icon={<CheckCircleOutlined />}
               size="large"
               onClick={handleConfirm}
-              disabled={loading}
+              disabled={loading || currentUnit.classifier_prediction.predicted_label === null}
             >
               确认正确
             </Button>
@@ -1036,18 +1054,20 @@ const IterativeLabelingReviewPage: React.FC = () => {
                   <Radio value={true}>与基线训练 CSV 累积合并</Radio>
                 </Radio.Group>
               </Form.Item>
+              {/* @AI_GENERATED: 回流合并仅接受相对项目根目录路径，避免前端提示用户写入机器相关的绝对路径。 */}
               {mergeBase && (
                 <Form.Item
                   label="基线训练 CSV 路径"
-                  help="填上一轮训练用的 CSV 绝对路径，将拼接到新标注数据前；留空则仅用本轮标注"
+                  help="填入上一轮训练使用的相对项目根目录 CSV 路径；将拼接到新标注数据前，留空则仅使用本轮标注。"
                 >
                   <Input
-                    placeholder="/Users/.../train_ori/xxx.csv"
+                    placeholder="backend-service/data/uploads/baseline.csv"
                     value={baseCsvPath}
                     onChange={(e) => setBaseCsvPath(e.target.value)}
                   />
                 </Form.Item>
               )}
+              {/* @AI_GENERATED: end */}
             </Form>
           </>
         ) : (
@@ -1079,14 +1099,15 @@ const IterativeLabelingReviewPage: React.FC = () => {
         )}
       </Modal>
 
-      {/* 数据预览：展示原始预测数据集前 20 行 */}
+      {/* @AI_GENERATED: 数据预览显式复用当前审核页面的 slot，避免 pv_fault 会话读取到其他槽位的数据。 */}
       <Card
         title="数据预览（原始预测数据集）"
         size="small"
         style={{ marginTop: 16 }}
       >
-        <DataPreviewTable reviewId={reviewId} />
+        <DataPreviewTable reviewId={reviewId} slotQuery={slotQuery} />
       </Card>
+      {/* @AI_GENERATED: end */}
     </div>
   );
 };
@@ -1094,7 +1115,8 @@ const IterativeLabelingReviewPage: React.FC = () => {
 /**
  * 数据预览子组件：从会话的 source_csv_path 加载前 20 行展示
  */
-const DataPreviewTable: React.FC<{ reviewId: string | null }> = ({ reviewId }) => {
+// @AI_GENERATED: 将 URL 中的已编码槽位参数传入独立组件，确保数据预览与审核会话保持同一分区。
+const DataPreviewTable: React.FC<{ reviewId: string | null; slotQuery: string }> = ({ reviewId, slotQuery }) => {
   const [previewData, setPreviewData] = useState<{ columns: string[]; rows: Array<Record<string, unknown>> } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
@@ -1111,7 +1133,7 @@ const DataPreviewTable: React.FC<{ reviewId: string | null }> = ({ reviewId }) =
         const csvPath = sess?.prediction_context?.source_csv_path;
         if (!csvPath) { setPreviewData(null); return; }
         // 调用预览接口
-        const resp = await fetch(`/api/iterative-labeling/data-preview?file_path=${encodeURIComponent(csvPath)}&rows=20`);
+        const resp = await fetch(`/api/iterative-labeling/data-preview?file_path=${encodeURIComponent(csvPath)}&rows=20&${slotQuery}`);
         if (!resp.ok || cancelled) return;
         const data = await resp.json();
         if (!cancelled) setPreviewData(data);
@@ -1123,7 +1145,8 @@ const DataPreviewTable: React.FC<{ reviewId: string | null }> = ({ reviewId }) =
     };
     load();
     return () => { cancelled = true; };
-  }, [reviewId, slot]);
+  }, [reviewId, slotQuery]);
+// @AI_GENERATED: end
 
   if (previewLoading) return <div style={{ textAlign: 'center', padding: 32 }}>加载数据预览...</div>;
   if (!previewData || !previewData.columns.length) return <Alert type="info" showIcon message="无法预览数据（会话缺少原始 CSV 路径）" />;

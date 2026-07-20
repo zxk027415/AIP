@@ -144,7 +144,7 @@ const retrainStatusTag = (status?: string) => {
 
 const IterativeLabelingListPage: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<string>('admission');
+  const [activeTab, setActiveTab] = useState<string>('review');
 
   // --- Cumulative Training State ---
   const [cumulativeState, setCumulativeState] = useState<CumulativeTrainingState | null>(null);
@@ -219,6 +219,12 @@ const IterativeLabelingListPage: React.FC = () => {
 
   const latestRequest = cumulativeState?.latest_retrain_request ?? null;
   const completedModelRef = cumulativeState?.latest_completed_model_ref ?? null;
+  const reviewStats = useMemo(() => {
+    const completed = sessions.filter((session) => session.status === 'reviewed').length;
+    const reviewedUnits = sessions.reduce((sum, session) => sum + Number(session.reviewed_count || 0), 0);
+    const totalUnits = sessions.reduce((sum, session) => sum + Number(session.total_count || 0), 0);
+    return { completed, inProgress: sessions.length - completed, reviewedUnits, totalUnits };
+  }, [sessions]);
 
   const runQueuedRetrain = useCallback(async () => {
     const requestId = String(latestRequest?.request_id ?? '').trim();
@@ -226,7 +232,7 @@ const IterativeLabelingListPage: React.FC = () => {
     setRetrainRunning(true);
     try {
       const result: CumulativeRetrainRunResponse = await cumulativeTrainingApi.runRetrainRequest(requestId, PV_FAULT_SLOT);
-      message.success(`重训完成，模型 ${textOrDash((result.trainResult as any)?.model_ref)}（未自动发布）`);
+      message.success(`重训完成，生产模型已切换为 ${textOrDash(result.production_model_ref)}`);
       await loadDashboard();
     } catch (error: unknown) {
       message.error(`重训失败：${error instanceof Error ? error.message : String(error)}`);
@@ -321,11 +327,14 @@ const IterativeLabelingListPage: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <Space size={12}>
           <ThunderboltOutlined style={{ fontSize: 22, color: '#1677ff' }} />
-          <Title level={3} style={{ margin: 0 }}>光伏故障诊断</Title>
+          <Title level={3} style={{ margin: 0 }}>人工标注工作台</Title>
           <Tag color="blue">{PV_FAULT_SLOT}</Tag>
         </Space>
         <Space>
-          <Button icon={<ReloadOutlined />} onClick={() => { void loadDashboard(); void loadCandidates(1); }} loading={loading}>
+          <Button icon={<DatabaseOutlined />} onClick={() => navigate('/datasets?tab=private')}>
+            累计训练集扩充
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={() => { void loadDashboard(); }} loading={loading}>
             刷新
           </Button>
         </Space>
@@ -335,22 +344,22 @@ const IterativeLabelingListPage: React.FC = () => {
       <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
         <Col xs={12} sm={6}>
           <Card size="small" style={{ textAlign: 'center' }}>
-            <Statistic title="有效真值" value={cumulativeState?.effective_labeled_unit_count ?? 0} suffix="单元" valueStyle={{ fontSize: 20 }} />
+            <Statistic title="待处理会话" value={reviewStats.inProgress} suffix="个" valueStyle={{ fontSize: 20, color: reviewStats.inProgress > 0 ? '#1677ff' : undefined }} />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
           <Card size="small" style={{ textAlign: 'center' }}>
-            <Statistic title="距下次快照" value={cumulativeState?.next_retrain_in ?? 0} suffix="次变更" valueStyle={{ fontSize: 20 }} />
+            <Statistic title="已完成会话" value={reviewStats.completed} suffix="个" valueStyle={{ fontSize: 20 }} />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
           <Card size="small" style={{ textAlign: 'center' }}>
-            <Statistic title="当前模型" value={completedModelRef ? '已就绪' : '待训练'} valueStyle={{ fontSize: 16, color: completedModelRef ? '#52c41a' : '#faad14' }} />
+            <Statistic title="已标注单元" value={reviewStats.reviewedUnits} suffix="个" valueStyle={{ fontSize: 20 }} />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
           <Card size="small" style={{ textAlign: 'center' }}>
-            <Statistic title="审核会话" value={sessions.length} suffix="个" valueStyle={{ fontSize: 20 }} />
+            <Statistic title="标注总进度" value={reviewStats.totalUnits > 0 ? Math.round((reviewStats.reviewedUnits / reviewStats.totalUnits) * 100) : 0} suffix="%" valueStyle={{ fontSize: 20 }} />
           </Card>
         </Col>
       </Row>
@@ -358,10 +367,7 @@ const IterativeLabelingListPage: React.FC = () => {
       {/* Main Tabs */}
       <Card bordered={false} bodyStyle={{ padding: '8px 0 0' }}>
         <Tabs activeKey={activeTab} onChange={setActiveTab} style={{ padding: '0 16px' }}>
-          <TabPane tab={<Space size={4}><DatabaseOutlined />数据准入</Space>} key="admission" />
-          <TabPane tab={<Space size={4}><ClusterOutlined />聚类标注</Space>} key="clustering" />
-          <TabPane tab={<Space size={4}><SafetyCertificateOutlined />累计训练</Space>} key="training" />
-          <TabPane tab={<Space size={4}><EditOutlined />审核队列</Space>} key="review" />
+          <TabPane tab={<Space size={4}><EditOutlined />人工打标队列</Space>} key="review" />
         </Tabs>
 
         <div style={{ padding: '16px' }}>
@@ -556,7 +562,13 @@ const IterativeLabelingListPage: React.FC = () => {
           {activeTab === 'review' && (
             <div>
               <div style={{ marginBottom: 12 }}>
-                <Text type="secondary">定时预测任务产生的预测批次会自动创建审核会话，在此跳转到打标界面。</Text>
+                <Alert
+                  type="info"
+                  showIcon
+                  message="这里专门处理人工打标"
+                  description="滚动预测产生的审核会话，以及累计训练集扩充中选择“手工标注”创建的会话，都会进入这里。数据上传、准入分析和聚类标注已移到“数据集管理 → 私有数据集 → 光伏累计训练数据集”。"
+                  action={<Button size="small" onClick={() => navigate('/datasets?tab=private')}>去扩充训练集</Button>}
+                />
               </div>
               {sessions.length === 0 ? (
                 <Empty description="暂无审核会话" image={Empty.PRESENTED_IMAGE_SIMPLE} />

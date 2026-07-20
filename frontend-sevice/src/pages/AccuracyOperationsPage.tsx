@@ -19,6 +19,8 @@ import RCAReportViewer from './accuracy-operations/RCAReportViewer';
 import RecoveryDecisionPanel from './accuracy-operations/RecoveryDecisionPanel';
 import DeploymentSwitchLogCard from './accuracy-operations/DeploymentSwitchLogCard';
 import LoadForecastStoryRail from './accuracy-operations/LoadForecastStoryRail';
+import PvFaultStoryRail from './accuracy-operations/PvFaultStoryRail';
+import PvFaultPredictionEvidencePanel from './accuracy-operations/PvFaultPredictionEvidencePanel';
 import './accuracy-operations/accuracyOperationsWorkspace.css';
 import type { AccuracyAlert, RecoveryDecision } from '../types/accuracy-operations';
 // @AI_GENERATED: PV 故障运营分支内联组件
@@ -45,6 +47,13 @@ function formatMetric(value: number | null | undefined, suffix = ''): string {
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return '暂无';
   const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false });
+}
+
+function formatUtcDateTime(value: string | null | undefined): string {
+  if (!value) return '暂无';
+  const hasTimeZone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(value);
+  const date = new Date(hasTimeZone ? value : `${value}Z`);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false });
 }
 
@@ -196,7 +205,9 @@ const AccuracyOperationsPage: React.FC = () => {
         <div className="accuracy-page-heading">
           <Title level={3} className="accuracy-page-title">精度运营</Title>
           <Text className="accuracy-page-subtitle">
-            围绕同一槽位核对调度、真值回填、精度退化、根因分析、恢复仲裁和部署审计。状态只展示已读取证据，不替代真实运行记录。
+            {currentSlot === 'pv_fault'
+              ? '查看光伏闭环各阶段状态：新数据、自动预测、预测结果、人工核对、训练集积累与可用模型。'
+              : '围绕同一槽位核对调度、真值回填、精度退化、根因分析、恢复仲裁和部署审计。状态只展示已读取证据，不替代真实运行记录。'}
           </Text>
         </div>
         <div className="accuracy-page-actions">
@@ -215,15 +226,40 @@ const AccuracyOperationsPage: React.FC = () => {
       </header>
 
       <Alert
-        type={currentSlot === DEMO_SLOT ? 'info' : 'warning'}
+        type={currentSlot === DEMO_SLOT ? 'info' : currentSlot === 'pv_fault' ? 'info' : 'warning'}
         showIcon
-        icon={<SafetyCertificateOutlined />}
-        message={currentSlot === DEMO_SLOT ? '历史隔离槽位（非正式主线）' : '正式链路观测'}
-        description={currentSlot === DEMO_SLOT
-          ? '该槽位仅为既有兼容数据保留；不会从正式入口创建或推荐进入，当前不建设虚拟演练能力。'
-          : '通道 A 会真实变更当前槽位的生产身份。只有仲裁推荐且经过人工二次确认后，才会执行影子切换。'}
+        icon={currentSlot === 'pv_fault' ? <ExperimentOutlined /> : <SafetyCertificateOutlined />}
+        message={
+          currentSlot === DEMO_SLOT
+            ? '历史隔离槽位（非正式主线）'
+            : currentSlot === 'pv_fault'
+              ? '光伏故障诊断正式链路'
+              : '正式链路观测'
+        }
+        description={
+          currentSlot === DEMO_SLOT
+            ? '该槽位仅为既有兼容数据保留；不会从正式入口创建或推荐进入，当前不建设虚拟演练能力。'
+            : currentSlot === 'pv_fault'
+              ? '光伏重训仍需人工确认执行；训练成功后自动切换生产模型，滚动预测默认使用该模型。预测精度只在人工真值回流后计算。'
+              : '通道 A 会真实变更当前槽位的生产身份。只有仲裁推荐且经过人工二次确认后，才会执行影子切换。'
+        }
       />
 
+      {/* @AI_GENERATED: 光伏分支使用专用运营视图，负荷预测保留原故事线 */}
+      {currentSlot === 'pv_fault' ? (
+        <>
+          <div className="accuracy-story-scroll">
+            <PvFaultStoryRail
+              slot={currentSlot}
+              refreshing={refreshing}
+              onRefresh={() => void refreshStory()}
+            />
+          </div>
+          <PvFaultPredictionEvidencePanel slot={currentSlot} refreshing={refreshing} />
+          <PvFaultOverviewSection slot={currentSlot} refreshing={refreshing} />
+        </>
+      ) : (
+      <>
       <section className="accuracy-overview-grid" aria-label="精度运营总览">
         <div className="accuracy-overview-item">
           <Text className="accuracy-overview-item-label">当前生产版本</Text>
@@ -246,11 +282,6 @@ const AccuracyOperationsPage: React.FC = () => {
           <Text className="accuracy-overview-item-detail">仅统计当前槽位的未关闭事件</Text>
         </div>
       </section>
-
-      {/* @AI_GENERATED: 光伏分支使用专用运营视图，负荷预测保留原故事线 */}
-      {currentSlot === 'pv_fault' ? (
-        <PvFaultOverviewSection slot={currentSlot} refreshing={refreshing} />
-      ) : (
       <div className="accuracy-story-scroll">
         <LoadForecastStoryRail
           slot={currentSlot}
@@ -266,6 +297,7 @@ const AccuracyOperationsPage: React.FC = () => {
           onRefresh={() => void refreshStory()}
         />
       </div>
+      </>
       )}
       {/* @AI_GENERATED: end */}
 
@@ -345,22 +377,39 @@ const PvFaultOverviewSection: React.FC<{ slot: string; refreshing: boolean }> = 
   if (loading && !overview) return <Card loading style={{ marginBottom: 16 }} />;
   if (!overview) return <Alert type="info" message="光伏运营数据暂不可用" style={{ marginBottom: 16 }} />;
 
-  const qm = overview.quality_metrics as Record<string, number> | null;
+  const qm = overview.quality_metrics as Record<string, any> | null;
   const rp = overview.review_progress as Record<string, number> | null;
-  const ld = overview.label_distribution as Record<string, number> | null;
-  const cd = overview.confidence_distribution as Record<string, number> | null;
+  const ld = (overview.batch_label_distribution || overview.label_distribution) as Record<string, number> | null;
+  const cd = (overview.batch_confidence_distribution || overview.confidence_distribution) as Record<string, number> | null;
+  const latestDetail = overview.latest_prediction_detail as Record<string, any> | null;
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <Card size="small" title="光伏故障诊断运营总览" style={{ marginBottom: 12 }}>
+      <Card size="small" title="光伏故障诊断总览" style={{ marginBottom: 12 }}>
         <Row gutter={[16, 12]}>
           <Col xs={12} sm={6}>
             <Text type="secondary" style={{ fontSize: 12 }}>当前模型</Text>
             <div><Text code style={{ fontSize: 12 }}>{overview.model_ref ?? '暂无'}</Text></div>
           </Col>
           <Col xs={12} sm={6}>
-            <Text type="secondary" style={{ fontSize: 12 }}>预测批次</Text>
-            <div><Text strong>{(overview.prediction_summary as any)?.total_batches ?? 0}</Text> 批</div>
+            <Text type="secondary" style={{ fontSize: 12 }}>已保存结果</Text>
+            <div><Text strong>{(overview.prediction_summary as any)?.total_batches ?? 0}</Text> 份</div>
+          </Col>
+          <Col xs={12} sm={6}>
+            <Text type="secondary" style={{ fontSize: 12 }}>最近保存时间</Text>
+            <div style={{ fontSize: 12 }}>
+              {latestDetail?.created_at
+                ? formatUtcDateTime(latestDetail.created_at)
+                : '暂无'}
+            </div>
+          </Col>
+          <Col xs={12} sm={6}>
+            <Text type="secondary" style={{ fontSize: 12 }}>最近数据日期</Text>
+            <div style={{ fontSize: 12 }}>
+              {latestDetail?.time_window_min
+                ? `${new Date(latestDetail.time_window_min).toLocaleString('zh-CN', { hour12: false })}`
+                : '暂无'}
+            </div>
           </Col>
           <Col xs={12} sm={6}>
             <Text type="secondary" style={{ fontSize: 12 }}>审核会话</Text>
@@ -374,7 +423,7 @@ const PvFaultOverviewSection: React.FC<{ slot: string; refreshing: boolean }> = 
       </Card>
 
       {qm && (
-        <Card size="small" title="分类精度（基于人工裁决）" style={{ marginBottom: 12 }}>
+        <Card size="small" title="分类精度（基于人工核对）" style={{ marginBottom: 12 }}>
           <Row gutter={[16, 8]}>
             <Col xs={12} sm={6}><Text type="secondary" style={{ fontSize: 12 }}>Accuracy</Text><div><Text strong>{(qm.accuracy * 100).toFixed(1)}%</Text></div></Col>
             <Col xs={12} sm={6}><Text type="secondary" style={{ fontSize: 12 }}>Macro Precision</Text><div><Text strong>{(qm.macro_precision * 100).toFixed(1)}%</Text></div></Col>
@@ -401,7 +450,7 @@ const PvFaultOverviewSection: React.FC<{ slot: string; refreshing: boolean }> = 
           <Col xs={24} sm={12}>
             <Card size="small" title="置信度分布">
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 13 }}><Text>高（≥0.8）</Text><Text strong>{cd.high ?? 0}</Text></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 13 }}><Text>中（0.5-0.8）</Text><Text strong>{cd.medium ?? 0}</Text></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 13 }}><Text>中（0.5–0.8）</Text><Text strong>{cd.medium ?? 0}</Text></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 13 }}><Text>低（&lt;0.5）</Text><Text strong>{cd.low ?? 0}</Text></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 13 }}><Text>未知</Text><Text strong>{cd.unknown ?? 0}</Text></div>
             </Card>

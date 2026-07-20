@@ -11,8 +11,8 @@ random_forest_classifier operator backend — 随机森林分类器（训练 + �
 import logging
 import os
 import pickle
-import time
 import uuid
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -36,7 +36,8 @@ def _ensure_models_dir():
 def _save_model(clf, feature_list: list, metrics: dict = None) -> str:
     """序列化模型到磁盘，返回 model_id（文件名不含扩展名）。"""
     _ensure_models_dir()
-    model_id = f"pv_fault_rfc_{int(time.time())}_{uuid.uuid4().hex[:6]}"
+    trained_at = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    model_id = f"pv_fault_rfc_{trained_at}_{uuid.uuid4().hex[:6]}"
     path = os.path.join(_MODELS_DIR, f"{model_id}.pkl")
     payload = {"model": clf, "feature_list": feature_list}
     with open(path, "wb") as f:

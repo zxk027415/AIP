@@ -4,15 +4,16 @@
  *
  * 新增（阶段3）：cron_expr 列 + 编辑弹窗（热更新）+ 立即触发按钮 + 顶部流程说明
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Button, Descriptions, Divider, Empty, Form, Input, InputNumber,
-  Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message,
+  Alert, Button, Descriptions, Divider, Dropdown, Empty, Form, Input, InputNumber,
+  Modal, Popconfirm, Select, Space, Switch, Table, Tag, Tooltip, Typography, message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import type { MenuProps } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
-  DatabaseOutlined, EditOutlined, FundViewOutlined, PlayCircleOutlined, PlusOutlined, ProfileOutlined,
+  DatabaseOutlined, EditOutlined, FundViewOutlined, MoreOutlined, PlayCircleOutlined, PlusOutlined, ProfileOutlined,
   ReloadOutlined, StopOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 import {
@@ -21,6 +22,7 @@ import {
   type ScheduledTaskCreate, type ScheduledTaskDetail, type ScheduledTaskSummary,
   type PvMockFeedDataEvidence, type PvMockFeedPreview, type ManualPvMockFeedResponse,
 } from '../../services/deploymentApi';
+import { getSchedulerStatus, type FailureRecord } from '../../services/schedulerApi';
 
 const { Text } = Typography;
 
@@ -43,13 +45,21 @@ const PIPELINE_OPTIONS = [
 ];
 const SLOT_OPTIONS = [
   { value: 'load_forecast', label: 'load_forecast（正式负荷预测）' },
+  { value: 'pv_fault', label: 'pv_fault（光伏故障诊断）' },
   { value: 'default', label: 'default（默认槽）' },
 ];
+
+const DEPRECATED_TASK_IDS = new Set(['pv_data_pull']);
+
+function resolvePipelineFilter(storySlot?: string): 'load_forecast' | 'pv_fault' | null {
+  if (storySlot === 'pv_fault') return 'pv_fault';
+  if (!storySlot || storySlot === 'load_forecast' || storySlot === 'default') return 'load_forecast';
+  return null;
+}
 
 // @AI_GENERATED: manual mock-feed UI guard
 const MOCK_DATA_FEED_TASK_ID = 'mock_data_feed';
 const PV_MOCK_DATA_FEED_TASK_ID = 'pv_mock_data_feed';
-const PV_DATA_PULL_TASK_ID = 'pv_data_pull';
 
 function formatMockFeedPreview(preview: MockDataFeedPreview): string {
   if (preview.exhausted) return 'CSV 模拟数据已全部投喂。';
@@ -96,8 +106,11 @@ interface TaskDetailState {
 
 const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
   const navigate = useNavigate();
+  const pipelineFilter = resolvePipelineFilter(storySlot);
+  const isPvSlot = pipelineFilter === 'pv_fault';
   const [messageApi, contextHolder] = message.useMessage();
   const [tasks, setTasks] = useState<ScheduledTaskSummary[]>([]);
+  const [taskFailures, setTaskFailures] = useState<Record<string, FailureRecord | undefined>>({});
   const [mockFeedPreview, setMockFeedPreview] = useState<MockDataFeedPreview | null>(null);
   // @AI_GENERATED: pv mock feed preview
   const [pvMockFeedPreview, setPvMockFeedPreview] = useState<PvMockFeedPreview | null>(null);
@@ -126,9 +139,23 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
   const loadTasks = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await schedulerTaskApi.listScheduledTasks();
+      const [res, schedulerStatus] = await Promise.all([
+        schedulerTaskApi.listScheduledTasks(),
+        getSchedulerStatus().catch(() => null),
+      ]);
       const nextTasks = res.tasks ?? [];
       setTasks(nextTasks);
+
+      const failures: Record<string, FailureRecord> = {};
+      if (schedulerStatus?.pipelines) {
+        for (const pipelineStatus of Object.values(schedulerStatus.pipelines)) {
+          for (const taskStatus of pipelineStatus.tasks ?? []) {
+            const latest = taskStatus.recent_failures?.[0];
+            if (latest) failures[taskStatus.task_id] = latest;
+          }
+        }
+      }
+      setTaskFailures(failures);
       if (nextTasks.some((task) => task.task_id === MOCK_DATA_FEED_TASK_ID)) {
         try {
           const status = await schedulerTaskApi.getMockDataFeedStatus();
@@ -154,6 +181,7 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
     } catch (err: any) {
       messageApi.error(`加载失败：${err?.message ?? String(err)}`);
       setTasks([]);
+      setTaskFailures({});
       setMockFeedPreview(null);
     } finally {
       setLoading(false);
@@ -161,6 +189,14 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
   }, [messageApi]);
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
+
+  const visibleTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      if (DEPRECATED_TASK_IDS.has(task.task_id)) return false;
+      if (!pipelineFilter) return true;
+      return task.pipeline === pipelineFilter;
+    });
+  }, [tasks, pipelineFilter]);
 
   const handleStart = async (task: ScheduledTaskSummary) => {
     setRowActionLoading((s) => ({ ...s, [task.task_id]: true }));
@@ -350,7 +386,16 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
 
   const openCreate = () => {
     form.resetFields();
-    form.setFieldsValue({ schedule_type: 'cron', trigger_time: '02:00', max_window_days: 365, slot: 'default', status: 'stopped', retry_on_failure: true, max_retries: 3 } as Partial<ScheduledTaskCreate>);
+    form.setFieldsValue({
+      schedule_type: 'cron',
+      trigger_time: '02:00',
+      max_window_days: 365,
+      pipeline: pipelineFilter ?? 'load_forecast',
+      slot: isPvSlot ? 'pv_fault' : 'load_forecast',
+      status: 'stopped',
+      retry_on_failure: true,
+      max_retries: 3,
+    } as Partial<ScheduledTaskCreate>);
     setCreateOpen(true);
   };
 
@@ -367,38 +412,75 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
   };
 
   const columns: ColumnsType<ScheduledTaskSummary> = [
-    { title: '任务名称', dataIndex: 'name', width: 200, render: (name: string, row) => (<Space direction="vertical" size={2}><Text strong>{name}</Text><Text code style={{ fontSize: 11 }}>{row.task_id}</Text></Space>) },
-    { title: '管线', dataIndex: 'pipeline', width: 130, render: (p: string) => <Tag>{p}</Tag> },
-    { title: '部署槽位', dataIndex: 'slot', width: 180, render: (slot: string) => <Tag color={slot === 'load_forecast_e2e_demo' ? 'purple' : 'geekblue'}>{slot}</Tag> },
-    { title: 'Cron 表达式', dataIndex: 'cron_expr', width: 140, render: (v: string | null) => v ? <Text code style={{ fontSize: 12 }}>{v}</Text> : <Text type="secondary" style={{ fontSize: 12 }}>（滚动触发）</Text> },
-    { title: '状态', dataIndex: 'status', width: 90, render: (s: ScheduledTaskSummary['status']) => { const cfg = STATUS_TAG[s]; return <Tag color={cfg.color}>{cfg.label}</Tag>; } },
-    { title: '上次执行', dataIndex: 'last_execution', width: 100, render: (r: ScheduledTaskSummary['last_execution']) => { if (!r) return <Tag>未执行</Tag>; const cfg = LAST_EXEC_TAG[r]; return <Tag color={cfg.color}>{cfg.label}</Tag>; } },
-    { title: '上次执行时间', dataIndex: 'last_execution_time', width: 155, render: (t: string | null) => formatDateTime(t) },
-    { title: '下次调度时间', dataIndex: 'next_scheduled_time', width: 155, render: (t: string | null) => formatDateTime(t) },
+    { title: '任务名称', dataIndex: 'name', width: 220, ellipsis: true, render: (name: string, row) => (<Space direction="vertical" size={2}><Text strong ellipsis={{ tooltip: name }}>{name}</Text><Text code style={{ fontSize: 11 }}>{row.task_id}</Text></Space>) },
+    ...(pipelineFilter ? [] : [{ title: '管线', dataIndex: 'pipeline', width: 110, render: (p: string) => <Tag>{p}</Tag> }] as ColumnsType<ScheduledTaskSummary>),
+    { title: '槽位', dataIndex: 'slot', width: 120, render: (slot: string) => <Tag color={slot === 'load_forecast_e2e_demo' ? 'purple' : 'geekblue'}>{slot}</Tag> },
+    { title: 'Cron', dataIndex: 'cron_expr', width: 110, render: (v: string | null) => v ? <Text code style={{ fontSize: 12 }}>{v}</Text> : <Text type="secondary" style={{ fontSize: 12 }}>滚动</Text> },
+    { title: '状态', dataIndex: 'status', width: 88, render: (s: ScheduledTaskSummary['status']) => { const cfg = STATUS_TAG[s]; return <Tag color={cfg.color}>{cfg.label}</Tag>; } },
     {
-      title: '操作', key: 'actions', width: 370, fixed: 'right',
+      title: '上次执行',
+      dataIndex: 'last_execution',
+      width: 220,
+      render: (r: ScheduledTaskSummary['last_execution'], row) => {
+        const failure = taskFailures[row.task_id];
+        if (!r) return <Tag>未执行</Tag>;
+        const cfg = LAST_EXEC_TAG[r];
+        return (
+          <Space direction="vertical" size={2}>
+            <Tag color={cfg.color}>{cfg.label}</Tag>
+            {r === 'failed' && failure?.error_message ? (
+              <Tooltip title={failure.error_message}>
+                <Text type="danger" ellipsis style={{ fontSize: 11, maxWidth: 200 }}>
+                  {failure.error_message}
+                </Text>
+              </Tooltip>
+            ) : null}
+          </Space>
+        );
+      },
+    },
+    { title: '上次执行时间', dataIndex: 'last_execution_time', width: 148, render: (t: string | null) => formatDateTime(t) },
+    { title: '下次调度', dataIndex: 'next_scheduled_time', width: 148, render: (t: string | null) => formatDateTime(t) },
+    {
+      title: '操作', key: 'actions', width: 260,
       render: (_: unknown, row) => {
         const busy = rowActionLoading[row.task_id] ?? false;
+        const moreItems: MenuProps['items'] = [
+          {
+            key: 'ops',
+            icon: <FundViewOutlined />,
+            label: '运营状态',
+            onClick: () => navigate(`/accuracy-operations?slot=${encodeURIComponent(row.slot === 'default' && row.pipeline === 'pv_fault' ? 'pv_fault' : row.slot)}`),
+          },
+          { key: 'edit', icon: <EditOutlined />, label: '编辑', onClick: () => openEdit(row) },
+          { key: 'detail', icon: <ProfileOutlined />, label: '详情', onClick: () => handleViewDetail(row) },
+        ];
         return (
-          <Space size={4} wrap>
-            {row.status !== 'running' && <Popconfirm title="确认启动？" onConfirm={() => handleStart(row)} okText="启动" cancelText="取消"><Button size="small" type="primary" icon={<PlayCircleOutlined />} loading={busy}>启动</Button></Popconfirm>}
-            {row.status === 'running' && <Popconfirm title="确认停止？" description="正在执行的批次仍会跑完。" onConfirm={() => handleStop(row)} okText="停止" cancelText="取消" okButtonProps={{ danger: true }}><Button size="small" danger icon={<StopOutlined />} loading={busy}>停止</Button></Popconfirm>}
-            {row.task_id === MOCK_DATA_FEED_TASK_ID ? (
-              <Button size="small" type="primary" icon={<DatabaseOutlined />} loading={busy} onClick={() => requestMockDataFeed(row)}>喂数据</Button>
-            ) : row.task_id === PV_MOCK_DATA_FEED_TASK_ID ? (
-              // @AI_GENERATED: pv mock feed button
-              <Button size="small" type="primary" icon={<DatabaseOutlined />} loading={busy} onClick={() => requestPvMockDataFeed(row)}>喂数据</Button>
-              // @AI_GENERATED: end
-            ) : row.task_id === PV_DATA_PULL_TASK_ID ? (
-              // @AI_GENERATED: pv_data_pull 对光伏 mock feeder 无实际作用
-              <Text type="secondary" style={{ fontSize: 11 }}>不适用（mock feeder 直写）</Text>
-              // @AI_GENERATED: end
-            ) : (
-              <Popconfirm title="立即触发一次（后台异步，不改 status）？" onConfirm={() => handleTriggerNow(row)} okText="触发" cancelText="取消"><Button size="small" icon={<ThunderboltOutlined />} loading={busy}>立即触发</Button></Popconfirm>
-            )}            <Button size="small" icon={<FundViewOutlined />} onClick={() => navigate(`/accuracy-operations?slot=${encodeURIComponent(row.slot)}`)}>运营状态</Button>
-            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(row)}>编辑</Button>
-            <Button size="small" icon={<ProfileOutlined />} onClick={() => handleViewDetail(row)}>详情</Button>
-          </Space>
+          <div className="scheduler-task-actions">
+            <Space size={4} wrap={false}>
+              {row.status !== 'running' ? (
+                <Popconfirm title="确认启动？" onConfirm={() => handleStart(row)} okText="启动" cancelText="取消">
+                  <Button size="small" type="primary" icon={<PlayCircleOutlined />} loading={busy}>启动</Button>
+                </Popconfirm>
+              ) : (
+                <Popconfirm title="确认停止？" description="正在执行的批次仍会跑完。" onConfirm={() => handleStop(row)} okText="停止" cancelText="取消" okButtonProps={{ danger: true }}>
+                  <Button size="small" danger icon={<StopOutlined />} loading={busy}>停止</Button>
+                </Popconfirm>
+              )}
+              {row.task_id === MOCK_DATA_FEED_TASK_ID ? (
+                <Button size="small" type="primary" icon={<DatabaseOutlined />} loading={busy} onClick={() => requestMockDataFeed(row)}>喂数据</Button>
+              ) : row.task_id === PV_MOCK_DATA_FEED_TASK_ID ? (
+                <Button size="small" type="primary" icon={<DatabaseOutlined />} loading={busy} onClick={() => requestPvMockDataFeed(row)}>喂数据</Button>
+              ) : (
+                <Popconfirm title="立即触发一次（后台异步，不改 status）？" onConfirm={() => handleTriggerNow(row)} okText="触发" cancelText="取消">
+                  <Button size="small" icon={<ThunderboltOutlined />} loading={busy}>触发</Button>
+                </Popconfirm>
+              )}
+              <Dropdown menu={{ items: moreItems }} trigger={['click']}>
+                <Button size="small" icon={<MoreOutlined />}>更多</Button>
+              </Dropdown>
+            </Space>
+          </div>
         );
       },
     },
@@ -412,15 +494,25 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
           className="scheduler-flow-note"
           type="info"
           showIcon
-          message="负荷预测标准运行约定"
+          message={isPvSlot ? '光伏故障诊断运行约定' : '负荷预测标准运行约定'}
           description={
             <Text style={{ fontSize: 13 }}>
-              {storySlot ? <>当前故事线槽位：<Text code>{storySlot}</Text>。 </> : null}
-              数据拉取、滚动训练、T+1 预测、真值回填和精度检测构成标准顺序。列表中的“上次执行”只代表调度任务回执，是否已形成指标或告警，应进入同槽位的“运营状态”查看证据链。
+              {storySlot ? <>当前槽位：<Text code>{storySlot}</Text>。 </> : null}
+              {isPvSlot ? (
+                <>
+                  模拟喂数据将 parquet 样本写入 <Text code>training_samples</Text>（label 为空），
+                  随后由预测任务读取未标注样本并生成预测批次；是否形成新结果请到同槽位「运营状态」查看证据链。
+                </>
+              ) : (
+                <>
+                  数据拉取、滚动训练、T+1 预测、真值回填和精度检测构成标准顺序。列表中的“上次执行”只代表调度任务回执，
+                  是否已形成指标或告警，应进入同槽位的“运营状态”查看证据链。
+                </>
+              )}
             </Text>
           }
         />
-        {mockFeedPreview && (
+        {!isPvSlot && mockFeedPreview && (
           <Alert
             type={mockFeedPreview.exhausted ? 'info' : mockFeedPreview.requires_advance_confirmation ? 'warning' : 'success'}
             showIcon
@@ -429,23 +521,51 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
           />
         )}
         {/* @AI_GENERATED: pv mock feed status banner */}
-        {pvMockFeedPreview && (
+        {isPvSlot && pvMockFeedPreview && (
           <Alert
             type={pvMockFeedPreview.exhausted ? 'info' : pvMockFeedPreview.requires_advance_confirmation ? 'warning' : 'success'}
             showIcon
             message="光伏模拟数据投喂闸门"
-            description={formatPvMockFeedPreview(pvMockFeedPreview)}
+            description={(
+              <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                <span>{formatPvMockFeedPreview(pvMockFeedPreview)}</span>
+                <Button
+                  size="small"
+                  onClick={async () => {
+                    try {
+                      const resp = await schedulerTaskApi.resetPvPredictionCursor();
+                      messageApi.success(resp.message || '预测进度已重置');
+                    } catch (err: any) {
+                      messageApi.error(err?.response?.data?.detail || err?.message || '重置预测进度失败');
+                    }
+                  }}
+                >
+                  重置预测进度
+                </Button>
+              </Space>
+            )}
           />
         )}
         {/* @AI_GENERATED: end */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text type="secondary">共 {tasks.length} 个任务</Text>
+          <Text type="secondary">共 {visibleTasks.length} 个任务{pipelineFilter ? `（${pipelineFilter}）` : ''}</Text>
           <Space>
             <Button icon={<ReloadOutlined />} onClick={loadTasks} loading={loading}>刷新</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建任务</Button>
           </Space>
         </div>
-        <Table<ScheduledTaskSummary> size="middle" rowKey="task_id" columns={columns} dataSource={tasks} loading={loading} pagination={{ pageSize: 10, showSizeChanger: false }} scroll={{ x: 1420 }} locale={{ emptyText: '暂无调度任务（后端启动后自动写入默认任务）' }} />
+        <div className="scheduler-task-table">
+          <Table<ScheduledTaskSummary>
+            size="middle"
+            rowKey="task_id"
+            columns={columns}
+            dataSource={visibleTasks}
+            loading={loading}
+            pagination={{ pageSize: 10, showSizeChanger: false }}
+            scroll={{ x: 'max-content' }}
+            locale={{ emptyText: '暂无调度任务（后端启动后自动写入默认任务）' }}
+          />
+        </div>
       </Space>
 
       <Modal open={editOpen} title={`编辑调度：${editTask?.name ?? ''}`} onCancel={() => { if (!editSubmitting) { setEditOpen(false); editForm.resetFields(); } }} onOk={submitEdit} okText="保存（热更新）" cancelText="取消" confirmLoading={editSubmitting} width={440} destroyOnClose>

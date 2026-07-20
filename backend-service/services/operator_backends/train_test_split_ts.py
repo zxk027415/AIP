@@ -152,7 +152,92 @@ def execute(params: dict, inputs: dict) -> dict:
         df[time_field] = pd.to_datetime(df[time_field], errors="coerce")
         df = df.sort_values(by=time_field).reset_index(drop=True)
 
-    # @AI_GENERATED: mode="all_train" 快速路径 — 全部数据当训练集，不切分测试集
+    # @AI_GENERATED: online forecast split and all-train compatibility
+    if mode == "online_forecast":
+        import numpy as np
+
+        forecast_marker = "__aip_online_forecast_row"
+        if forecast_marker not in df.columns:
+            raise OperatorExecutionError(
+                OPERATOR_ID,
+                "InputError",
+                f"mode=online_forecast requires '{forecast_marker}' marker column",
+            )
+
+        future_mask = pd.to_numeric(df[forecast_marker], errors="coerce").fillna(0).astype(float) > 0
+        train_mask = ~future_mask
+        training_start_raw = params.get("online_training_start") or options.get("online_training_start")
+        if training_start_raw and time_field in df.columns:
+            training_start = pd.to_datetime(training_start_raw, errors="coerce")
+            if pd.isna(training_start):
+                raise OperatorExecutionError(
+                    OPERATOR_ID,
+                    "ParameterError",
+                    f"Invalid online_training_start: {training_start_raw!r}",
+                )
+            train_mask &= df[time_field] >= training_start
+
+        training_end_raw = params.get("online_training_end") or options.get("online_training_end")
+        if training_end_raw and time_field in df.columns:
+            training_end = pd.to_datetime(training_end_raw, errors="coerce")
+            if pd.isna(training_end):
+                raise OperatorExecutionError(
+                    OPERATOR_ID,
+                    "ParameterError",
+                    f"Invalid online_training_end: {training_end_raw!r}",
+                )
+            train_mask &= df[time_field] <= training_end
+
+        train_df = df.loc[train_mask].copy()
+        forecast_df = df.loc[future_mask].copy()
+        if train_df.empty or forecast_df.empty:
+            raise OperatorExecutionError(
+                OPERATOR_ID,
+                "InputError",
+                "mode=online_forecast requires both historical training rows and future forecast rows",
+            )
+
+        train_target = pd.to_numeric(train_df[target_column], errors="coerce").values.astype(float)
+        if int(pd.Series(train_target).notna().sum()) <= 1:
+            raise OperatorExecutionError(
+                OPERATOR_ID,
+                "InputError",
+                "mode=online_forecast has insufficient finite training targets",
+            )
+
+        exclude_cols = list(DEFAULT_EXCLUDE_FEATURE_COLUMNS)
+        exclude_cols.extend(_parse_column_list(params.get("exclude_feature_columns")))
+        exclude_cols.extend(_parse_column_list(options.get("exclude_feature_columns")))
+        if isinstance(gcfg, dict):
+            exclude_cols.extend(_parse_column_list(gcfg.get("exclude_feature_columns")))
+        exclude_cols = sorted(set(exclude_cols) - {time_field})
+
+        train_features = train_df.drop(columns=[target_column, forecast_marker], errors="ignore")
+        test_features = forecast_df.drop(columns=[target_column, forecast_marker], errors="ignore")
+        drop_cols = [
+            column
+            for column in exclude_cols
+            if column in train_features.columns or column in test_features.columns
+        ]
+        if drop_cols:
+            train_features = train_features.drop(
+                columns=[column for column in drop_cols if column in train_features.columns]
+            )
+            test_features = test_features.drop(
+                columns=[column for column in drop_cols if column in test_features.columns]
+            )
+
+        logger.info(
+            f"[{OPERATOR_ID}] mode=online_forecast: train={len(train_features)}, "
+            f"forecast={len(test_features)}; future labels are excluded from training"
+        )
+        return {
+            "train_features": train_features,
+            "train_target": train_target,
+            "test_features": test_features,
+            "test_target": np.array([], dtype=float),
+        }
+
     if mode == "all_train":
         import numpy as np
         train_target_series = pd.to_numeric(df[target_column], errors="coerce")

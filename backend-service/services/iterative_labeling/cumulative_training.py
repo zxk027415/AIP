@@ -75,6 +75,8 @@ class CumulativeTrainingService:
         """返回可展示的累计训练状态，不暴露本机绝对路径。"""
         with self._lock:
             state = self._load_state()
+            self._maybe_create_retrain_request(state)
+            self._save_state(state)
             return self._summarize_state(state)
 
     def admit_verdict(
@@ -218,26 +220,19 @@ class CumulativeTrainingService:
                 raise KeyError(request_id)
             return dict(request)
 
-    def get_latest_completed_model_ref(self) -> Optional[str]:
-        """返回本 slot 最近成功重训的真实模型标识；未训练时返回 None。"""
+    def get_production_model_ref(self) -> Optional[str]:
+        """返回本 slot 当前生产模型；兼容读取自动切模上线前的历史状态。"""
         with self._lock:
             state = self._load_state()
-            completed = [
-                request
-                for request in state["retrain_requests"].values()
-                if request.get("status") == "completed" and str(request.get("model_ref") or "").strip()
-            ]
-            if not completed:
-                return None
-            latest = max(
-                completed,
-                key=lambda request: (
-                    request.get("finished_at") or "",
-                    request.get("updated_at") or "",
-                    request.get("created_at") or "",
-                ),
-            )
-            return str(latest["model_ref"]).strip()
+            production_ref = str(state.get("production_model_ref") or "").strip()
+            if production_ref:
+                return production_ref
+            latest = self._latest_completed_request(state)
+            return str(latest["model_ref"]).strip() if latest else None
+
+    def get_latest_completed_model_ref(self) -> Optional[str]:
+        """兼容旧调用；生产预测应使用 ``get_production_model_ref``。"""
+        return self.get_production_model_ref()
 
     def mark_retrain_request(
         self,
@@ -246,6 +241,7 @@ class CumulativeTrainingService:
         *,
         model_ref: Optional[str] = None,
         error: Optional[str] = None,
+        train_summary: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """更新重训请求状态；只有训练调用方可将 queued 变为 running/completed/failed。"""
         allowed_statuses = {"queued", "running", "completed", "failed", "cancelled"}
@@ -259,17 +255,74 @@ class CumulativeTrainingService:
             request["status"] = status
             request["updated_at"] = datetime.utcnow().isoformat()
             if status == "running":
-                request["started_at"] = request["updated_at"]
+                request.setdefault("started_at", request["updated_at"])
             if status in {"completed", "failed", "cancelled"}:
                 request["finished_at"] = request["updated_at"]
             if model_ref:
                 request["model_ref"] = model_ref
             if error:
                 request["error"] = error
+            if train_summary:
+                request["train_summary"] = train_summary
+            if status == "completed":
+                request["progress"] = {
+                    "stage": "completed",
+                    "percent": 100,
+                    "message": "训练完成，生产模型已切换",
+                    "updated_at": request["updated_at"],
+                }
+                production_ref = str(request.get("model_ref") or "").strip()
+                if not production_ref:
+                    raise ValueError("重训完成时必须提供有效 model_ref，生产模型未切换")
+                promoted_at = request["updated_at"]
+                request["promoted_to_production_at"] = promoted_at
+                state["production_model_ref"] = production_ref
+                state["production_retrain_request_id"] = request_id
+                state["production_promoted_at"] = promoted_at
+                # 若登记/审核在 queued 期间继续累积变更，完成后自动排队下一次全量快照。
+                self._maybe_create_retrain_request(state)
+            elif status == "failed":
+                previous_progress = request.get("progress") or {}
+                request["progress"] = {
+                    "stage": "failed",
+                    "percent": int(previous_progress.get("percent") or 0),
+                    "message": error or "重训失败",
+                    "updated_at": request["updated_at"],
+                }
+            self._save_state(state)
+            return dict(request)
+
+    def update_retrain_progress(
+        self,
+        request_id: str,
+        *,
+        stage: str,
+        percent: int,
+        message: str,
+    ) -> Dict[str, Any]:
+        """持久化真实重训阶段，供状态接口和前端轮询读取。"""
+        with self._lock:
+            state = self._load_state()
+            request = state["retrain_requests"].get(request_id)
+            if request is None:
+                raise KeyError(request_id)
+            if request.get("status") not in {"queued", "running"}:
+                raise ValueError(f"状态 {request.get('status')} 不允许更新重训进度")
+            now = datetime.utcnow().isoformat()
+            request["progress"] = {
+                "stage": str(stage),
+                "percent": max(0, min(100, int(percent))),
+                "message": str(message),
+                "updated_at": now,
+            }
+            request["updated_at"] = now
             self._save_state(state)
             return dict(request)
 
     def _maybe_create_retrain_request(self, state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if state["pending_change_count"] < self.retrain_label_threshold:
+            return None
+
         active = next(
             (
                 request
@@ -278,8 +331,13 @@ class CumulativeTrainingService:
             ),
             None,
         )
-        if active or state["pending_change_count"] < self.retrain_label_threshold:
-            return None
+        if active is not None:
+            if active.get("status") == "running":
+                return None
+            active["status"] = "cancelled"
+            active["cancelled_reason"] = "superseded_by_newer_snapshot"
+            active["updated_at"] = datetime.utcnow().isoformat()
+            active["finished_at"] = active["updated_at"]
 
         try:
             snapshot = self._create_snapshot(state)
@@ -300,6 +358,12 @@ class CumulativeTrainingService:
             "threshold": self.retrain_label_threshold,
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
+            "progress": {
+                "stage": "queued",
+                "percent": 0,
+                "message": "等待人工确认执行",
+                "updated_at": datetime.utcnow().isoformat(),
+            },
         }
         state["retrain_requests"][request_id] = request
         state["pending_change_count"] = 0
@@ -420,8 +484,24 @@ class CumulativeTrainingService:
         _atomic_write_json(self.state_path, state)
 
     def _summarize_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        production_request_id = str(state.get("production_retrain_request_id") or "").strip()
+        production_model_ref = str(state.get("production_model_ref") or "").strip()
+        latest_completed_raw = self._latest_completed_request(state)
+        if not production_model_ref and latest_completed_raw:
+            production_model_ref = str(latest_completed_raw.get("model_ref") or "").strip()
+            production_request_id = str(latest_completed_raw.get("request_id") or "").strip()
+
         requests = sorted(
-            state["retrain_requests"].values(),
+            (
+                {
+                    **request,
+                    "is_production": bool(
+                        production_request_id
+                        and str(request.get("request_id") or "") == production_request_id
+                    ),
+                }
+                for request in state["retrain_requests"].values()
+            ),
             key=lambda item: item.get("created_at", ""),
             reverse=True,
         )
@@ -430,6 +510,24 @@ class CumulativeTrainingService:
             key=lambda item: item.get("created_at", ""),
             reverse=True,
         )
+        latest_completed_id = str((latest_completed_raw or {}).get("request_id") or "")
+        latest_completed = next(
+            (
+                request
+                for request in requests
+                if str(request.get("request_id") or "") == latest_completed_id
+            ),
+            None,
+        )
+        production_request = next(
+            (request for request in requests if request.get("is_production")),
+            latest_completed,
+        )
+        display_snapshot = snapshots[0] if snapshots else None
+        if production_request and production_request.get("snapshot_id"):
+            matched = state["snapshots"].get(str(production_request["snapshot_id"]))
+            if isinstance(matched, dict):
+                display_snapshot = matched
         return {
             "slot": self.slot,
             "effective_labeled_unit_count": len(state["verdict_entries"]),
@@ -438,9 +536,37 @@ class CumulativeTrainingService:
             "retrain_label_threshold": self.retrain_label_threshold,
             "next_retrain_in": max(0, self.retrain_label_threshold - int(state["pending_change_count"])),
             "retrain_blocker": state.get("last_retrain_blocker"),
-            "latest_snapshot": snapshots[0] if snapshots else None,
+            "latest_snapshot": display_snapshot,
             "latest_retrain_request": requests[0] if requests else None,
+            "latest_completed_retrain": latest_completed,
+            "production_model": production_request,
+            "production_model_ref": production_model_ref or None,
+            "production_promoted_at": (
+                state.get("production_promoted_at")
+                or (production_request or {}).get("promoted_to_production_at")
+                or (production_request or {}).get("finished_at")
+            ),
+            "retrain_history": requests,
+            "latest_completed_model_ref": production_model_ref or None,
         }
+
+    @staticmethod
+    def _latest_completed_request(state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        completed = [
+            request
+            for request in state["retrain_requests"].values()
+            if request.get("status") == "completed"
+            and str(request.get("model_ref") or "").strip()
+        ]
+        return max(
+            completed,
+            key=lambda request: (
+                request.get("finished_at") or "",
+                request.get("updated_at") or "",
+                request.get("created_at") or "",
+            ),
+            default=None,
+        )
 
     def _normalize_relative_path(self, path_value: str) -> str:
         path = Path(str(path_value or "").strip())

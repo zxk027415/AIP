@@ -542,8 +542,13 @@ class LoopOrchestrator:
             'macro_precision_mean': metrics.get('macro_precision_mean', metrics.get('precision')),
             'macro_recall_mean': metrics.get('macro_recall_mean', metrics.get('recall')),
             'per_class_recall_mean': metrics.get('per_class_recall_mean', {}),
+            'per_class_metrics': metrics.get('per_class_metrics', []),
             'per_repeat_macro_f1': metrics.get('per_repeat_macro_f1', []),
             'confusion_matrix': metrics.get('confusion_matrix', {}),
+            'class_distribution': metrics.get('class_distribution', {}),
+            'n_repeats': metrics.get('n_repeats'),
+            'n_samples': metrics.get('n_samples'),
+            'n_classes': metrics.get('n_classes'),
             'warnings': metrics.get('warnings', []),
         }
 

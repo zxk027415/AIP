@@ -395,7 +395,7 @@ const ModelManagementTab: React.FC<{ storySlot?: string }> = ({ storySlot }) => 
               showIcon
               style={{ marginBottom: 16 }}
               message="光伏故障诊断槽位尚未注册部署模型"
-              description="pv_fault 累计训练完成后模型为 not_published 状态。如需在此管理光伏模型，请先通过累计训练重训完成后在此处注册为 shadow 或 production。"
+              description="pv_fault 使用累计训练专用生产指针：重训成功后自动切换，下一次预测自动读取。请在该槽位的“模型状态”页查看当前生产模型和重训历史。"
             />
           )}
           {/* @AI_GENERATED: end */}

@@ -3,17 +3,19 @@
 
 ## Overview
 
-本设计是对 `design.md`（光伏故障人机协同迭代标注闭环）的扩展，覆盖 `requirements-feature-enhancement.md` 中的需求 13～24，分四个优化方向：
+本设计是对 `design.md`（光伏故障人机协同迭代标注闭环）的扩展，覆盖 `requirements-feature-enhancement.md` 中的需求 13～26，分五个优化方向：
 
 1. **诊断窗口切分策略增强**（需求 13～15）：在 `set_time_window()` 上游新增 `SolarWindow_Segmentation` 模块，支持 `daylight`/`solar_period`/`multiscale` 三种切分模式。
 2. **标签扩充策略增强**（需求 16～19）：新增采样策略、聚类新类发现、伪标签回流、分歧优先采样。
 3. **审核期增量训练**（需求 20～22）：在 `reviewing` 阶段内部引入 Mini_Backfill + 全量重训 + 置信度刷新子循环。
 4. **审核辅助增强**（需求 23～24）：SHAP 可解释性、相似案例检索、审核人 IAA 一致性检测。
+5. **夜间诊断与自由时间窗标注**（需求 25～26）：补齐夜间故障样本/特征；审核界面支持任意框选时段打标并扩充标签。
 
 **核心设计理念：**
 - **算子层最小改动**：`FeatureEngineer`、`RandomForest`、`DataCleaner` 等核心算子内部不修改，切分逻辑在上游完成
 - **向后兼容**：所有新参数均有安全默认值，不传则退化为现有行为
 - **可独立交付**：每个需求为独立模块，可单独实现和测试
+- **日照与夜间正交**：`daylight` 仍可排除夜间以提升日照信噪比；夜间能力通过显式 `night` / `day_and_night` 开启，二者不互相替代
 
 ---
 
@@ -23,14 +25,15 @@
 fault-diag-algo-release-3.1/enos_fault_diag/
 ├── utils/
 │   ├── time.py                    # 修改：set_time_window() 新增 solar_mode 参数
-│   └── solar_window.py            # 新增：SolarWindow_Segmentation 核心日照切分逻辑
+│   └── solar_window.py            # 新增：SolarWindow_Segmentation（日照 + 夜间切分）
 ├── fault_diagnosis.py              # 修改：diagnosis_window 新枚举值解析 + solar_mode 转发
 └── features/
-    └── feature_engineer.py         # 修改：新增 quantile_min_points 可选参数
+    ├── feature_engineer.py         # 修改：新增 quantile_min_points 可选参数
+    └── night_anomaly.py            # 新增：夜间异常电流/功率特征族
 
 backend-service/
 ├── api/
-│   └── iterative_labeling.py      # 扩展：新增采样/聚类/增量/SHAP/IAA 相关 HTTP 接口
+│   └── iterative_labeling.py      # 扩展：采样/聚类/增量/SHAP/IAA/自由时间窗标注 HTTP 接口
 └── services/
     └── iterative_labeling/
         ├── sampling_strategy.py        # 新增：不确定性/多样性/分歧采样排序逻辑
@@ -40,12 +43,14 @@ backend-service/
         ├── confidence_refresher.py     # 新增：置信度刷新（非阻塞）
         ├── shap_explainer.py           # 新增：SHAP TreeExplainer 特征贡献计算
         ├── similar_case_retriever.py   # 新增：相似案例 KNN 检索
-        └── iaa_evaluator.py            # 新增：IAA Cohen/Fleiss Kappa + 审核人偏差检测
+        ├── iaa_evaluator.py            # 新增：IAA Cohen/Fleiss Kappa + 审核人偏差检测
+        └── freeform_labeling.py        # 新增：自由时间窗打标、冲突检测、特征化与回流
 ```
 
 各路径职责：
 
-- `utils/solar_window.py` — 封装日照时段识别与三种切分模式的核心逻辑（`daylight`/`solar_period`/`multiscale`），被 `time.py` 的 `set_time_window()` 调用，保持关注点分离。
+- `utils/solar_window.py` — 封装日照/夜间时段识别与切分模式（`daylight`/`solar_period`/`multiscale`/`night`/`day_and_night`），被 `time.py` 的 `set_time_window()` 调用。
+- `features/night_anomaly.py` — 夜间异常特征族（`night_nonzero_current_ratio` 等），仅在 Night_Period 或 freeform 夜间子段上计算。
 - `services/iterative_labeling/sampling_strategy.py` — 审核队列排序服务：接收待审核单元列表和策略参数，输出排序后的列表；支持 `uncertainty`/`diversity`/`disagreement_first` 三种模式。
 - `services/iterative_labeling/cluster_discovery.py` — 独立的新类候选发现引擎：筛选低置信度样本、执行 HDBSCAN/K-means 聚类、计算与已知类别距离、标记新类候选。
 - `services/iterative_labeling/pseudo_backfill.py` — 伪标签回流逻辑：筛选高置信度预测、执行截断检查、写入 `is_pseudo=true` 记录。
@@ -54,6 +59,7 @@ backend-service/
 - `services/iterative_labeling/shap_explainer.py` — SHAP 解释计算：使用 `shap.TreeExplainer`（随机森林原生支持）为每个样本计算 top-K 特征贡献，预计算 + 缓存。
 - `services/iterative_labeling/similar_case_retriever.py` — 相似案例检索：以 Labeled_Dataset 的特征矩阵为索引，使用 `sklearn.neighbors.NearestNeighbors` 返回 top-k 最近邻。
 - `services/iterative_labeling/iaa_evaluator.py` — IAA 一致性评估：Overlap_Batch 抽样、Cohen/Fleiss Kappa 计算、审核人偏差检测。
+- `services/iterative_labeling/freeform_labeling.py` — 自由时间窗标注：校验区间、冲突检测、特征化、写入累计训练集、会话内列表与撤销。
 
 ---
 
@@ -66,9 +72,11 @@ graph TB
         TW["time.py<br/>set_time_window()"]
         FD["fault_diagnosis.py<br/>FaultDiagnosis"]
         FE["feature_engineer.py<br/>FeatureEngineer"]
+        NA["night_anomaly.py<br/>夜间异常特征"]
         TW --> SW
         FD --> TW
         FD --> FE
+        SW --> NA
     end
 
     subgraph ORCH["编排层（backend-service/services/iterative_labeling/）"]
@@ -80,19 +88,23 @@ graph TB
         SE["shap_explainer.py<br/>SHAP 解释"]
         SCR["similar_case_retriever.py<br/>相似案例"]
         IAA["iaa_evaluator.py<br/>IAA 一致性"]
+        FL["freeform_labeling.py<br/>自由时间窗打标"]
     end
 
-    subgraph EXIST["现有模块（不修改）"]
+    subgraph EXIST["现有模块（不修改核心契约）"]
         LO["Loop_Orchestrator"]
         RS["Review_Session"]
         AE["Accuracy_Evaluator"]
         SA["Storage_Abstraction"]
+        CT["CumulativeTraining"]
     end
 
     RS --> SS
     RS --> SE
     RS --> SCR
     RS --> IAA
+    RS --> FL
+    FL --> CT
     LO --> CD
     LO --> PB
     LO --> IT
@@ -104,6 +116,7 @@ graph TB
     PB --> SA
     IT --> SA
     IAA --> SA
+    FL --> SA
 ```
 
 ---
@@ -205,7 +218,13 @@ def set_time_window(data, id_cols, time_col, freq, solar_mode=None, **solar_kwar
 
 ```python
 # diagnosis_window 新增枚举值映射
-SOLAR_MODES = {'daylight': 'daylight', 'solar_period': 'solar_period', 'multiscale': 'multiscale'}
+SOLAR_MODES = {
+    'daylight': 'daylight',
+    'solar_period': 'solar_period',
+    'multiscale': 'multiscale',
+    'night': 'night',
+    'day_and_night': 'day_and_night',
+}
 
 def __init__(self, ..., diagnosis_window='1d', sub_window='4h', ...):
     ...
@@ -482,6 +501,112 @@ class IAAEvaluator:
 
 ---
 
+### 组件 K：Night_Period 切分与夜间异常特征（需求 25）
+
+**职责**：在不破坏 `daylight`/`solar_period` 默认排除夜间行为的前提下，显式产出夜间样本并计算夜间异常特征。  
+**文件**：
+- `fault-diag-algo-release-3.1/enos_fault_diag/utils/solar_window.py`（扩展）
+- `fault-diag-algo-release-3.1/enos_fault_diag/features/night_anomaly.py`（新增）
+
+**模式语义：**
+
+| `solar_mode` | 日照样本 | 夜间样本 | 与需求 13/14 关系 |
+|---|---|---|---|
+| `None` / 原 freq | 按原 resample | 含在整天窗口内（不单独拆） | 完全兼容 |
+| `daylight` | 有 | **无**（排除） | 需求 13 不变 |
+| `solar_period` | A/S 段 | **无**（排除） | 需求 14 不变 |
+| `night` | 无 | 有 | 新增 |
+| `day_and_night` | 有 | 有 | 新增；同日两套样本 |
+
+**`night` / `day_and_night` 内部逻辑：**
+
+1. 与 daylight 相同方式识别 Night_Period：`power < irr_threshold * max_power`
+2. 夜间样本写入 `period_role='night'`；日照样本写入 `period_role='daylight'`
+3. `time_window` 约定（固定实现并写入元数据）：`f"{date.isoformat()}#night"`，避免与日照 `date` 主键冲突
+4. 调用 `compute_night_anomaly_features(night_df, current_col=..., power_col=..., night_zero_epsilon=..., night_anomaly_current_threshold=...)`
+5. 特征列统一 `night_` 前缀后并入该样本特征向量（或作为附加列供 FE 透传）
+
+**夜间特征函数签名：**
+
+```python
+def compute_night_anomaly_features(
+    night_df: pd.DataFrame,
+    current_col: str,
+    power_col: str | None = None,
+    night_zero_epsilon: float = 0.01,
+    night_anomaly_current_threshold: float | None = None,
+) -> dict[str, float]:
+    """
+    返回：
+      night_nonzero_current_ratio,
+      night_current_mean,
+      night_current_max,
+      night_over_threshold_duration,
+      night_power_residual_mean
+    """
+```
+
+**与 daylight 的冲突消解（设计决策）：**
+
+- **不修改**需求 13/14 的默认排除夜间行为。
+- 需要夜间故障建模时，工作流/训练配置显式选择 `night` 或 `day_and_night`。
+- 推荐生产默认：`day_and_night`（日照 + 夜间双样本）；仅做日照精度对比实验时用 `daylight`。
+
+---
+
+### 组件 L：FreeformLabeling 服务（需求 26）
+
+**职责**：审核界面任意时间窗打标、冲突检测、特征化、累计训练集准入。  
+**文件**：`backend-service/services/iterative_labeling/freeform_labeling.py`  
+**前端**：`frontend-sevice/src/pages/IterativeLabelingReviewPage.tsx`（波形 brush 交互）
+
+```python
+class FreeformLabelingService:
+    def create_freeform_label(
+        self,
+        review_id: str,
+        *,
+        site_id: Any,
+        device_id: Any,
+        branch_id: Any,
+        t_start: str,
+        t_end: str,
+        action_type: str,          # 'correct' | 'new_label'
+        verdict_label: int | None,
+        new_label_name: str | None,
+        reviewer: str,
+        source_unit_key: str | None = None,
+        force_overwrite: bool = False,
+        source_csv_path: str,
+    ) -> dict:
+        """校验区间 → 分配/绑定标签 → 切窗特征化 → 写入累计训练 → 返回 Freeform_Labeled_Unit"""
+
+    def list_freeform_labels(self, review_id: str) -> list[dict]:
+        ...
+
+    def revoke_freeform_label(self, review_id: str, unit_key: str) -> dict:
+        ...
+```
+
+**前端交互要点：**
+
+1. 在现有 ECharts 时序图上启用 `brush`（或 `dataZoom` + 显式「确认框选」按钮）。
+2. 框选后弹出抽屉：展示 `[t_start, t_end]`、已有标签下拉、`new_label` 输入。
+3. 提交成功后在图上叠加 markArea（标签名 + 颜色），并刷新 freeform 列表。
+4. 纯手工标注会话同样可用（不依赖 `predicted_label`）。
+
+**冲突规则：**
+
+- 同 `site|device|branch` 下，与已有 freeform 区间时间重叠面积 > `freeform_overlap_tolerance`（默认 0）→ 422。
+- 不修改父 Diagnosis_Unit 的 `time_window`；freeform 是附加样本。
+
+**回流权威性：**
+
+- Freeform 标注与 Human_Verdict 同级（`is_pseudo=false`）。
+- 写入 `CumulativeTrainingService.admit_*` 或等价寄存器路径；路径保持项目相对路径。
+
+---
+
 ## 新增/扩展 API 接口
 
 > 所有接口路径前缀 `/api/iterative-labeling`，扩展现有 `iterative_labeling.py`。
@@ -497,6 +622,11 @@ class IAAEvaluator:
 | GET | `/review-sessions/{id}/similar-cases/{unit_key}` | 获取某单元的相似案例 | 23 |
 | GET | `/review-sessions/{id}/iaa` | 获取 IAA 评估结果 | 24 |
 | GET | `/review-sessions/{id}/incremental-status` | 获取增量训练状态 | 22 |
+| POST | `/review-sessions/{id}/freeform-labels` | 创建自由时间窗标注（可触发标签扩充） | 26 |
+| GET | `/review-sessions/{id}/freeform-labels` | 列出本会话自由时间窗标注 | 26 |
+| DELETE | `/review-sessions/{id}/freeform-labels/{unit_key}` | 撤销自由时间窗标注 | 26 |
+
+> 夜间切分（需求 25）主要通过算子层 `solar_mode` / `diagnosis_window` 配置启用，不强制新增独立 HTTP 路由；训练/预测工作流模板增加可选枚举即可。若需运行时查询，可扩展现有 slot overview 返回 `period_role` 分布。
 
 ---
 

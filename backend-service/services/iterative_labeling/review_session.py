@@ -94,10 +94,20 @@ session_state = session_service.get_session('rev-r3-77')
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import logging
+import re
 import uuid
 
 from .storage.interfaces import ReviewResultRepository
 from .label_registry import LabelRegistryService
+
+
+def _review_id_for_prediction_batch(prediction_batch_id: str) -> str:
+    """Build a readable review ID that preserves the prediction timestamp."""
+    batch_suffix = str(prediction_batch_id).removeprefix("pred-")
+    safe_suffix = re.sub(r"[^A-Za-z0-9_-]+", "-", batch_suffix).strip("-")
+    if not safe_suffix:
+        raise ValueError("prediction_batch_id 无法生成有效审核会话标识")
+    return f"rev-{safe_suffix}"
 
 logger = logging.getLogger(__name__)
 
@@ -195,8 +205,28 @@ class ReviewSessionService:
         if not prediction_units:
             raise ValueError("prediction_units 不能为空")
         
-        # 生成 review_id（主键）
-        review_id = f"rev-{uuid.uuid4().hex[:8]}"
+        # 审核 ID 保留预测批次中的时间和短标识，便于从页面直接核对来源。
+        review_id = _review_id_for_prediction_batch(prediction_batch_id)
+        existing_session = self.review_repo.load_session(self.slot, review_id)
+        if existing_session:
+            logger.info(
+                "复用预测批次 %s 已有审核会话 %s",
+                prediction_batch_id,
+                review_id,
+            )
+            return existing_session
+        # 兼容此前发布过的 UUID5 命名，历史批次重复创建时仍复用原会话。
+        legacy_review_id = (
+            f"rev-{uuid.uuid5(uuid.NAMESPACE_URL, f'aip:{self.slot}:{prediction_batch_id}').hex[:12]}"
+        )
+        legacy_session = self.review_repo.load_session(self.slot, legacy_review_id)
+        if legacy_session:
+            logger.info(
+                "复用预测批次 %s 的历史审核会话 %s",
+                prediction_batch_id,
+                legacy_review_id,
+            )
+            return legacy_session
         
         # 装配待审核单元（双来源并列 + disagreement 标志）
         units = []

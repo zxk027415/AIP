@@ -19,6 +19,7 @@ import {
   UploadOutlined, SearchOutlined, FileExcelOutlined, FileTextOutlined,
   GlobalOutlined, LockOutlined, CloudDownloadOutlined,
   DatabaseOutlined, ExperimentOutlined, ThunderboltOutlined,
+  ClusterOutlined, EditOutlined, CheckCircleOutlined,
 } from '@ant-design/icons';
 // @AI_GENERATED
 import { td } from '../utils/dataTranslation';
@@ -98,12 +99,15 @@ const industryColor = (industry: string) => {
 };
 
 const DatasetPage: React.FC = () => {
+  const navigate = useNavigate();
   // @AI_GENERATED
   const { t } = useTranslation();
   // @AI_GENERATED: end
   const [opensourceDatasets] = useState<Dataset[]>(OPENSOURCE_DATASETS);
   const [privateDatasets, setPrivateDatasets] = useState<Dataset[]>(PRIVATE_DATASETS);
-  const [activeTab, setActiveTab] = useState<string>('opensource');
+  const [activeTab, setActiveTab] = useState<string>(() => (
+    new URLSearchParams(window.location.search).get('tab') === 'private' ? 'private' : 'opensource'
+  ));
   const [search, setSearch] = useState('');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [industryFilter, setIndustryFilter] = useState<string | null>(null);
@@ -229,8 +233,8 @@ const DatasetPage: React.FC = () => {
       <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
         <Title level={4} style={{ margin: 0 }}>{t('dataset.title')}</Title>
         <Space>
-          <Button type="default" onClick={() => window.location.href = '/iterative-labeling/review?review_id=demo'}>
-            迭代标注审核
+          <Button type="default" onClick={() => navigate('/iterative-labeling')}>
+            人工标注工作台
           </Button>
           <Button type="primary" icon={<UploadOutlined />} onClick={() => setUploadOpen(true)}>{t('dataset.upload')}</Button>
         </Space>
@@ -350,6 +354,15 @@ const PvTrainingDatasetCard: React.FC = () => {
   const [dbPullModalOpen, setDbPullModalOpen] = useState(false);
   const [dbPulling, setDbPulling] = useState(false);
   const [pulledData, setPulledData] = useState<{ hasLabel: boolean; total: number; items: any[] } | null>(null);
+  const [admissionPreview, setAdmissionPreview] = useState<{
+    columns: string[];
+    rows: Array<Record<string, unknown>>;
+    hasLabel: boolean;
+  } | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [manualReviewLoading, setManualReviewLoading] = useState(false);
+  const [clusteringLoading, setClusteringLoading] = useState(false);
+  const [clusteringRun, setClusteringRun] = useState<Record<string, any> | null>(null);
 
   const loadState = useCallback(async () => {
     setLoading(true);
@@ -364,6 +377,33 @@ const PvTrainingDatasetCard: React.FC = () => {
   }, []);
 
   useEffect(() => { void loadState(); }, [loadState]);
+
+  const handleAnalyzeUpload = async () => {
+    if (!uploadPath.trim()) { message.warning('请输入数据集路径'); return; }
+    setAnalyzing(true);
+    setClusteringRun(null);
+    try {
+      const response = await fetch(
+        `/api/iterative-labeling/data-preview?file_path=${encodeURIComponent(uploadPath.trim())}&rows=20`,
+      );
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.detail || '数据集分析失败');
+      }
+      const result = await response.json();
+      const columns = Array.isArray(result.columns) ? result.columns : [];
+      setAdmissionPreview({
+        columns,
+        rows: Array.isArray(result.rows) ? result.rows : [],
+        hasLabel: columns.includes('label'),
+      });
+    } catch (error: any) {
+      setAdmissionPreview(null);
+      message.error(error?.message || '数据集分析失败');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   const handleImport = async () => {
     if (!uploadPath.trim()) { message.warning('请输入数据集路径'); return; }
@@ -381,22 +421,70 @@ const PvTrainingDatasetCard: React.FC = () => {
       setUploadModalOpen(false);
       setUploadPath('');
       setUploadSourceName('');
+      setAdmissionPreview(null);
+      setClusteringRun(null);
       await loadState();
     } catch (err: any) {
       const detail = err?.response?.data?.detail || err?.message || '导入失败';
-      if (detail.includes('label')) {
-        Modal.confirm({
-          title: '该数据集没有 label 列',
-          content: '无真值数据需要先标注后才能进入累计训练集。是否跳转到打标界面？',
-          okText: '去标注',
-          cancelText: '取消',
-          onOk: () => navigate('/iterative-labeling'),
-        });
-      } else {
-        message.error(detail);
-      }
+      message.error(detail);
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleManualReview = async () => {
+    if (!uploadPath.trim()) return;
+    setManualReviewLoading(true);
+    try {
+      const result = await trainingWorkspaceApi.createManualReviewFromDataset({
+        dataset_path: uploadPath.trim(),
+        slot: 'pv_fault',
+        max_units: 500,
+      });
+      message.success(`已创建 ${result.total_count} 个待标注单元`);
+      navigate(`/iterative-labeling/review?review_id=${encodeURIComponent(result.review_id)}&slot=pv_fault`);
+    } catch (error: any) {
+      message.error(error?.response?.data?.detail || error?.message || '创建手工标注会话失败');
+    } finally {
+      setManualReviewLoading(false);
+    }
+  };
+
+  const handleDatasetClustering = async () => {
+    if (!uploadPath.trim()) return;
+    setClusteringLoading(true);
+    try {
+      const result = await trainingWorkspaceApi.createClusteringRun({
+        dataset_path: uploadPath.trim(),
+        n_clusters: 5,
+        label_status: 'all',
+        page_size: 500,
+      });
+      setClusteringRun(result as Record<string, any>);
+      message.success('聚类分析完成，请为各簇确认标签名称');
+    } catch (error: any) {
+      message.error(error?.response?.data?.detail || '聚类分析失败');
+    } finally {
+      setClusteringLoading(false);
+    }
+  };
+
+  const handleConfirmClustering = async () => {
+    const runId = String(clusteringRun?.run_id || '');
+    if (!runId) return;
+    setClusteringLoading(true);
+    try {
+      await trainingWorkspaceApi.confirmClusteringRun(runId);
+      message.success('聚类标注结果已纳入累计训练集');
+      setUploadModalOpen(false);
+      setAdmissionPreview(null);
+      setClusteringRun(null);
+      setUploadPath('');
+      await loadState();
+    } catch (error: any) {
+      message.error(error?.response?.data?.detail || '确认聚类结果失败');
+    } finally {
+      setClusteringLoading(false);
     }
   };
 
@@ -454,7 +542,15 @@ const PvTrainingDatasetCard: React.FC = () => {
       }
       extra={
         <Space size={8}>
-          <Button size="small" icon={<UploadOutlined />} onClick={() => setUploadModalOpen(true)}>
+          <Button
+            size="small"
+            icon={<UploadOutlined />}
+            onClick={() => {
+              setAdmissionPreview(null);
+              setClusteringRun(null);
+              setUploadModalOpen(true);
+            }}
+          >
             上传扩充
           </Button>
           <Button size="small" type="primary" icon={<DatabaseOutlined />} loading={dbPulling} onClick={handleDbPull}>
@@ -485,15 +581,36 @@ const PvTrainingDatasetCard: React.FC = () => {
       {state?.retrain_blocker && (
         <Alert type="warning" showIcon style={{ marginTop: 8 }} message={state.retrain_blocker} />
       )}
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginTop: 12 }}
+        message="累计训练集扩充流程"
+        description="上传或选择数据集 → 数据准入预览与字段分析 → 有标签数据直接入账；无标签数据选择聚类标注或进入人工打标工作台。"
+      />
 
       {/* 上传扩充弹窗 */}
       <Modal
-        title="上传数据集扩充累计训练集"
+        title="数据准入与累计训练集扩充"
         open={uploadModalOpen}
+        width={960}
         onCancel={() => setUploadModalOpen(false)}
-        onOk={handleImport}
-        confirmLoading={importing}
-        okText="确认登记"
+        footer={[
+          <Button key="cancel" onClick={() => setUploadModalOpen(false)}>取消</Button>,
+          <Button key="analyze" loading={analyzing} onClick={handleAnalyzeUpload}>分析数据集</Button>,
+          ...(admissionPreview?.hasLabel ? [
+            <Button key="import" type="primary" loading={importing} onClick={handleImport}>
+              确认纳入累计训练集
+            </Button>,
+          ] : admissionPreview ? [
+            <Button key="cluster" icon={<ClusterOutlined />} loading={clusteringLoading} onClick={handleDatasetClustering}>
+              聚类标注
+            </Button>,
+            <Button key="manual" type="primary" icon={<EditOutlined />} loading={manualReviewLoading} onClick={handleManualReview}>
+              手工标注
+            </Button>,
+          ] : []),
+        ]}
       >
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <div>
@@ -501,7 +618,11 @@ const PvTrainingDatasetCard: React.FC = () => {
             <Input
               placeholder="例如：backend-service/datasets/dataset_combined.parquet"
               value={uploadPath}
-              onChange={(e) => setUploadPath(e.target.value)}
+              onChange={(e) => {
+                setUploadPath(e.target.value);
+                setAdmissionPreview(null);
+                setClusteringRun(null);
+              }}
             />
           </div>
           <div>
@@ -515,8 +636,79 @@ const PvTrainingDatasetCard: React.FC = () => {
           <Alert
             type="info"
             showIcon
-            message="数据集必须含有 label 列才能直接入账；无 label 列的数据会被拒绝，需先到打标界面标注。"
+            message="先分析，后决定准入方式"
+            description="系统会展示前 20 行、识别字段及 label 列。有真值可直接纳入；无真值可聚类批量标注，或进入原有逐单元人工打标界面。"
           />
+          {admissionPreview && (
+            <>
+              <Alert
+                type={admissionPreview.hasLabel ? 'success' : 'warning'}
+                showIcon
+                message={admissionPreview.hasLabel ? '检测到 label 列，可直接准入' : '未检测到 label 列，需要先完成标注'}
+                description={`识别到 ${admissionPreview.columns.length} 个字段，当前展示 ${admissionPreview.rows.length} 行样本。`}
+              />
+              <Table
+                dataSource={admissionPreview.rows.map((row, index) => ({ ...row, __key: index }))}
+                columns={admissionPreview.columns.map((column) => ({
+                  title: column,
+                  dataIndex: column,
+                  key: column,
+                  width: 130,
+                  ellipsis: true,
+                  render: (value: unknown) => value === null || value === undefined || value === '' ? '—' : String(value),
+                }))}
+                rowKey="__key"
+                size="small"
+                pagination={false}
+                scroll={{ x: 'max-content', y: 260 }}
+              />
+            </>
+          )}
+          {clusteringRun && (
+            <Card size="small" title={`聚类结果 · ${clusteringRun.total_members ?? 0} 个诊断片段`}>
+              <Row gutter={[12, 12]}>
+                {Object.entries(clusteringRun.clusters || {}).map(([clusterId, cluster]: [string, any]) => (
+                  <Col xs={24} md={12} key={clusterId}>
+                    <Card
+                      size="small"
+                      title={<Space><Tag color="geekblue">簇 {clusterId}</Tag><Text>{cluster.member_count} 个成员</Text></Space>}
+                    >
+                      <Input
+                        size="small"
+                        placeholder="输入标签名称，如：组串遮挡"
+                        defaultValue={cluster.proposed_label_name || ''}
+                        onBlur={async (event) => {
+                          const labelName = event.target.value.trim();
+                          if (!labelName) return;
+                          try {
+                            const updated = await trainingWorkspaceApi.updateCluster(
+                              String(clusteringRun.run_id),
+                              clusterId,
+                              { proposed_label_name: labelName },
+                            );
+                            setClusteringRun(updated as Record<string, any>);
+                          } catch (error: any) {
+                            message.error(error?.response?.data?.detail || '簇命名失败');
+                          }
+                        }}
+                        addonBefore="标签"
+                      />
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+              <div style={{ marginTop: 12, textAlign: 'right' }}>
+                <Button
+                  type="primary"
+                  icon={<CheckCircleOutlined />}
+                  loading={clusteringLoading}
+                  onClick={handleConfirmClustering}
+                >
+                  确认标注并纳入训练集
+                </Button>
+              </div>
+            </Card>
+          )}
         </Space>
       </Modal>
 

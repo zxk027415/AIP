@@ -207,6 +207,94 @@ class LabelRegistryService:
         self.registry_repo.save_new_version(self.slot, new_registry)
         
         return new_label_id
+
+    def reconcile_labels(self, labels_by_id: Dict[int, str]) -> Dict[str, Any]:
+        """按数据集中已经存在的 label_id 补齐业务名称，不重新分配编码。"""
+        if not labels_by_id:
+            raise ValueError("至少需要登记一个标签")
+
+        normalized: Dict[int, str] = {}
+        for raw_id, raw_name in labels_by_id.items():
+            try:
+                label_id = int(raw_id)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"标签 ID 无效: {raw_id}") from exc
+            if label_id < 0:
+                raise ValueError(f"标签 ID 不能为负数: {label_id}")
+            label_name = str(raw_name or "").strip()
+            if not label_name:
+                raise ValueError(f"标签 {label_id} 的业务名称不能为空")
+            normalized[label_id] = label_name
+
+        if len(set(normalized.values())) != len(normalized):
+            raise ValueError("本次登记的业务名称不能重复")
+
+        current = self.registry_repo.load_current(self.slot)
+        current_labels = list(current.get("labels", []))
+        id_to_name = {
+            int(item["label_id"]): str(item["label_name"])
+            for item in current_labels
+        }
+        name_to_id = {
+            str(item["label_name"]): int(item["label_id"])
+            for item in current_labels
+        }
+
+        additions = []
+        now = datetime.utcnow().isoformat()
+        for label_id, label_name in normalized.items():
+            existing_name = id_to_name.get(label_id)
+            if existing_name is not None:
+                if existing_name != label_name:
+                    raise ValueError(
+                        f"标签 ID {label_id} 已登记为“{existing_name}”，不能改为“{label_name}”"
+                    )
+                continue
+            existing_id = name_to_id.get(label_name)
+            if existing_id is not None and existing_id != label_id:
+                raise ValueError(
+                    f"业务名称“{label_name}”已绑定标签 ID {existing_id}，不能重复绑定 {label_id}"
+                )
+            additions.append(
+                {
+                    "label_id": label_id,
+                    "label_name": label_name,
+                    "created_at": now,
+                    "source": "snapshot_reconciliation",
+                }
+            )
+
+        if not additions:
+            return current
+
+        old_version = current.get("label_space_version", "ls-v1")
+        old_label_ids = sorted(id_to_name)
+        history = list(current.get("history", []))
+        if old_label_ids:
+            history.append(
+                {
+                    "label_space_version": old_version,
+                    "label_ids": old_label_ids,
+                    "snapshot_at": now,
+                }
+            )
+
+        merged_labels = sorted(
+            current_labels + additions,
+            key=lambda item: int(item["label_id"]),
+        )
+        label_map = dict(current.get("label_map", {}))
+        for item in additions:
+            label_map[item["label_name"]] = item["label_id"]
+
+        reconciled = {
+            "label_space_version": self._increment_version(old_version),
+            "labels": merged_labels,
+            "label_map": label_map,
+            "history": history,
+        }
+        self.registry_repo.save_new_version(self.slot, reconciled)
+        return reconciled
     
     def seed_labels(
         self,

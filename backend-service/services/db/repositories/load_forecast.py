@@ -12,9 +12,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from sqlalchemy import update
+# @AI_GENERATED: StationData evidence aggregation dependency
+from sqlalchemy import func, update
+# @AI_GENERATED: end
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
 from ..adapter import DBAdapter
@@ -110,6 +112,76 @@ class LoadForecastRepository:
             )
             session.expunge_all()
             return rows
+
+    # @AI_GENERATED: scheduler data-pull evidence query
+    def get_station_data_evidence(self, slot: str, sample_limit: int = 48) -> Dict[str, Any]:
+        """Return a bounded, read-only snapshot of station data persisted for one slot."""
+        bounded_limit = max(1, min(int(sample_limit), 200))
+        with self._adapter.get_sync_session() as session:
+            base_query = session.query(StationData).filter(StationData.slot == slot)
+            total_rows = int(base_query.with_entities(func.count(StationData.id)).scalar() or 0)
+            if total_rows == 0:
+                return {
+                    "slot": slot,
+                    "total_rows": 0,
+                    "station_count": 0,
+                    "feature_names": [],
+                    "time_start": None,
+                    "time_end": None,
+                    "latest": None,
+                    "samples": [],
+                }
+
+            time_start, time_end = base_query.with_entities(
+                func.min(StationData.timestamp_utc),
+                func.max(StationData.timestamp_utc),
+            ).one()
+            station_count = int(
+                base_query.with_entities(func.count(func.distinct(StationData.station_id))).scalar() or 0
+            )
+            feature_names = [
+                str(feature_name)
+                for (feature_name,) in base_query.with_entities(StationData.feature_name)
+                .distinct()
+                .order_by(StationData.feature_name.asc())
+                .all()
+            ]
+            latest = (
+                base_query.order_by(
+                    StationData.timestamp_utc.desc(),
+                    StationData.id.desc(),
+                )
+                .first()
+            )
+            newest_first = (
+                base_query.order_by(
+                    StationData.timestamp_utc.desc(),
+                    StationData.id.desc(),
+                )
+                .limit(bounded_limit)
+                .all()
+            )
+
+            def serialize(row: StationData) -> Dict[str, Any]:
+                return {
+                    "station_id": row.station_id,
+                    "timestamp_utc": row.timestamp_utc,
+                    "feature_name": row.feature_name,
+                    "value": float(row.value),
+                    "ingested_at": row.ingested_at,
+                }
+
+            return {
+                "slot": slot,
+                "total_rows": total_rows,
+                "station_count": station_count,
+                "feature_names": feature_names,
+                "time_start": time_start,
+                "time_end": time_end,
+                "latest": serialize(latest) if latest is not None else None,
+                "samples": [serialize(row) for row in reversed(newest_first)],
+            }
+    # @AI_GENERATED: end
 
     # ------------------------------------------------------------------
     # ExperimentRun — 实验运行记录

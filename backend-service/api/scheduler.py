@@ -946,3 +946,27 @@ async def get_pv_mock_feed_data_evidence(
         logger.exception("pv_mock_data_feed data-evidence 查询失败")
         raise HTTPException(status_code=500, detail=str(exc))
 # @AI_GENERATED: end
+
+
+# @AI_GENERATED: pv_prediction 游标状态与手动重置
+@router.get("/tasks/pv_prediction/cursor-status")
+async def get_pv_prediction_cursor_status() -> Dict[str, Any]:
+    """返回光伏预测游标、数据源指纹对齐状态，以及最近一次跳过/成功原因。"""
+    from services.scheduler.tasks.pv_fault_tasks import get_prediction_cursor_status
+
+    return get_prediction_cursor_status()
+
+
+@router.post("/tasks/pv_prediction/reset-cursor")
+async def reset_pv_prediction_cursor() -> Dict[str, Any]:
+    """手动重置光伏预测进度（清空业务时间游标，并绑定当前数据源指纹）。"""
+    from services.scheduler.tasks.pv_fault_tasks import reset_prediction_cursor
+
+    payload = reset_prediction_cursor(reason="manual_reset")
+    return {
+        "task_id": "pv_prediction",
+        "status": "reset",
+        "message": "预测进度已重置。下次预测将按当前数据源重新计算。",
+        "cursor": payload,
+    }
+# @AI_GENERATED: end

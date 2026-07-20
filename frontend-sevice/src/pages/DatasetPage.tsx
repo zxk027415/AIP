@@ -5,21 +5,27 @@
  * 开源数据集：各行业公开数据集，用于算法模板精度验证
  * 私有数据集：用户上传的私有数据
  */
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 // @AI_GENERATED
 import { useTranslation } from 'react-i18next';
 // @AI_GENERATED: end
 import {
   Card, Table, Button, Tag, Space, Typography, Modal, Upload, Input, Select, message,
   Popconfirm, Descriptions, Badge, Tabs, Row, Col, Statistic,
+  Alert, Divider, Progress,
 } from 'antd';
 import {
   DeleteOutlined, EyeOutlined, DownloadOutlined,
   UploadOutlined, SearchOutlined, FileExcelOutlined, FileTextOutlined,
   GlobalOutlined, LockOutlined, CloudDownloadOutlined,
+  DatabaseOutlined, ExperimentOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 // @AI_GENERATED
 import { td } from '../utils/dataTranslation';
+// @AI_GENERATED: end
+// @AI_GENERATED: 光伏训练集卡片需要路由跳转和真实 API
+import { useNavigate } from 'react-router-dom';
+import { cumulativeTrainingApi, trainingWorkspaceApi } from '../services/iterativeLabelingApi';
 // @AI_GENERATED: end
 
 const { Title, Text } = Typography;
@@ -265,6 +271,9 @@ const DatasetPage: React.FC = () => {
             label: <Space><LockOutlined />{t('dataset.privateTab')}</Space>,
             children: (
               <>
+                {/* @AI_GENERATED: 光伏累计训练数据集 — 真实 API 驱动的训练集扩充入口 */}
+                <PvTrainingDatasetCard />
+                {/* @AI_GENERATED: end */}
                 <Row gutter={16} style={{ marginBottom: 16 }}>
                   <Col span={6}><Card size="small"><Statistic title={t('dataset.privateDatasets')} value={privateStats.total} prefix={<LockOutlined />} /></Card></Col>
                   <Col span={6}><Card size="small"><Statistic title={t('dataset.ready')} value={privateStats.ready} valueStyle={{ color: '#52c41a' }} /></Card></Col>
@@ -328,6 +337,216 @@ const DatasetPage: React.FC = () => {
     </div>
   );
 };
+
+// @AI_GENERATED: 光伏累计训练数据集卡片 — 真实 API 驱动，提供训练集扩充入口
+const PvTrainingDatasetCard: React.FC = () => {
+  const navigate = useNavigate();
+  const [state, setState] = useState<Record<string, any> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadPath, setUploadPath] = useState('');
+  const [uploadSourceName, setUploadSourceName] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [dbPullModalOpen, setDbPullModalOpen] = useState(false);
+  const [dbPulling, setDbPulling] = useState(false);
+  const [pulledData, setPulledData] = useState<{ hasLabel: boolean; total: number; items: any[] } | null>(null);
+
+  const loadState = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await cumulativeTrainingApi.getState('pv_fault');
+      setState(result as Record<string, any>);
+    } catch {
+      setState(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadState(); }, [loadState]);
+
+  const handleImport = async () => {
+    if (!uploadPath.trim()) { message.warning('请输入数据集路径'); return; }
+    setImporting(true);
+    try {
+      const result = await cumulativeTrainingApi.registerImport(
+        { datasetPath: uploadPath.trim(), sourceName: uploadSourceName.trim() || undefined },
+        'pv_fault',
+      );
+      if ((result as any).imported === false) {
+        message.info('该数据集已存在于累计训练集中（内容哈希相同）');
+      } else {
+        message.success('数据集已登记到累计训练集');
+      }
+      setUploadModalOpen(false);
+      setUploadPath('');
+      setUploadSourceName('');
+      await loadState();
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || '导入失败';
+      if (detail.includes('label')) {
+        Modal.confirm({
+          title: '该数据集没有 label 列',
+          content: '无真值数据需要先标注后才能进入累计训练集。是否跳转到打标界面？',
+          okText: '去标注',
+          cancelText: '取消',
+          onOk: () => navigate('/iterative-labeling'),
+        });
+      } else {
+        message.error(detail);
+      }
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleDbPull = async () => {
+    setDbPulling(true);
+    try {
+      const result = await trainingWorkspaceApi.getTrainingCandidates({ page: 1, page_size: 50 });
+      const items = result.items ?? [];
+      const total = result.total ?? 0;
+      // 判断有无 label
+      const hasLabel = items.some((item: any) => item.label != null && item.label >= 0);
+      setPulledData({ hasLabel, total, items });
+      setDbPullModalOpen(true);
+    } catch (err: any) {
+      if (err?.response?.status === 503) {
+        message.warning('PV 数据库未连接，无法从数据库拉取');
+      } else {
+        message.error('拉取失败');
+      }
+    } finally {
+      setDbPulling(false);
+    }
+  };
+
+  const handlePullDecision = () => {
+    if (!pulledData) return;
+    if (pulledData.hasLabel) {
+      // 有真值，跳转到人工标注审核页面的"数据准入"Tab（可直接加入训练集）
+      navigate('/iterative-labeling');
+      message.info('已拉取到有标签数据，请在"数据准入"Tab 中确认加入训练集');
+    } else {
+      // 无真值，跳转到打标界面
+      navigate('/iterative-labeling');
+      message.info('拉取的数据无真值标签，请在"聚类标注"或"审核队列"中标注后加入训练集');
+    }
+    setDbPullModalOpen(false);
+  };
+
+  const snapshot = state?.latest_snapshot;
+  const modelRef = state?.latest_completed_model_ref;
+  const pendingCount = state?.pending_change_count ?? 0;
+  const threshold = state?.retrain_label_threshold ?? 20;
+  const progressPct = threshold > 0 ? Math.min(100, Math.round((pendingCount / threshold) * 100)) : 0;
+
+  return (
+    <Card
+      size="small"
+      style={{ marginBottom: 16, border: '1px solid #d9e8ff', background: '#f6faff' }}
+      title={
+        <Space>
+          <ThunderboltOutlined style={{ color: '#1677ff' }} />
+          <span style={{ fontWeight: 600 }}>光伏累计训练数据集</span>
+          <Tag color="blue">pv_fault</Tag>
+        </Space>
+      }
+      extra={
+        <Space size={8}>
+          <Button size="small" icon={<UploadOutlined />} onClick={() => setUploadModalOpen(true)}>
+            上传扩充
+          </Button>
+          <Button size="small" type="primary" icon={<DatabaseOutlined />} loading={dbPulling} onClick={handleDbPull}>
+            从数据库拉取
+          </Button>
+        </Space>
+      }
+      loading={loading && !state}
+    >
+      <Row gutter={[16, 8]}>
+        <Col xs={12} sm={6}>
+          <div style={{ fontSize: 12, color: '#64748b' }}>当前模型</div>
+          <div style={{ fontWeight: 500, fontSize: 13 }}>{modelRef ? <Tag color="success" style={{ margin: 0 }}>{modelRef}</Tag> : <Tag>待训练</Tag>}</div>
+        </Col>
+        <Col xs={12} sm={6}>
+          <div style={{ fontSize: 12, color: '#64748b' }}>有效真值</div>
+          <div style={{ fontWeight: 500 }}>{state?.effective_labeled_unit_count ?? 0} 单元</div>
+        </Col>
+        <Col xs={12} sm={6}>
+          <div style={{ fontSize: 12, color: '#64748b' }}>快照样本</div>
+          <div style={{ fontWeight: 500 }}>{snapshot?.sample_count?.toLocaleString() ?? '—'}</div>
+        </Col>
+        <Col xs={12} sm={6}>
+          <div style={{ fontSize: 12, color: '#64748b' }}>重训进度</div>
+          <Progress percent={progressPct} size="small" format={() => `${pendingCount}/${threshold}`} style={{ marginBottom: 0 }} />
+        </Col>
+      </Row>
+      {state?.retrain_blocker && (
+        <Alert type="warning" showIcon style={{ marginTop: 8 }} message={state.retrain_blocker} />
+      )}
+
+      {/* 上传扩充弹窗 */}
+      <Modal
+        title="上传数据集扩充累计训练集"
+        open={uploadModalOpen}
+        onCancel={() => setUploadModalOpen(false)}
+        onOk={handleImport}
+        confirmLoading={importing}
+        okText="确认登记"
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <div>
+            <div style={{ marginBottom: 4, fontSize: 13 }}>数据集路径（相对于项目根目录）</div>
+            <Input
+              placeholder="例如：backend-service/datasets/dataset_combined.parquet"
+              value={uploadPath}
+              onChange={(e) => setUploadPath(e.target.value)}
+            />
+          </div>
+          <div>
+            <div style={{ marginBottom: 4, fontSize: 13 }}>来源说明（可选）</div>
+            <Input
+              placeholder="例如：2026年7月数据库导出"
+              value={uploadSourceName}
+              onChange={(e) => setUploadSourceName(e.target.value)}
+            />
+          </div>
+          <Alert
+            type="info"
+            showIcon
+            message="数据集必须含有 label 列才能直接入账；无 label 列的数据会被拒绝，需先到打标界面标注。"
+          />
+        </Space>
+      </Modal>
+
+      {/* 数据库拉取结果判断弹窗 */}
+      <Modal
+        title="数据库拉取结果"
+        open={dbPullModalOpen}
+        onCancel={() => setDbPullModalOpen(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setDbPullModalOpen(false)}>取消</Button>,
+          <Button key="go" type="primary" onClick={handlePullDecision}>
+            {pulledData?.hasLabel ? '确认加入训练集' : '去标注'}
+          </Button>,
+        ]}
+      >
+        {pulledData && (
+          <Space direction="vertical" size={8}>
+            <div>共拉取到 <strong>{pulledData.total}</strong> 条候选观测</div>
+            {pulledData.hasLabel ? (
+              <Alert type="success" showIcon message="检测到部分数据已有标签，可直接确认加入累计训练集" />
+            ) : (
+              <Alert type="warning" showIcon message="拉取的数据均无真值标签（label=NULL），需要先标注" description="将跳转到人工标注审核页面，您可以选择聚类批量标注或逐条审核标注。" />
+            )}
+          </Space>
+        )}
+      </Modal>
+    </Card>
+  );
+};
+// @AI_GENERATED: end
 
 export default DatasetPage;
 // @AI_GENERATED: end

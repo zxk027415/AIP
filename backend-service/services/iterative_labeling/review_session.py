@@ -214,7 +214,7 @@ class ReviewSessionService:
                 prediction_batch_id,
                 review_id,
             )
-            return existing_session
+            return self._ensure_review_queue_defaults(existing_session, persist=True)
         # 兼容此前发布过的 UUID5 命名，历史批次重复创建时仍复用原会话。
         legacy_review_id = (
             f"rev-{uuid.uuid5(uuid.NAMESPACE_URL, f'aip:{self.slot}:{prediction_batch_id}').hex[:12]}"
@@ -226,7 +226,7 @@ class ReviewSessionService:
                 prediction_batch_id,
                 legacy_review_id,
             )
-            return legacy_session
+            return self._ensure_review_queue_defaults(legacy_session, persist=True)
         
         # 装配待审核单元（双来源并列 + disagreement 标志）
         units = []
@@ -277,6 +277,9 @@ class ReviewSessionService:
             }
             units.append(unit)
         
+        # 默认低置信度优先，把审核精力压到模型最不确定的单元。
+        units = self._sort_units_by_uncertainty(units)
+        
         # 初始化会话状态
         session_state = {
             'review_id': review_id,
@@ -287,6 +290,8 @@ class ReviewSessionService:
             'reviewed_count': 0,
             'units': units,
             'verdicts': [],
+            'sampling_strategy': 'uncertainty',
+            'freeform_labels': [],
             # 编辑器驱动回流所需上下文（原始预测 CSV 路径 + 算子配置 + label_map）
             'prediction_context': prediction_context or {}
         }
@@ -472,6 +477,40 @@ class ReviewSessionService:
             'session_state': session_state
         }
     
+    @staticmethod
+    def _sort_units_by_uncertainty(units: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return sorted(
+            units,
+            key=lambda u: (
+                float((u.get("classifier_prediction") or {}).get("confidence") or 0.0),
+                str(u.get("unit_key") or ""),
+            ),
+        )
+
+    def _ensure_review_queue_defaults(
+        self,
+        session_state: Dict[str, Any],
+        *,
+        persist: bool = False,
+    ) -> Dict[str, Any]:
+        """Backfill sampling_strategy / freeform_labels and low-confidence ordering."""
+        changed = False
+        if session_state.get("sampling_strategy") != "uncertainty":
+            session_state["sampling_strategy"] = "uncertainty"
+            changed = True
+        if "freeform_labels" not in session_state:
+            session_state["freeform_labels"] = []
+            changed = True
+        units = session_state.get("units")
+        if isinstance(units, list) and units:
+            ordered = self._sort_units_by_uncertainty(units)
+            if [u.get("unit_key") for u in ordered] != [u.get("unit_key") for u in units]:
+                session_state["units"] = ordered
+                changed = True
+        if persist and changed and session_state.get("review_id"):
+            self.review_repo.save_verdict(self.slot, session_state["review_id"], session_state)
+        return session_state
+
     def get_session(self, review_id: str) -> Dict[str, Any]:
         """
         读取审核会话状态（支持断点恢复）
@@ -493,7 +532,10 @@ class ReviewSessionService:
         异常：
         - 若 review_id 不存在，返回空字典或抛 KeyError（由 review_repo 决定）
         """
-        return self.review_repo.load_session(self.slot, review_id)
+        session_state = self.review_repo.load_session(self.slot, review_id)
+        if not session_state:
+            return session_state
+        return self._ensure_review_queue_defaults(session_state, persist=False)
     
     def get_units_with_verdicts(self, review_id: str) -> List[Dict[str, Any]]:
         """

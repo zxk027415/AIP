@@ -465,4 +465,216 @@ class TestClassificationScoreBounds:
         result = router.execute("f1_score", {"average": "macro"},
                                  {"y_true": y_true.tolist(), "y_pred": y_pred.tolist()})
         assert 0.0 <= result["score"] <= 1.0
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# P3 W1 — 特征 / 异常性质
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class TestP3W1FeatureProperties:
+    @DEFAULT_SETTINGS
+    @given(df=numeric_df(min_rows=40, max_rows=80, min_cols=1, max_cols=2))
+    def test_autocorrelation_feature_count_and_finite(self, router, df):
+        col = df.columns[0]
+        nlags = 8
+        r = router.execute(
+            "autocorrelation_features",
+            {"column": col, "nlags": nlags, "include_pacf": True},
+            {"data": df},
+        )
+        out = r["data"]
+        assert len(out) == 1
+        assert out.shape[1] == nlags * 2
+        assert np.all(np.isfinite(out.to_numpy()))
+
+    @DEFAULT_SETTINGS
+    @given(df=numeric_df(min_rows=16, max_rows=64, min_cols=1, max_cols=2))
+    def test_spectral_energy_non_negative(self, router, df):
+        col = df.columns[0]
+        r = router.execute("spectral_features", {"column": col}, {"data": df})
+        row = r["data"].iloc[0]
+        assert row["spectral_energy"] >= 0
+        assert np.isfinite(row["spectral_centroid"])
+
+    @DEFAULT_SETTINGS
+    @given(df=numeric_df(min_rows=8, max_rows=60, min_cols=1, max_cols=2))
+    def test_shape_peak_to_peak_non_negative(self, router, df):
+        col = df.columns[0]
+        r = router.execute("shape_features", {"column": col}, {"data": df})
+        assert r["data"].iloc[0]["shape_peak_to_peak"] >= -1e-12
+        assert 0.0 <= r["data"].iloc[0]["shape_zero_crossing_rate"] <= 1.0
+
+    @DEFAULT_SETTINGS
+    @given(
+        n=st.integers(min_value=30, max_value=80),
+        seed=st.integers(min_value=0, max_value=500),
+    )
+    def test_chi2_select_column_subset(self, router, n, seed):
+        rng = np.random.RandomState(seed)
+        X = np.abs(rng.randn(n, 5)) + 0.01
+        y = rng.randint(0, 2, size=n)
+        feats = pd.DataFrame(X, columns=list("abcde"))
+        r = router.execute("chi2_select", {"k": 3}, {"features": feats, "target": y})
+        assert set(r["selected_columns"]).issubset(set(feats.columns))
+        assert len(r["selected_columns"]) == 3
+        assert list(r["data"].columns) == r["selected_columns"]
+
+    @DEFAULT_SETTINGS
+    @given(df=numeric_df(min_rows=30, max_rows=80))
+    def test_quantile_transform_preserves_shape(self, router, df):
+        cols = list(df.columns)
+        r = router.execute(
+            "quantile_transform",
+            {"columns": cols, "output_distribution": "uniform", "n_quantiles": 20, "random_state": 0},
+            {"data": df},
+        )
+        assert r["data"].shape == df.shape
+        vals = r["data"][cols].to_numpy()
+        assert np.all(np.isfinite(vals))
+        # uniform 映射大致落在 [0,1]
+        assert vals.min() >= -1e-6
+        assert vals.max() <= 1.0 + 1e-6
+
+
+class TestP3W1AnomalyProperties:
+    @DEFAULT_SETTINGS
+    @given(df=numeric_df(min_rows=20, max_rows=80, min_cols=1, max_cols=3))
+    def test_zscore_labels_binary(self, router, df):
+        r = router.execute("zscore_anomaly", {"column": df.columns[0], "threshold": 3.0}, {"data": df})
+        assert set(np.unique(r["labels"])).issubset({-1, 1})
+        assert len(r["labels"]) == len(df)
+        assert np.all(r["scores"] >= -1e-12)
+
+    @DEFAULT_SETTINGS
+    @given(df=numeric_df(min_rows=20, max_rows=80, min_cols=1, max_cols=3))
+    def test_iqr_labels_binary(self, router, df):
+        r = router.execute("iqr_anomaly", {"column": df.columns[0], "factor": 1.5}, {"data": df})
+        assert set(np.unique(r["labels"])).issubset({-1, 1})
+        assert len(r["scores"]) == len(df)
+
+    @DEFAULT_SETTINGS
+    @given(df=numeric_df(min_rows=20, max_rows=80, min_cols=1, max_cols=3))
+    def test_mad_labels_binary(self, router, df):
+        r = router.execute("mad_anomaly", {"column": df.columns[0], "threshold": 3.0}, {"data": df})
+        assert set(np.unique(r["labels"])).issubset({-1, 1})
+
+    @DEFAULT_SETTINGS
+    @given(df=numeric_df(min_rows=30, max_rows=80, min_cols=1, max_cols=2))
+    def test_ewma_labels_binary(self, router, df):
+        r = router.execute(
+            "ewma_anomaly",
+            {"column": df.columns[0], "span": 8, "threshold": 3.0},
+            {"data": df},
+        )
+        assert set(np.unique(r["labels"])).issubset({-1, 1})
+        assert len(r["labels"]) == len(df)
+
+    @DEFAULT_SETTINGS
+    @given(df=numeric_df(min_rows=30, max_rows=80, min_cols=2, max_cols=4))
+    def test_knn_anomaly_labels_and_contamination_bound(self, router, df):
+        r = router.execute(
+            "knn_anomaly",
+            {"n_neighbors": 5, "contamination": 0.1},
+            {"data": df},
+        )
+        assert set(np.unique(r["labels"])).issubset({-1, 1})
+        assert len(r["labels"]) == len(df)
+        assert len(r["scores"]) == len(df)
+        assert np.all(np.isfinite(r["scores"]))
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# P3 W2 — 时序预测 / 分类性质
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class TestP3W2ForecastProperties:
+    def test_forecast_ops_horizon_and_finite(self, router):
+        ts = pd.date_range("2024-01-01", periods=80, freq="h")
+        df = pd.DataFrame({
+            "timestamp": ts,
+            "value": np.sin(np.arange(80) / 6.0) * 5 + 20 + 0.1 * np.random.RandomState(0).randn(80),
+        })
+        cases = [
+            ("random_forest_forecast", {"forecast_horizon": 6, "n_lags": 8, "n_estimators": 15}),
+            ("knn_forecast", {"forecast_horizon": 6, "n_lags": 8, "n_neighbors": 3}),
+            ("quantile_regression_forecast", {"forecast_horizon": 5, "n_lags": 6, "quantile": 0.5}),
+            ("exponential_smoothing", {"forecast_horizon": 6, "trend": "add"}),
+        ]
+        for op_id, extra in cases:
+            params = {
+                "timestamp_column": "timestamp",
+                "value_column": "value",
+                **extra,
+            }
+            r = router.execute(op_id, params, {"data": df})
+            h = int(extra["forecast_horizon"])
+            assert len(r["forecast"]) == h, op_id
+            assert len(r["forecast_dates"]) == h, op_id
+            assert np.all(np.isfinite(r["forecast"])), op_id
+
+
+class TestP3W2ClassifierProperties:
+    def test_classifier_train_prediction_length(self, router, classification_data):
+        features, target = classification_data
+        cases = [
+            ("extra_trees_classifier", {"mode": "train", "n_estimators": 20, "save_model": "false"}),
+            ("adaboost_classifier", {"mode": "train", "n_estimators": 20, "save_model": "false"}),
+            ("calibrated_classifier", {"mode": "train", "cv": 2, "save_model": "false"}),
+            ("lightgbm_classifier", {"mode": "train", "n_estimators": 20, "save_model": "false"}),
+        ]
+        for op_id, params in cases:
+            r = router.execute(op_id, params, {"features": features, "target": target})
+            assert len(r["predictions"]) == len(r["y_true"]), op_id
+            assert len(r["feature_list"]) == features.shape[1], op_id
+
+
+class TestP3W3ClusterSampleEvalProperties:
+    def test_cluster_ops_label_length(self, router):
+        rng = np.random.RandomState(1)
+        df = pd.DataFrame(rng.randn(60, 3), columns=list("abc"))
+        for op_id, params in [
+            ("hdbscan_cluster", {"min_cluster_size": 5}),
+            ("gmm_cluster", {"n_components": 3, "random_state": 0}),
+            ("optics_cluster", {"min_samples": 5}),
+        ]:
+            r = router.execute(op_id, params, {"data": df})
+            assert len(r["labels"]) == len(df), op_id
+            assert r["n_clusters_found"] >= 0, op_id
+
+    def test_sample_and_metrics(self, router, classification_data):
+        features, target = classification_data
+        imb = router.execute("class_imbalance_check", {}, {"target": target})
+        assert imb["n_classes"] >= 2
+        assert imb["imbalance_ratio"] >= 1.0
+
+        samp = router.execute(
+            "stratified_sample",
+            {"sample_ratio": 0.5, "random_state": 0},
+            {"features": features, "target": target},
+        )
+        assert 0 < samp["n_rows"] < len(features)
+
+        ada = router.execute(
+            "adasyn_oversample",
+            {"n_neighbors": 3, "random_state": 0},
+            {"features": features, "target": target},
+        )
+        assert len(ada["features"]) == len(ada["target"])
+        assert ada["n_synthetic"] >= 0
+
+        ba = router.execute(
+            "balanced_accuracy",
+            {},
+            {"y_true": [0, 1, 0, 1], "y_pred": [0, 1, 1, 1]},
+        )
+        assert 0.0 <= ba["score"] <= 1.0
+
+        pb = router.execute(
+            "pinball_loss",
+            {"quantile": 0.5},
+            {"y_true": [1.0, 2.0, 3.0], "y_pred": [1.0, 2.5, 2.5]},
+        )
+        assert np.isfinite(pb["score"])
 # @AI_GENERATED: end

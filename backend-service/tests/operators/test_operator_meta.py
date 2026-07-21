@@ -104,6 +104,47 @@ EXPECTED_P2_OPERATORS = [
     "load_hdf5", "load_mongodb",
 ]
 
+EXPECTED_P3_W1_OPERATORS = [
+    # 特征工程
+    "autocorrelation_features", "spectral_features", "shape_features",
+    "chi2_select", "quantile_transform",
+    # 异常检测
+    "zscore_anomaly", "iqr_anomaly", "mad_anomaly", "ewma_anomaly", "knn_anomaly",
+]
+
+EXPECTED_P3_W2_OPERATORS = [
+    # 时序预测
+    "random_forest_forecast", "quantile_regression_forecast",
+    "knn_forecast", "exponential_smoothing",
+    # 分类
+    "calibrated_classifier", "extra_trees_classifier",
+    "adaboost_classifier", "lightgbm_classifier",
+]
+
+EXPECTED_P3_W3_OPERATORS = [
+    "hdbscan_cluster", "gmm_cluster", "optics_cluster",
+    "adasyn_oversample", "stratified_sample", "class_imbalance_check",
+    "balanced_accuracy", "pinball_loss",
+]
+
+
+@pytest.mark.parametrize("op_id", EXPECTED_P3_W3_OPERATORS)
+def test_expected_p3_w3_operator_is_registered(router, op_id):
+    """P3 W3 算子必须全部注册成功。"""
+    assert router.has_operator(op_id), f"Expected P3 W3 operator '{op_id}' is not registered"
+
+
+@pytest.mark.parametrize("op_id", EXPECTED_P3_W2_OPERATORS)
+def test_expected_p3_w2_operator_is_registered(router, op_id):
+    """P3 W2 算子必须全部注册成功。"""
+    assert router.has_operator(op_id), f"Expected P3 W2 operator '{op_id}' is not registered"
+
+
+@pytest.mark.parametrize("op_id", EXPECTED_P3_W1_OPERATORS)
+def test_expected_p3_w1_operator_is_registered(router, op_id):
+    """P3 W1 算子必须全部注册成功。"""
+    assert router.has_operator(op_id), f"Expected P3 W1 operator '{op_id}' is not registered"
+
 
 @pytest.mark.parametrize("op_id", EXPECTED_P2_OPERATORS)
 def test_expected_p2_operator_is_registered(router, op_id):

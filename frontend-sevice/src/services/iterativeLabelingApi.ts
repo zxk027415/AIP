@@ -390,6 +390,54 @@ export const reviewSessionApi = {
     api.get(`/iterative-labeling/review-sessions/${reviewId}/accuracy`),
 
   /**
+   * 列出本会话自由时间窗标注
+   * GET /api/iterative-labeling/review-sessions/{reviewId}/freeform-labels
+   */
+  listFreeformLabels: (
+    reviewId: string,
+    slot = 'pv_fault'
+  ): Promise<{ review_id: string; labels: Array<Record<string, unknown>> }> =>
+    api.get(`/iterative-labeling/review-sessions/${reviewId}/freeform-labels`, {
+      params: { slot },
+    }),
+
+  /**
+   * 框选时间窗打标并写入累计训练集
+   * POST /api/iterative-labeling/review-sessions/{reviewId}/freeform-labels
+   */
+  createFreeformLabel: (
+    reviewId: string,
+    body: {
+      t_start: string;
+      t_end: string;
+      action_type: 'correct' | 'new_label';
+      reviewer?: string;
+      verdict_label?: number;
+      new_label_name?: string;
+      source_unit_key?: string;
+      site_id?: string;
+      device_id?: string;
+      branch_id?: string;
+    },
+    slot = 'pv_fault'
+  ): Promise<Record<string, unknown>> =>
+    api.post(`/iterative-labeling/review-sessions/${reviewId}/freeform-labels?slot=${encodeURIComponent(slot)}`, body),
+
+  /**
+   * 撤销本会话自由时间窗标注指针
+   * DELETE /api/iterative-labeling/review-sessions/{reviewId}/freeform-labels/{unitKey}
+   */
+  revokeFreeformLabel: (
+    reviewId: string,
+    unitKey: string,
+    slot = 'pv_fault'
+  ): Promise<{ revoked: boolean; unit_key: string; remaining: number }> =>
+    api.delete(
+      `/iterative-labeling/review-sessions/${reviewId}/freeform-labels/${encodeURIComponent(unitKey)}`,
+      { params: { slot } }
+    ),
+
+  /**
    * 从工作流预测结果创建审核会话（编辑器驱动）
    *
    * POST /api/iterative-labeling/review-sessions/from-prediction

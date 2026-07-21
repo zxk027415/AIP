@@ -37,6 +37,11 @@ CLASSIFIER_CASES = [
     # @AI_GENERATED — P2 batch additions
     ("naive_bayes_classifier", {"mode": "train"}),
     ("xgboost_classifier", {"mode": "train", "n_estimators": 20, "max_depth": 3, "learning_rate": 0.1}),
+    # P3 W2
+    ("extra_trees_classifier", {"mode": "train", "n_estimators": 20, "max_depth": 4}),
+    ("adaboost_classifier", {"mode": "train", "n_estimators": 20, "learning_rate": 0.5}),
+    ("calibrated_classifier", {"mode": "train", "cv": 2, "method": "sigmoid"}),
+    ("lightgbm_classifier", {"mode": "train", "n_estimators": 20, "max_depth": 3, "learning_rate": 0.1}),
     # @AI_GENERATED: end
 ]
 

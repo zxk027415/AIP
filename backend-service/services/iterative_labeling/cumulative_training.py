@@ -167,10 +167,19 @@ class CumulativeTrainingService:
             )
             return summary
 
-    def register_labeled_dataset(self, dataset_path: str, source_name: Optional[str] = None) -> Dict[str, Any]:
+    def register_labeled_dataset(
+        self,
+        dataset_path: str,
+        source_name: Optional[str] = None,
+        *,
+        change_units: Optional[int] = None,
+    ) -> Dict[str, Any]:
         """登记带真实 ``label`` 列的数据导入，并纳入下一次全量快照。
 
         未带 ``label`` 列的数据只可作为预测输入，不能通过本方法进入累计训练集。
+
+        ``change_units``：计入重训阈值的变更次数。自由窗打标应传 ``1``（一个诊断样本），
+        不传则按带标签行数累加（兼容历史大数据集导入）。
         """
         normalized_path = self._normalize_relative_path(dataset_path)
         frame = self._read_dataset(normalized_path)
@@ -182,6 +191,9 @@ class CumulativeTrainingService:
 
         digest = self._sha256_file(self.project_root / normalized_path)
         import_id = f"imp-{digest[:16]}"
+        delta = int(change_units) if change_units is not None else labeled_count
+        if delta < 1:
+            delta = 1
         with self._lock:
             state = self._load_state()
             existing = state["labeled_imports"].get(import_id)
@@ -193,11 +205,12 @@ class CumulativeTrainingService:
                     "source_name": source_name or Path(normalized_path).name,
                     "row_count": int(len(frame)),
                     "labeled_row_count": labeled_count,
+                    "change_units": delta,
                     "content_sha256": digest,
                     "sequence": state["next_sequence"],
                     "registered_at": datetime.utcnow().isoformat(),
                 }
-                state["pending_change_count"] += labeled_count
+                state["pending_change_count"] += delta
 
             request = self._maybe_create_retrain_request(state)
             self._save_state(state)
@@ -206,6 +219,7 @@ class CumulativeTrainingService:
                 {
                     "imported": existing is None,
                     "import_id": import_id,
+                    "change_units": delta if existing is None else 0,
                     "retrain_request": request,
                 }
             )
@@ -425,12 +439,17 @@ class CumulativeTrainingService:
 
         identity_columns = [
             column
-            for column in ("time", "site_id", "device_id", "branch_id")
+            for column in ("time", "site_id", "device_id", "branch_id", "time_window")
             if column in combined.columns
         ]
-        if len(identity_columns) == 4:
+        # 含 time_window 时，自由窗与整天样本可共存同一时间戳；不含时退回旧四元组去重。
+        if len(identity_columns) >= 4:
             combined = combined.drop_duplicates(subset=identity_columns, keep="last")
-        combined = combined.sort_values(identity_columns).reset_index(drop=True) if identity_columns else combined.reset_index(drop=True)
+        combined = (
+            combined.sort_values(identity_columns).reset_index(drop=True)
+            if identity_columns
+            else combined.reset_index(drop=True)
+        )
 
         snapshot_id = f"snapshot-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6]}"
         snapshot_path = self.root / "snapshots" / f"{snapshot_id}.csv"

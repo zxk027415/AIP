@@ -556,36 +556,27 @@ def compute_night_anomaly_features(
 
 ### 组件 L：FreeformLabeling 服务（需求 26）
 
-**职责**：审核界面任意时间窗打标、冲突检测、特征化、累计训练集准入。  
+**职责**：审核界面任意时间窗打标、冲突检测、切片写入、累计训练集准入。  
 **文件**：`backend-service/services/iterative_labeling/freeform_labeling.py`  
 **前端**：`frontend-sevice/src/pages/IterativeLabelingReviewPage.tsx`（波形 brush 交互）
 
+**已锁定实现口径（Phase 1）**：
+
+| 项 | 约定 |
+|---|---|
+| 窗口键 | `{YYYY-MM-DDTHH:MM:SS}__{YYYY-MM-DDTHH:MM:SS}#freeform` |
+| 样本粒度 | 切片 CSV 写入 `time_window` 覆盖列；FE 按该键聚成一条训练样本 |
+| 回流 | `create_confirmed_time_slice` → `CumulativeTrainingService.register_labeled_dataset` |
+| 冲突 | 同 site\|device\|branch 时间区间重叠 → 422 |
+| 撤销 | MVP 仅删会话 `freeform_labels` 指针，不从累计账本物理删除 |
+| 审核队列 | 默认 `sampling_strategy=uncertainty`（confidence 升序） |
+| 模型 | 自由窗与整日窗共用同一生产模型；不新增模型路由 |
+
 ```python
 class FreeformLabelingService:
-    def create_freeform_label(
-        self,
-        review_id: str,
-        *,
-        site_id: Any,
-        device_id: Any,
-        branch_id: Any,
-        t_start: str,
-        t_end: str,
-        action_type: str,          # 'correct' | 'new_label'
-        verdict_label: int | None,
-        new_label_name: str | None,
-        reviewer: str,
-        source_unit_key: str | None = None,
-        force_overwrite: bool = False,
-        source_csv_path: str,
-    ) -> dict:
-        """校验区间 → 分配/绑定标签 → 切窗特征化 → 写入累计训练 → 返回 Freeform_Labeled_Unit"""
-
-    def list_freeform_labels(self, review_id: str) -> list[dict]:
-        ...
-
-    def revoke_freeform_label(self, review_id: str, unit_key: str) -> dict:
-        ...
+    def create_label(...) -> dict: ...
+    def list_labels(self, review_id: str) -> list[dict]: ...
+    def revoke_label(self, review_id: str, unit_key: str) -> dict: ...
 ```
 
 **前端交互要点：**

@@ -210,7 +210,7 @@ export const HUMANIZED_PARAMS: Record<string, Record<string, ParamConfig>> = {
     output_label_col: { label: '输出标签列名', description: '合并后输出 DataFrame 中标签列的名称', defaultValue: 'label', group: 'advanced' },
   },
   time_window_split: {
-    window: { label: '诊断窗口', description: '将时序数据按此周期切分为独立诊断单元，如 1d=按天切分，1w=按周切分', defaultValue: '1d', group: 'basic', controlType: 'select',
+    window: { label: '诊断窗口', description: '将时序数据按此周期切分为独立诊断单元，如 1d=按天切分，1w=按周切分；启用 solar_mode 时仍保留此字段作兼容/回退', defaultValue: '1d', group: 'basic', controlType: 'select',
       options: [
         { label: '1天（推荐）', value: '1d' }, { label: '12小时', value: '12h' },
         { label: '1周', value: '1w' }, { label: '1小时', value: '1h' },
@@ -218,6 +218,23 @@ export const HUMANIZED_PARAMS: Record<string, Record<string, ParamConfig>> = {
     },
     id_fields: { label: '设备分组字段', description: '按设备层级独立切分，通常为 site_id/device_id/branch_id', defaultValue: ['site_id', 'device_id', 'branch_id'], group: 'basic', controlType: 'tags' },
     time_field: { label: '时间列名', description: '时间列名称', defaultValue: 'time', group: 'advanced' },
+    solar_mode: {
+      label: '日照/夜间切分',
+      description: '空=原整天 resample；daylight 仅日照；night 仅夜间；day_and_night 同日双样本；训练与预测须一致',
+      defaultValue: '',
+      group: 'basic',
+      controlType: 'select',
+      options: [
+        { label: '关闭（整天 resample）', value: '' },
+        { label: 'daylight 仅日照', value: 'daylight' },
+        { label: 'night 仅夜间', value: 'night' },
+        { label: 'day_and_night 日照+夜间（推荐生产）', value: 'day_and_night' },
+        { label: 'solar_period 峰/过渡段', value: 'solar_period' },
+        { label: 'multiscale 多尺度', value: 'multiscale' },
+      ],
+    },
+    power_col: { label: '功率/电流列', description: '用于识别日照/夜间的列，默认自动探测 value/power', defaultValue: 'value', group: 'advanced' },
+    irr_threshold: { label: '日照阈值比例', description: '相对当日最大功率的比例，低于视为夜间', defaultValue: 0.05, group: 'advanced', controlType: 'number', min: 0.01, max: 0.5 },
   },
   ts_comparison_features: {
     id_fields: { label: '设备分组字段', description: '按设备×窗口分组独立计算对比特征', defaultValue: ['site_id', 'device_id', 'branch_id', 'time_window'], group: 'basic', controlType: 'tags' },

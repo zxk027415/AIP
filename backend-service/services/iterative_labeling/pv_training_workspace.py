@@ -314,8 +314,13 @@ class PVTrainingWorkspaceService:
         site_id: Optional[str] = None,
         device_id: Optional[str] = None,
         branch_id: Optional[str] = None,
+        time_window_override: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """从源 CSV/Parquet 切取时间段并写入确认标签，返回 dataset_path。"""
+        """从源 CSV/Parquet 切取时间段并写入确认标签，返回 dataset_path。
+
+        ``time_window_override`` 用于自由窗打标：让特征工程把该段聚合成独立样本，
+        而不是仍按自然日窗口键合并。
+        """
         # 路径校验
         normalized = Path(source_path.replace("\\", "/"))
         if normalized.is_absolute():
@@ -351,6 +356,8 @@ class PVTrainingWorkspaceService:
             raise ValueError("时间段/筛选条件匹配到 0 行")
 
         sliced["label"] = label_id
+        if time_window_override:
+            sliced["time_window"] = time_window_override
 
         # 持久化
         slice_id = f"slice-{uuid.uuid4().hex[:12]}"
@@ -369,6 +376,7 @@ class PVTrainingWorkspaceService:
             "site_id": site_id,
             "device_id": device_id,
             "branch_id": branch_id,
+            "time_window": time_window_override,
             "reviewer": reviewer,
             "row_count": int(len(sliced)),
             "dataset_path": dataset_path,
@@ -851,5 +859,37 @@ class PVTrainingWorkspaceService:
         except Exception:
             pass
 
+        overview["split_config"] = self._read_workflow_split_parity()
         return overview
+
+    @staticmethod
+    def _read_workflow_split_parity() -> Dict[str, Any]:
+        """读取训练/预测模板里 time_window_split 的 solar_mode，便于运营核对切分是否对齐。"""
+        templates = {
+            "train": "workflow-pv-fault-diag-quickval-cv-v1.json",
+            "predict": "workflow-pv-fault-diag-quickval-predict-v1.json",
+        }
+        result: Dict[str, Any] = {"aligned": True, "modes": {}}
+        for role, filename in templates.items():
+            path = _BACKEND_SERVICE_DIR / "data" / "workflows_enhanced" / filename
+            mode = None
+            window = None
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                for node in payload.get("nodes") or []:
+                    cfg = ((node.get("data") or {}).get("config") or {})
+                    if cfg.get("functionId") == "time_window_split":
+                        mode = cfg.get("solar_mode") or None
+                        if isinstance(mode, str) and not mode.strip():
+                            mode = None
+                        window = cfg.get("window")
+                        break
+            except Exception:
+                mode = None
+            result["modes"][role] = {"solar_mode": mode, "window": window, "source": filename}
+        train_mode = (result["modes"].get("train") or {}).get("solar_mode")
+        predict_mode = (result["modes"].get("predict") or {}).get("solar_mode")
+        result["aligned"] = train_mode == predict_mode
+        result["active_solar_mode"] = train_mode if train_mode == predict_mode else None
+        return result
 # @AI_GENERATED: end

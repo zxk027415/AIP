@@ -24632,6 +24632,31 @@
         "merged = merge_label(source_data, label_data)",
         "# 合并后输出包含 label 整型列的训练 DataFrame"
       ]
+    },
+    {
+      "id": "exponential_smoothing",
+      "name": "指数平滑",
+      "category": "time_series",
+      "description": "Holt-Winters指数平滑预测",
+      "parameters": [
+        {
+          "name": "data",
+          "type": "MATRIX",
+          "required": true,
+          "description": "时序数据"
+        },
+        {
+          "name": "options",
+          "type": "STRING",
+          "required": false,
+          "description": "参数(JSON)",
+          "default": "{}"
+        }
+      ],
+      "return_type": "ARRAY",
+      "examples": [
+        "result = exponential_smoothing(...)"
+      ]
     }
   ]
 }

@@ -244,9 +244,13 @@
     "knowledgeGraph": "知识图谱",
     "allLayers": "全部",
     "badgeReady": "可执行",
+    "badgeVerified": "已验证(六重)",
+    "badgeReadyUnverified": "可执行·未验证",
     "badgeDefinitionOnly": "仅定义",
     "filterAll": "全部",
     "filterReady": "仅可执行",
+    "filterVerified": "已验证(六重)",
+    "filterReadyUnverified": "可执行未验证",
     "filterDefinitionOnly": "仅定义"
   },
   "operatorDesc": {

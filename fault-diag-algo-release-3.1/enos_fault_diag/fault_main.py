@@ -181,9 +181,8 @@ class MlflowFaultDiagnosis(mlflow.pyfunc.PythonModel):
 
         new_dataset.drop_duplicates(subset=id_cols, inplace=True)
 
-        # set time window
-        new_dataset = set_time_window(
-            new_dataset, self.structure, TIME_COL, self.diagnosis_window)
+        # set time window（支持 daylight/night/day_and_night 等 solar_mode）
+        new_dataset = self._apply_time_window(new_dataset)
 
         return new_dataset
 
@@ -193,12 +192,14 @@ class MlflowFaultDiagnosis(mlflow.pyfunc.PythonModel):
         """
         # parse timestamp
         if pd.isnull(start_time) and pd.isnull(end_time):
+            from fault_diagnosis import SOLAR_MODES
+            window_freq = '1d' if self.diagnosis_window in SOLAR_MODES else self.diagnosis_window
             time_now = local_now()
             time_custom = convert_timezone(time_now, self.time_zone)
-            time_before = time_custom - timedelta_f_freqstr(self.diagnosis_window)
+            time_before = time_custom - timedelta_f_freqstr(window_freq)
             start_time = time_before.replace(
                 hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
-            end_time = start_time + timedelta_f_freqstr(self.diagnosis_window)
+            end_time = start_time + timedelta_f_freqstr(window_freq)
 
         logging.info(f'pred start_time:{start_time}, end_time:{end_time}')
 
@@ -210,11 +211,31 @@ class MlflowFaultDiagnosis(mlflow.pyfunc.PythonModel):
             logging.error('Predict data is empty, check if start_time and end_time are valid.')
             raise ParamException('Predict data is empty, check if start_time and end_time are valid.')
 
-        # set time window
-        new_dataset = set_time_window(
-            new_dataset, self.structure, TIME_COL, self.diagnosis_window)
+        # set time window（支持 daylight/night/day_and_night 等 solar_mode）
+        new_dataset = self._apply_time_window(new_dataset)
 
         return new_dataset
+
+    def _apply_time_window(self, dataset):
+        """按 diagnosis_window 解析 solar_mode；模式名走日照/夜间切分，否则走经典 resample。"""
+        from fault_diagnosis import SOLAR_MODES
+
+        solar_mode = SOLAR_MODES.get(self.diagnosis_window)
+        freq = '1d' if solar_mode else self.diagnosis_window
+        value_cols = [
+            c for c in dataset.columns
+            if c not in set(self.structure + [TIME_COL, 'label', 'time_window'])
+        ]
+        return set_time_window(
+            dataset,
+            self.structure,
+            TIME_COL,
+            freq,
+            solar_mode=solar_mode,
+            value_cols=value_cols,
+            power_col='value' if 'value' in dataset.columns else None,
+            sub_window=getattr(self, 'sub_window', '4h'),
+        )
 
     def check_param(self):
         """
@@ -239,6 +260,11 @@ class MlflowFaultDiagnosis(mlflow.pyfunc.PythonModel):
         if self.window_one_label == 0:
             logging.warning('This version do not support window one label as 0')
             raise ParamException('This version do not support window one label as 0')
+
+        from fault_diagnosis import SOLAR_MODES
+
+        if self.diagnosis_window in SOLAR_MODES:
+            return
 
         try:
             num, time_unit = self.diagnosis_window[:-1], self.diagnosis_window[-1]

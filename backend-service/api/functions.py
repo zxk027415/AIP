@@ -48,12 +48,17 @@ class BackendStatusResponse(BaseModel):
     """算子后端注册状态响应体"""
     total_registered: int        # 已注册算子总数
     registered_operators: List[str]  # 已注册算子 ID 列表（按字母排序）
+    # verified_operators — 5 层测试 + 真实数据 e2e 均已覆盖且当前已注册的算子 ID
+    verified_operators: List[str] = []
+    total_verified: int = 0  # verified_operators 数量
 
     class Config:
         json_schema_extra = {
             "example": {
                 "total_registered": 3,
                 "registered_operators": ["load_csv", "load_parquet", "min_max_scale"],
+                "verified_operators": ["load_csv", "min_max_scale"],
+                "total_verified": 2,
             }
         }
 # @AI_GENERATED: end
@@ -114,19 +119,27 @@ async def get_backend_status():
     """
     返回所有已在 operator_backends/ 目录中发现并注册的算子 ID 列表。
 
-    用于前端展示"可执行"徽标：凡出现在 registered_operators 中的算子即有真实后端实现。
+    用于前端展示徽标：
+    - registered_operators：有真实后端实现 → 「可执行」
+    - verified_operators：通过六重测试（L1–L6）→ 「已验证」
+      （覆盖源：services.operator_test_coverage.six_layer_passed）
 
     Returns:
         BackendStatusResponse:
-            - total_registered: 已注册算子总数
-            - registered_operators: 已注册算子 ID 的字母排序列表
+            - total_registered / registered_operators
+            - total_verified / verified_operators
     """
     try:
+        from services.operator_verification import filter_verified_registered
+
         r = _ensure_router()
         ids = r.list_operators()
+        verified = filter_verified_registered(ids)
         return BackendStatusResponse(
             total_registered=len(ids),
             registered_operators=sorted(ids),
+            verified_operators=verified,
+            total_verified=len(verified),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取算子后端状态失败: {str(e)}")

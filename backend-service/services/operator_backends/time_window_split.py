@@ -110,6 +110,32 @@ def _split_time_window(
     return pd.concat(merge_list, ignore_index=True)
 
 
+def _is_preserved_time_window(value: object) -> bool:
+    """保留显式窗口键（自由窗/夜间/峰段等），避免重训时被 resample 冲掉。"""
+    if value is None:
+        return False
+    try:
+        if pd.isna(value):
+            return False
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "nat", "none"}:
+        return False
+    # 约定：带 # 后缀的窗口键为显式样本边界（#freeform / #night / #peak / #sub …）
+    return "#" in text
+
+
+def _split_preassigned_windows(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """拆出需保留的预置窗口行，其余交给常规/日照切分。"""
+    if "time_window" not in data.columns:
+        return data.iloc[0:0].copy(), data.drop(columns=["period_role"], errors="ignore")
+    mask = data["time_window"].map(_is_preserved_time_window)
+    preassigned = data.loc[mask].copy()
+    remaining = data.loc[~mask].drop(columns=["time_window", "period_role"], errors="ignore")
+    return preassigned, remaining
+
+
 def execute(params: dict, inputs: dict) -> dict:
     """
     时间窗口切分算子入口。
@@ -118,10 +144,12 @@ def execute(params: dict, inputs: dict) -> dict:
         window (str, 必填)：窗口大小，如 "1d"、"1w"、"12h"、"30m"
         id_fields (list, 可选)：分组字段列表，默认 ["site_id", "device_id", "branch_id"]
         time_field (str, 可选)：时间列名，默认 "time"
+        solar_mode (str, 可选)：None/空=原 resample；daylight/night/day_and_night/solar_period/multiscale
+        irr_threshold / peak_ratio / sub_window / power_col / value_cols / attach_night_features
     inputs:
         data (pd.DataFrame)：输入时序数据
     returns:
-        {"data": pd.DataFrame}  # 新增 time_window 列
+        {"data": pd.DataFrame}  # 新增 time_window 列（solar 模式另含 period_role）
     """
     data = inputs.get("data")
     if data is None or not isinstance(data, pd.DataFrame):
@@ -149,9 +177,9 @@ def execute(params: dict, inputs: dict) -> dict:
             id_fields_raw = [f.strip() for f in id_fields_raw.split(",") if f.strip()]
 
     time_field: str = params.get("time_field") or "time"
-
-    # ---- 频率字符串转换 ----
-    freq = _parse_freq(window)
+    solar_mode = params.get("solar_mode")
+    if isinstance(solar_mode, str):
+        solar_mode = solar_mode.strip() or None
 
     # ---- 自动检测实际存在的 id_fields（过滤掉 DataFrame 中不存在的列）----
     actual_id_fields = [f for f in id_fields_raw if f in data.columns]
@@ -170,21 +198,80 @@ def execute(params: dict, inputs: dict) -> dict:
             f"Available columns: {list(data.columns)}",
         )
 
-    logger.info(
-        f"[{OPERATOR_ID}] window={window} (freq={freq}), "
-        f"id_fields={actual_id_fields}, time_field={time_field}, "
-        f"input_rows={len(data)}"
-    )
+    # 自由窗/夜间等显式窗口键必须保留，否则累计快照重训时会并回整天样本。
+    preassigned, df_input = _split_preassigned_windows(data)
+    if len(preassigned) > 0:
+        logger.info(
+            f"[{OPERATOR_ID}] preserving {len(preassigned)} rows with explicit time_window "
+            f"({preassigned['time_window'].nunique()} unique keys)"
+        )
 
-    # 若输入已含 time_window 列（如 parquet 自带），先删除再重新计算
-    df_input = data.drop(columns=["time_window"], errors="ignore")
+    split_result: pd.DataFrame
+    if df_input.empty:
+        split_result = df_input.copy()
+        if "time_window" not in split_result.columns:
+            split_result["time_window"] = pd.Series(dtype=object)
+    elif solar_mode:
+        from services.operator_backends.solar_window import (
+            attach_night_anomaly_features,
+            segment_solar_window,
+        )
 
-    result = _split_time_window(df_input, actual_id_fields, time_field, freq)
+        value_cols = params.get("value_cols") or ["value", "i_cal"]
+        if isinstance(value_cols, str):
+            value_cols = [v.strip() for v in value_cols.split(",") if v.strip()]
+        try:
+            split_result, warnings = segment_solar_window(
+                df_input,
+                id_cols=actual_id_fields,
+                time_col=time_field,
+                value_cols=list(value_cols),
+                solar_mode=str(solar_mode),
+                irr_threshold=float(params.get("irr_threshold", 0.05)),
+                peak_ratio=float(params.get("peak_ratio", 0.30)),
+                sub_window=str(params.get("sub_window") or "4h"),
+                power_col=params.get("power_col"),
+            )
+        except ValueError as exc:
+            raise OperatorExecutionError(OPERATOR_ID, "ParameterError", str(exc)) from exc
+
+        for warn in warnings:
+            logger.warning(f"[{OPERATOR_ID}] solar_window: {warn}")
+
+        attach_night = params.get("attach_night_features", True)
+        if attach_night in (True, "true", "1", 1) and "period_role" in split_result.columns:
+            current_col = params.get("current_col") or (
+                "value" if "value" in split_result.columns else (params.get("power_col") or "value")
+            )
+            split_result = attach_night_anomaly_features(
+                split_result,
+                current_col=current_col,
+                power_col=params.get("power_col"),
+                night_zero_epsilon=float(params.get("night_zero_epsilon", 0.01)),
+                night_anomaly_current_threshold=params.get("night_anomaly_current_threshold"),
+            )
+    else:
+        # ---- 频率字符串转换（兼容原行为）----
+        freq = _parse_freq(window)
+        logger.info(
+            f"[{OPERATOR_ID}] window={window} (freq={freq}), "
+            f"id_fields={actual_id_fields}, time_field={time_field}, "
+            f"input_rows={len(df_input)}"
+        )
+        split_result = _split_time_window(df_input, actual_id_fields, time_field, freq)
+
+    frames = [frame for frame in (preassigned, split_result) if frame is not None and not frame.empty]
+    if not frames:
+        result = data.iloc[0:0].copy()
+        if "time_window" not in result.columns:
+            result["time_window"] = pd.Series(dtype=object)
+    else:
+        result = pd.concat(frames, ignore_index=True, sort=False)
 
     n_windows = result["time_window"].nunique() if "time_window" in result.columns else 0
     logger.info(
         f"[{OPERATOR_ID}] Done: output_rows={len(result)}, "
-        f"unique_time_windows={n_windows}"
+        f"unique_time_windows={n_windows}, solar_mode={solar_mode or 'none'}"
     )
 
     return {"data": result}

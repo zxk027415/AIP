@@ -39,6 +39,16 @@ def test_reconcile_labels_preserves_snapshot_ids_and_versions_registry():
     assert result["history"][0]["label_ids"] == [0, 1]
 
 
+def test_reconcile_allows_renaming_placeholder_names():
+    repository = InMemoryRegistryRepository()
+    service = LabelRegistryService(slot="pv_fault", registry_repo=repository)
+    service.reconcile_labels({2: "待命名-故障码2"})
+    renamed = service.reconcile_labels({2: "组串隐裂"})
+    assert renamed["label_map"]["组串隐裂"] == 2
+    assert "待命名-故障码2" not in renamed["label_map"]
+    assert renamed["label_space_version"] == "ls-v3"
+
+
 def test_reconcile_labels_is_idempotent_and_rejects_conflicts():
     repository = InMemoryRegistryRepository()
     service = LabelRegistryService(slot="pv_fault", registry_repo=repository)

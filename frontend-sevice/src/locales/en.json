@@ -244,9 +244,13 @@
     "knowledgeGraph": "Knowledge Graph",
     "allLayers": "All",
     "badgeReady": "Ready",
+    "badgeVerified": "Verified (6-layer)",
+    "badgeReadyUnverified": "Ready · Unverified",
     "badgeDefinitionOnly": "Definition Only",
     "filterAll": "All",
     "filterReady": "Ready Only",
+    "filterVerified": "Verified (6-layer)",
+    "filterReadyUnverified": "Ready Unverified",
     "filterDefinitionOnly": "Definition Only"
   },
   "operatorDesc": {

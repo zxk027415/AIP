@@ -318,4 +318,50 @@ async def test_retrain_api_registers_model_version_before_production_switch(monk
     assert registry_event[1]["training_sample_count"] == 123
     assert registry_event[1]["label_space_version"] == "ls-v2"
     assert events[-1][0:2] == ("state", "completed")
+
+
+def test_freeform_import_counts_as_one_unit_and_keeps_window_in_snapshot(tmp_path: Path):
+    """自由窗切片按 1 次变更计入阈值，且与无 time_window 的整天行共存。"""
+    service = _service(tmp_path, threshold=20)
+    project_root = service.project_root
+    day_csv = project_root / "day_labeled.csv"
+    free_csv = project_root / "freeform_labeled.csv"
+    times = pd.date_range("2026-07-20 10:00:00", periods=4, freq="15min")
+    pd.DataFrame(
+        {
+            "time": times,
+            "site_id": ["s1"] * 4,
+            "device_id": ["d1"] * 4,
+            "branch_id": ["b1"] * 4,
+            "value": [1, 2, 3, 4],
+            "label": [0, 0, 0, 0],
+        }
+    ).to_csv(day_csv, index=False)
+    free_key = "2026-07-20T10:00:00__2026-07-20T10:45:00#freeform"
+    pd.DataFrame(
+        {
+            "time": times,
+            "site_id": ["s1"] * 4,
+            "device_id": ["d1"] * 4,
+            "branch_id": ["b1"] * 4,
+            "value": [1, 2, 3, 4],
+            "label": [2, 2, 2, 2],
+            "time_window": [free_key] * 4,
+        }
+    ).to_csv(free_csv, index=False)
+
+    day = service.register_labeled_dataset("day_labeled.csv", change_units=1)
+    free = service.register_labeled_dataset("freeform_labeled.csv", change_units=1)
+    assert day["pending_change_count"] == 1
+    assert free["pending_change_count"] == 2
+    assert free["change_units"] == 1
+
+    # 强制低于阈值时手工建快照
+    with service._lock:
+        state = service._load_state()
+        snapshot = service._create_snapshot(state)
+    frame = pd.read_csv(service.project_root / snapshot["dataset_path"])
+    assert free_key in set(frame["time_window"].astype(str))
+    # 同时间戳两条（整天无窗键 / 自由窗）都应保留
+    assert len(frame) == 8
 # @AI_GENERATED: end

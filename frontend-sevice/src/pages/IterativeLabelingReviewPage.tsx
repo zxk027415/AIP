@@ -12,7 +12,7 @@
  * 映射需求: 3.1, 3.2, 3.3, 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, 5.3, 5.4, 6.1, 3.5
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Card,
   Row,
@@ -35,6 +35,7 @@ import {
   Tooltip,
   Radio,
   Form,
+  List,
 } from 'antd';
 import {
   CheckCircleOutlined,
@@ -45,9 +46,11 @@ import {
   LineChartOutlined,
   FileTextOutlined,
   InfoCircleOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { useSearchParams } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
+import { reviewSessionApi } from '../services/iterativeLabelingApi';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -89,6 +92,20 @@ interface DiagnosisUnit {
 /**
  * 审核会话状态
  */
+interface FreeformLabelRecord {
+  unit_key: string;
+  t_start: string;
+  t_end: string;
+  time_window: string;
+  verdict_label: number;
+  action_type: string;
+  site_id?: string;
+  device_id?: string;
+  branch_id?: string;
+  source_unit_key?: string;
+  row_count?: number;
+}
+
 interface ReviewSession {
   review_id: string;                   // 审核会话标识
   loop_id: string;                     // 所属迭代闭环
@@ -96,6 +113,8 @@ interface ReviewSession {
   reviewed_count: number;              // 已审核数
   total_count: number;                 // 总数
   units: DiagnosisUnit[];              // 待审核单元数组
+  sampling_strategy?: string;
+  freeform_labels?: FreeformLabelRecord[];
   prediction_context?: {
     manual_labeling?: boolean;
     source_csv_path?: string;
@@ -182,6 +201,15 @@ const IterativeLabelingReviewPage: React.FC = () => {
     point_count: number;
   }>>([]);
   const [refWaveformsLoading, setRefWaveformsLoading] = useState(false);
+
+  // 自由时间窗框选打标
+  const chartRef = useRef<ReactECharts | null>(null);
+  const [freeformModalOpen, setFreeformModalOpen] = useState(false);
+  const [freeformSaving, setFreeformSaving] = useState(false);
+  const [freeformRange, setFreeformRange] = useState<{ tStart: string; tEnd: string } | null>(null);
+  const [freeformAction, setFreeformAction] = useState<'correct' | 'new_label'>('correct');
+  const [freeformLabelId, setFreeformLabelId] = useState<number | undefined>();
+  const [freeformNewName, setFreeformNewName] = useState('');
 
   /**
    * 加载审核会话
@@ -510,6 +538,136 @@ const IterativeLabelingReviewPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reviewId, slot, currentUnitIndex, session?.units?.[currentUnitIndex]?.unit_key]);
 
+  const freeformLabelsForCurrentDevice = useMemo(() => {
+    const unit = session?.units?.[currentUnitIndex];
+    if (!unit || !session?.freeform_labels?.length) return [] as FreeformLabelRecord[];
+    return session.freeform_labels.filter(
+      (item) =>
+        String(item.site_id ?? '') === String(unit.site_id ?? '') &&
+        String(item.device_id ?? '') === String(unit.device_id ?? '') &&
+        String(item.branch_id ?? '') === String(unit.branch_id ?? '')
+    );
+  }, [session?.freeform_labels, session?.units, currentUnitIndex]);
+
+  const handleBrushEnd = (params: any) => {
+    const area = params?.areas?.[0];
+    if (!area || !unitTimeseries?.timestamps?.length) return;
+    const range = area.coordRange || area.range;
+    if (!Array.isArray(range) || range.length < 2) return;
+
+    const timestamps = unitTimeseries.timestamps;
+    let startIdx: number;
+    let endIdx: number;
+    if (typeof range[0] === 'number' && range[0] <= timestamps.length) {
+      startIdx = Math.max(0, Math.floor(Math.min(range[0], range[1])));
+      endIdx = Math.min(timestamps.length - 1, Math.ceil(Math.max(range[0], range[1])));
+    } else {
+      // category value fallback: match short display labels poorly — prefer raw indices from brush
+      startIdx = 0;
+      endIdx = timestamps.length - 1;
+      const startLabel = String(range[0]);
+      const endLabel = String(range[1]);
+      const display = timestamps.map((t) =>
+        t.includes(' ') ? t.split(' ')[1]?.slice(0, 5) || t : t.slice(11, 16)
+      );
+      const si = display.indexOf(startLabel);
+      const ei = display.lastIndexOf(endLabel);
+      if (si >= 0) startIdx = si;
+      if (ei >= 0) endIdx = ei;
+    }
+    if (endIdx <= startIdx) {
+      message.warning('请框选至少一个时间区间');
+      return;
+    }
+    setFreeformRange({
+      tStart: timestamps[startIdx],
+      tEnd: timestamps[endIdx],
+    });
+    setFreeformAction('correct');
+    setFreeformLabelId(undefined);
+    setFreeformNewName('');
+    setFreeformModalOpen(true);
+  };
+
+  const submitFreeformLabel = async () => {
+    if (!reviewId || !freeformRange || !session) return;
+    const unit = session.units[currentUnitIndex];
+    if (!unit) return;
+    if (freeformAction === 'correct' && freeformLabelId === undefined) {
+      message.warning('请选择标签');
+      return;
+    }
+    if (freeformAction === 'new_label' && !freeformNewName.trim()) {
+      message.warning('请输入新标签名称');
+      return;
+    }
+    setFreeformSaving(true);
+    try {
+      const payload = await reviewSessionApi.createFreeformLabel(
+        reviewId,
+        {
+          t_start: freeformRange.tStart,
+          t_end: freeformRange.tEnd,
+          action_type: freeformAction,
+          reviewer: 'operator',
+          verdict_label: freeformAction === 'correct' ? freeformLabelId : undefined,
+          new_label_name: freeformAction === 'new_label' ? freeformNewName.trim() : undefined,
+          source_unit_key: unit.unit_key,
+        },
+        slot
+      );
+      const saved = ((payload as any).record || payload) as FreeformLabelRecord;
+      const nextLabels = [...(session.freeform_labels || []), saved];
+      setSession({ ...session, freeform_labels: nextLabels });
+      if (freeformAction === 'new_label') {
+        await loadLabelRegistry();
+      }
+      const ct = (payload as any).cumulative_training || {};
+      const retrainReq = ct.retrain_request;
+      if (retrainReq?.request_id) {
+        message.success(
+          `已写入累计训练集并触发重训请求 ${retrainReq.request_id}（请到算法部署页执行）`,
+        );
+      } else if (ct.imported === false) {
+        message.success('该自由窗切片此前已登记，未重复计入阈值');
+      } else {
+        const nextIn = ct.next_retrain_in;
+        message.success(
+          typeof nextIn === 'number'
+            ? `已写入累计训练集（${saved.row_count ?? '?'} 行），距下次重训还差 ${nextIn} 次变更`
+            : `已框选打标并写入累计训练集（${saved.row_count ?? '?'} 行）`,
+        );
+      }
+      setFreeformModalOpen(false);
+      setFreeformRange(null);
+      try {
+        chartRef.current?.getEchartsInstance()?.dispatchAction({ type: 'brush', areas: [] });
+      } catch {
+        // ignore brush clear failures
+      }
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail || error?.message || error;
+      message.error(`框选打标失败: ${detail}`);
+    } finally {
+      setFreeformSaving(false);
+    }
+  };
+
+  const revokeFreeformLabel = async (unitKey: string) => {
+    if (!reviewId || !session) return;
+    try {
+      await reviewSessionApi.revokeFreeformLabel(reviewId, unitKey, slot);
+      setSession({
+        ...session,
+        freeform_labels: (session.freeform_labels || []).filter((item) => item.unit_key !== unitKey),
+      });
+      message.success('已撤销自由窗标注（会话指针）');
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail || error?.message || error;
+      message.error(`撤销失败: ${detail}`);
+    }
+  };
+
   if (!reviewId) {
     return (
       <Card>
@@ -735,7 +893,14 @@ const IterativeLabelingReviewPage: React.FC = () => {
           {refWaveformsLoading && <div style={{ textAlign: 'center', padding: 8, color: '#999', fontSize: 12 }}>参考波形加载中...</div>}
 
           {/* 原始时序波形（辅助人工判断） */}
-          <Divider>设备波形（电压 / 电流）</Divider>
+          <Divider>设备波形（电压 / 电流）— 可框选时段打标</Divider>
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 8 }}
+            message="框选自由时间窗"
+            description="在波形工具栏点「横向选择」后拖选区间，确认标签后会写入专属窗口样本并进入累计训练集（不影响整日单元裁决）。"
+          />
           {timeseriesLoading ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>波形加载中...</div>
           ) : unitTimeseries && unitTimeseries.timestamps.length > 0 ? (
@@ -746,9 +911,41 @@ const IterativeLabelingReviewPage: React.FC = () => {
               const isFault = predId !== undefined && predId !== null && predId !== 0 && predId !== 7; // 0正常/7汇流箱告警视为非严重
               const seriesEntries = Object.entries(unitTimeseries.series);
               const SERIES_NAMES: Record<string, string> = { value: '实测电流', i_cal: '理论电流' };
+              const axisLabels = unitTimeseries.timestamps.map((t) =>
+                t.includes(' ') ? t.split(' ')[1]?.slice(0, 5) || t : t.slice(11, 16)
+              );
+              const freeformMarkAreas = freeformLabelsForCurrentDevice.map((item) => {
+                const name =
+                  labelRegistry?.labels.find((l) => l.label_id === item.verdict_label)?.label_name ||
+                  `label_${item.verdict_label}`;
+                // markArea uses category axis labels; fall back to nearest displayed tick.
+                const startDisp = item.t_start.includes(' ')
+                  ? item.t_start.split(' ')[1]?.slice(0, 5) || item.t_start
+                  : item.t_start.slice(11, 16);
+                const endDisp = item.t_end.includes(' ')
+                  ? item.t_end.split(' ')[1]?.slice(0, 5) || item.t_end
+                  : item.t_end.slice(11, 16);
+                const startIdx = unitTimeseries.timestamps.findIndex((t) => t >= item.t_start);
+                const endIdx = [...unitTimeseries.timestamps]
+                  .map((t, i) => ({ t, i }))
+                  .reverse()
+                  .find((row) => row.t <= item.t_end)?.i;
+                const x0 = startIdx >= 0 ? axisLabels[startIdx] : startDisp;
+                const x1 = endIdx !== undefined ? axisLabels[endIdx] : endDisp;
+                return [
+                  {
+                    name,
+                    itemStyle: { color: 'rgba(114, 46, 209, 0.18)' },
+                    xAxis: x0,
+                  },
+                  { xAxis: x1 },
+                ];
+              });
               return (
                 <ReactECharts
-                  style={{ height: 320 }}
+                  ref={chartRef}
+                  style={{ height: 360 }}
+                  onEvents={{ brushEnd: handleBrushEnd }}
                   option={{
                     title: {
                       text: manualLabeling ? '待人工标注' : `分类器预测：${predName}（label_${predId}）`,
@@ -762,16 +959,27 @@ const IterativeLabelingReviewPage: React.FC = () => {
                       data: seriesEntries.map(([k]) => SERIES_NAMES[k] || k),
                       bottom: 0,
                     },
-                    grid: { left: 60, right: 30, top: 50, bottom: 50 },
+                    toolbox: {
+                      right: 12,
+                      feature: {
+                        brush: { type: ['lineX', 'clear'] },
+                      },
+                    },
+                    brush: {
+                      xAxisIndex: 0,
+                      brushLink: 'all',
+                      throttleType: 'debounce',
+                      throttleDelay: 200,
+                      outOfBrush: { colorAlpha: 0.1 },
+                    },
+                    grid: { left: 60, right: 30, top: 50, bottom: 60 },
                     xAxis: {
                       type: 'category',
-                      data: unitTimeseries.timestamps.map((t) =>
-                        t.includes(' ') ? t.split(' ')[1]?.slice(0, 5) || t : t.slice(11, 16)
-                      ),
+                      data: axisLabels,
                       axisLabel: { rotate: 45, fontSize: 10 },
                     },
                     yAxis: [{ type: 'value' }],
-                    dataZoom: [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 28 }],
+                    dataZoom: [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 34 }],
                     series: seriesEntries.map(([k, data], idx) => ({
                       name: SERIES_NAMES[k] || k,
                       type: 'line',
@@ -780,14 +988,27 @@ const IterativeLabelingReviewPage: React.FC = () => {
                       showSymbol: false,
                       lineStyle: { width: 1.5 },
                       itemStyle: { color: idx === 0 ? '#1890ff' : '#fa8c16' },
-                      // 在第一条序列上叠加整窗预测标注（整天一个预测）
-                      ...(idx === 0 ? {
-                        markArea: {
-                          silent: true,
-                          itemStyle: { color: isFault ? 'rgba(255,77,79,0.08)' : 'rgba(82,196,26,0.08)' },
-                          data: [[{ xAxis: 'min' }, { xAxis: 'max' }]],
-                        },
-                      } : {}),
+                      ...(idx === 0
+                        ? {
+                            markArea: {
+                              silent: true,
+                              data: [
+                                [
+                                  {
+                                    itemStyle: {
+                                      color: isFault
+                                        ? 'rgba(255,77,79,0.06)'
+                                        : 'rgba(82,196,26,0.06)',
+                                    },
+                                    xAxis: 'min',
+                                  },
+                                  { xAxis: 'max' },
+                                ],
+                                ...freeformMarkAreas,
+                              ],
+                            },
+                          }
+                        : {}),
                     })),
                   }}
                 />
@@ -804,7 +1025,49 @@ const IterativeLabelingReviewPage: React.FC = () => {
           {unitTimeseries && unitTimeseries.point_count > 0 && (
             <Text type="secondary" style={{ fontSize: 12 }}>
               该窗口共 {unitTimeseries.point_count} 个采样点
+              {session.sampling_strategy === 'uncertainty' ? ' · 队列已按低置信度优先排序' : ''}
             </Text>
+          )}
+          {freeformLabelsForCurrentDevice.length > 0 && (
+            <Card size="small" title="本设备自由窗标注" style={{ marginTop: 12 }}>
+              <List
+                size="small"
+                dataSource={freeformLabelsForCurrentDevice}
+                renderItem={(item) => {
+                  const name =
+                    labelRegistry?.labels.find((l) => l.label_id === item.verdict_label)?.label_name ||
+                    `label_${item.verdict_label}`;
+                  return (
+                    <List.Item
+                      actions={[
+                        <Button
+                          key="revoke"
+                          type="link"
+                          danger
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          onClick={() => void revokeFreeformLabel(item.unit_key)}
+                        >
+                          撤销
+                        </Button>,
+                      ]}
+                    >
+                      <Space wrap>
+                        <Tag color="purple">{name}</Tag>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {item.t_start} → {item.t_end}
+                        </Text>
+                        {item.row_count != null && (
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            {item.row_count} 行
+                          </Text>
+                        )}
+                      </Space>
+                    </List.Item>
+                  );
+                }}
+              />
+            </Card>
           )}
 
           {/* 需求 4：双来源并列展示 */}
@@ -1022,6 +1285,58 @@ const IterativeLabelingReviewPage: React.FC = () => {
             </Form.Item>
           )}
         </Form>
+      </Modal>
+
+      <Modal
+        title="框选时段打标"
+        open={freeformModalOpen}
+        onOk={() => void submitFreeformLabel()}
+        onCancel={() => {
+          setFreeformModalOpen(false);
+          setFreeformRange(null);
+        }}
+        confirmLoading={freeformSaving}
+        okText="写入累计训练集"
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Alert
+            type="info"
+            showIcon
+            message="将创建专属自由窗样本"
+            description={
+              freeformRange
+                ? `${freeformRange.tStart} → ${freeformRange.tEnd}`
+                : '未选择区间'
+            }
+          />
+          <Radio.Group
+            value={freeformAction}
+            onChange={(e) => setFreeformAction(e.target.value)}
+          >
+            <Radio.Button value="correct">已有标签</Radio.Button>
+            <Radio.Button value="new_label">新标签</Radio.Button>
+          </Radio.Group>
+          {freeformAction === 'correct' ? (
+            <Select
+              style={{ width: '100%' }}
+              placeholder="选择标签"
+              value={freeformLabelId}
+              onChange={setFreeformLabelId}
+              options={labelRegistry?.labels.map((l) => ({
+                label: `${l.label_name} (ID: ${l.label_id})`,
+                value: l.label_id,
+              }))}
+            />
+          ) : (
+            <Input
+              placeholder="例如：夜间漏电流"
+              value={freeformNewName}
+              onChange={(e) => setFreeformNewName(e.target.value)}
+              maxLength={50}
+              showCount
+            />
+          )}
+        </Space>
       </Modal>
 
       {/* 回流：生成新真值数据集 */}

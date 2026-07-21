@@ -241,15 +241,25 @@ class LabelRegistryService:
         }
 
         additions = []
+        renames = []
         now = datetime.utcnow().isoformat()
         for label_id, label_name in normalized.items():
             existing_name = id_to_name.get(label_id)
             if existing_name is not None:
-                if existing_name != label_name:
-                    raise ValueError(
-                        f"标签 ID {label_id} 已登记为“{existing_name}”，不能改为“{label_name}”"
-                    )
-                continue
+                if existing_name == label_name:
+                    continue
+                # 仅允许把「待命名-*」占位改成正式业务名，便于甲方后续补名。
+                if str(existing_name).startswith("待命名-"):
+                    if label_name in name_to_id and name_to_id[label_name] != label_id:
+                        raise ValueError(
+                            f"业务名称“{label_name}”已绑定标签 ID {name_to_id[label_name]}，"
+                            f"不能重复绑定 {label_id}"
+                        )
+                    renames.append((label_id, existing_name, label_name))
+                    continue
+                raise ValueError(
+                    f"标签 ID {label_id} 已登记为“{existing_name}”，不能改为“{label_name}”"
+                )
             existing_id = name_to_id.get(label_name)
             if existing_id is not None and existing_id != label_id:
                 raise ValueError(
@@ -264,7 +274,7 @@ class LabelRegistryService:
                 }
             )
 
-        if not additions:
+        if not additions and not renames:
             return current
 
         old_version = current.get("label_space_version", "ls-v1")
@@ -279,11 +289,25 @@ class LabelRegistryService:
                 }
             )
 
+        merged_labels = list(current_labels)
+        label_map = dict(current.get("label_map", {}))
+        if renames:
+            rename_lookup = {label_id: new_name for label_id, _, new_name in renames}
+            old_names = {label_id: old_name for label_id, old_name, _ in renames}
+            for item in merged_labels:
+                lid = int(item["label_id"])
+                if lid in rename_lookup:
+                    old_name = old_names[lid]
+                    new_name = rename_lookup[lid]
+                    item["label_name"] = new_name
+                    item["renamed_at"] = now
+                    item["previous_label_name"] = old_name
+                    label_map.pop(old_name, None)
+                    label_map[new_name] = lid
         merged_labels = sorted(
-            current_labels + additions,
+            merged_labels + additions,
             key=lambda item: int(item["label_id"]),
         )
-        label_map = dict(current.get("label_map", {}))
         for item in additions:
             label_map[item["label_name"]] = item["label_id"]
 

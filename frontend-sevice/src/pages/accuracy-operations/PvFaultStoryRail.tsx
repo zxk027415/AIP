@@ -61,6 +61,11 @@ interface SlotOverviewPayload {
     macro_f1?: number;
     counted_units?: number;
   } | null;
+  split_config?: {
+    aligned?: boolean;
+    active_solar_mode?: string | null;
+    modes?: Record<string, { solar_mode?: string | null; window?: string | null }>;
+  };
   cumulative_training?: {
     effective_labeled_unit_count?: number;
     pending_change_count?: number;
@@ -304,6 +309,12 @@ function buildStages({
     ?? cumulative?.latest_completed_model_ref
     ?? null;
   const qm = overview?.quality_metrics;
+  const split = overview?.split_config;
+  const splitHint = split
+    ? (split.aligned === false
+      ? '；切分未对齐'
+      : `；切分=${split.active_solar_mode ?? 'daily'}`)
+    : '';
   const modelStage: EvidenceStage = !modelRef
     ? {
       key: 'model',
@@ -318,9 +329,9 @@ function buildStages({
       key: 'model',
       label: '可用模型',
       detail: qm
-        ? `${modelRef}；正确率 ${(qm.accuracy! * 100).toFixed(1)}%`
-        : `${modelRef}（当前生产，等待预测真值回流）`,
-      tone: 'healthy',
+        ? `${modelRef}；正确率 ${(qm.accuracy! * 100).toFixed(1)}%${splitHint}`
+        : `${modelRef}（当前生产，等待预测真值回流）${splitHint}`,
+      tone: split?.aligned === false ? 'warning' : 'healthy',
       icon: <ExperimentOutlined />,
     };
 

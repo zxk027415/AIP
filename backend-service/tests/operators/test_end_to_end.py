@@ -209,6 +209,223 @@ class TestEndToEndAnomalyPipeline:
 
 
 # ────────────────────────────────────────────────────────────────────────────
+# 工作流 6：P3 W1 特征 + 规则异常（合成数据）
+#   series → shape/spectral/acf → quantile_transform → zscore/iqr/knn
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class TestEndToEndP3W1FeatureAnomalyPipeline:
+    def test_p3_w1_feature_and_anomaly_pipeline(self, router):
+        rng = np.random.RandomState(42)
+        t = np.linspace(0, 12, 120)
+        series = pd.DataFrame({
+            "value": np.sin(t) + 0.1 * rng.randn(120),
+            "i_cal": np.cos(t / 2) + 0.05 * rng.randn(120),
+        })
+
+        r_shape = router.execute("shape_features", {"column": "value"}, {"data": series})
+        assert len(r_shape["data"]) == 1
+
+        r_spec = router.execute("spectral_features", {"column": "value"}, {"data": series})
+        assert "spectral_centroid" in r_spec["data"].columns
+
+        r_acf = router.execute(
+            "autocorrelation_features",
+            {"column": "value", "nlags": 6, "include_pacf": False},
+            {"data": series},
+        )
+        assert r_acf["data"].shape[1] == 6
+
+        r_qt = router.execute(
+            "quantile_transform",
+            {"columns": ["value", "i_cal"], "n_quantiles": 30, "random_state": 0},
+            {"data": series},
+        )
+        scaled = r_qt["data"]
+
+        # 用变换后的序列做规则异常 + 近邻异常
+        r_z = router.execute("zscore_anomaly", {"column": "value", "threshold": 3.0}, {"data": scaled})
+        r_iqr = router.execute("iqr_anomaly", {"column": "value", "factor": 1.5}, {"data": scaled})
+        r_mad = router.execute("mad_anomaly", {"column": "value", "threshold": 3.0}, {"data": scaled})
+        r_ewma = router.execute(
+            "ewma_anomaly", {"column": "value", "span": 12, "threshold": 3.0}, {"data": scaled},
+        )
+        r_knn = router.execute(
+            "knn_anomaly", {"n_neighbors": 5, "contamination": 0.1}, {"data": scaled},
+        )
+        for name, rr in [
+            ("zscore", r_z), ("iqr", r_iqr), ("mad", r_mad), ("ewma", r_ewma), ("knn", r_knn),
+        ]:
+            assert len(rr["labels"]) == len(scaled), name
+            assert set(np.unique(rr["labels"])).issubset({-1, 1}), name
+
+        # chi2：非负特征 + 伪标签
+        feats = scaled.abs()
+        y = (feats["value"] > feats["value"].median()).astype(int).values
+        r_chi = router.execute("chi2_select", {"k": 1}, {"features": feats, "target": y})
+        assert len(r_chi["selected_columns"]) == 1
+
+
+class TestEndToEndP3W2ForecastClassifyPipeline:
+    """L5：合成时序预测 + 分类链路。"""
+
+    def test_p3_w2_forecast_and_classify_pipeline(self, router):
+        rng = np.random.RandomState(0)
+        ts = pd.date_range("2024-01-01", periods=96, freq="h")
+        series = pd.DataFrame({
+            "timestamp": ts,
+            "value": np.sin(np.arange(96) / 8.0) * 10 + 50 + 0.2 * rng.randn(96),
+        })
+        for op_id, params in [
+            ("random_forest_forecast", {"n_estimators": 15, "n_lags": 10, "forecast_horizon": 6}),
+            ("knn_forecast", {"n_neighbors": 3, "n_lags": 10, "forecast_horizon": 6}),
+            ("quantile_regression_forecast", {"n_lags": 8, "forecast_horizon": 5, "quantile": 0.5}),
+            ("exponential_smoothing", {"forecast_horizon": 6, "trend": "add"}),
+        ]:
+            r = router.execute(
+                op_id,
+                {"timestamp_column": "timestamp", "value_column": "value", **params},
+                {"data": series},
+            )
+            assert len(r["forecast"]) == params["forecast_horizon"], op_id
+
+        # 分类：合成二分类
+        X = pd.DataFrame(rng.randn(80, 4), columns=list("abcd"))
+        y = (X["a"] + X["b"] > 0).astype(int).values
+        for op_id, params in [
+            ("extra_trees_classifier", {"n_estimators": 20, "save_model": "false"}),
+            ("adaboost_classifier", {"n_estimators": 20, "save_model": "false"}),
+            ("calibrated_classifier", {"cv": 2, "save_model": "false"}),
+            ("lightgbm_classifier", {"n_estimators": 20, "save_model": "false"}),
+        ]:
+            r = router.execute(
+                op_id, {"mode": "train", **params}, {"features": X, "target": y},
+            )
+            assert "predictions" in r and "model_id" in r, op_id
+            pred = router.execute(
+                op_id,
+                {"mode": "predict"},
+                {"model": r["model"], "predict_features": X.head(10)},
+            )
+            assert len(pred["predictions"]) == 10, op_id
+
+
+class TestEndToEndP3W3ClusterSampleEvalPipeline:
+    """L5：聚类 → 不平衡诊断 → 过采样/分层 → 评估。"""
+
+    def test_p3_w3_cluster_sample_eval_pipeline(self, router):
+        rng = np.random.RandomState(3)
+        # 两团点
+        a = rng.randn(40, 2) + np.array([0, 0])
+        b = rng.randn(40, 2) + np.array([5, 5])
+        df = pd.DataFrame(np.vstack([a, b]), columns=["x", "y"])
+        for op_id, params in [
+            ("hdbscan_cluster", {"min_cluster_size": 8}),
+            ("gmm_cluster", {"n_components": 2, "random_state": 0}),
+            ("optics_cluster", {"min_samples": 5}),
+        ]:
+            r = router.execute(op_id, params, {"data": df})
+            assert len(r["labels"]) == len(df), op_id
+
+        # 不平衡标签
+        X = pd.DataFrame(rng.randn(100, 3), columns=list("abc"))
+        y = np.array([0] * 85 + [1] * 15)
+        imb = router.execute("class_imbalance_check", {"imbalance_threshold": 2.0}, {"target": y})
+        assert imb["is_imbalanced"] is True
+
+        ada = router.execute(
+            "adasyn_oversample", {"n_neighbors": 3, "random_state": 0},
+            {"features": X, "target": y},
+        )
+        assert ada["n_synthetic"] > 0
+        samp = router.execute(
+            "stratified_sample", {"sample_ratio": 0.4, "random_state": 0},
+            {"features": ada["features"], "target": ada["target"]},
+        )
+        assert samp["n_rows"] > 0
+
+        # 伪预测评估
+        y_true = samp["target"]
+        y_pred = y_true.copy()
+        y_pred[: max(1, len(y_pred) // 10)] = 1 - y_pred[: max(1, len(y_pred) // 10)]
+        ba = router.execute("balanced_accuracy", {}, {"y_true": y_true, "y_pred": y_pred})
+        assert 0.0 <= ba["score"] <= 1.0
+
+        pb = router.execute(
+            "pinball_loss", {"quantile": 0.5},
+            {"y_true": rng.randn(20), "y_pred": rng.randn(20)},
+        )
+        assert np.isfinite(pb["score"])
+
+
+class TestEndToEndBatch67SoftCoverage:
+    """
+    L5：对上一批已有 L2+L6 的软目标算子做合成链路巡检（逐个执行一次）。
+    覆盖登记见 services.operator_test_coverage.LAYER5_SYNTHETIC_E2E。
+    """
+
+    SOFT_OPS = [
+        "accuracy_score", "arima", "bandpass_filter", "bar_chart", "binning",
+        "classification_report", "column_select", "correlation_analysis",
+        "data_aggregate", "dbscan", "decision_tree_classifier", "elastic_net",
+        "export_csv", "f1_score", "fft_transform", "gaussian_filter",
+        "gradient_boosting_classifier", "histogram", "kmeans", "knn_classifier",
+        "lasso_regression", "line_chart", "linear_regression", "load_json",
+        "load_parquet", "log_transform", "logistic_regression", "lowpass_filter",
+        "mape_score", "median_filter", "min_max_scale", "moving_average",
+        "mutual_info_select", "naive_bayes_classifier", "one_hot_encode", "pca",
+        "pie_chart", "polynomial_features", "r2_score", "remove_duplicates",
+        "ridge_regression", "savgol_filter", "scatter_chart", "stationarity_test",
+        "svm_classifier", "svr_regression", "variance_threshold",
+        "xgboost_classifier", "xgboost_regression", "z_score_scale",
+        "agglomerative_clustering", "box_chart", "cyclical_encode", "data_merge",
+        "data_pivot", "data_profile", "data_type_convert", "elliptic_envelope",
+        "export_excel", "heatmap_chart", "lof_detector", "one_class_svm",
+        "roc_auc", "silhouette_score",
+    ]
+
+    def test_batch67_soft_ops_execute_once(self, router, tmp_path):
+        import importlib.util
+
+        smoke_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "test_operators_smoke.py",
+        )
+        spec = importlib.util.spec_from_file_location("op_smoke_l5", smoke_path)
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+        by_id = {c[0]: c for c in mod.SMOKE_CASES}
+
+        missing = [op for op in self.SOFT_OPS if op not in by_id]
+        assert not missing, f"SMOKE 缺少: {missing}"
+
+        for op_id in self.SOFT_OPS:
+            _op, params_builder, inputs_builder, expected_keys, _extra = by_id[op_id]
+            params = params_builder(tmp_path)
+            if params.get("mode") == "train":
+                params = {**params, "save_model": "false"}
+            inputs = inputs_builder(tmp_path)
+            result = router.execute(op_id, params, inputs)
+            assert isinstance(result, dict), op_id
+            for key in expected_keys:
+                assert key in result, f"{op_id} missing {key}"
+
+        # prophet：独立烟测入参（不在 SMOKE_CASES）
+        try:
+            import prophet  # noqa: F401
+            ts = pd.date_range("2024-01-01", periods=40, freq="h")
+            pdf = pd.DataFrame({"ds": ts, "y": np.sin(np.arange(40) / 5.0) * 10})
+            pr = router.execute(
+                "prophet",
+                {"timestamp_column": "ds", "value_column": "y", "forecast_horizon": 4, "freq": "h"},
+                {"data": pdf},
+            )
+            assert len(pr["forecast"]) == 4
+        except ImportError:
+            pass
+
+
+# ────────────────────────────────────────────────────────────────────────────
 # API 层测试：Backend Status API
 # ────────────────────────────────────────────────────────────────────────────
 

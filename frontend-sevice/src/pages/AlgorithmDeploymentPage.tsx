@@ -9,7 +9,7 @@
  *   4. 预上线（?tab=prelaunch）  — 入池/观察进度/手动毕业
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, Col, Descriptions, Divider, Input, Modal, Progress, Row, Select, Space, Spin, Table, Tabs, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Col, Descriptions, Divider, Input, Modal, Progress, Row, Select, Space, Spin, Statistic, Table, Tabs, Tag, Typography, message } from 'antd';
 import type { TableColumnsType } from 'antd';
 import {
   ApartmentOutlined,
@@ -188,17 +188,20 @@ const PvFaultDeploymentView: React.FC = () => {
   const [labelRegistrationMode, setLabelRegistrationMode] = useState(false);
   const [reconcileNames, setReconcileNames] = useState<Record<string, string>>({});
   const [reconcileSaving, setReconcileSaving] = useState(false);
+  const [splitConfig, setSplitConfig] = useState<Record<string, any> | null>(null);
   const [messageApi, contextHolder] = message.useMessage();
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [ctState, labelsResp] = await Promise.all([
+      const [ctState, labelsResp, overviewResp] = await Promise.all([
         cumulativeTrainingApi.getState('pv_fault'),
         fetch('/api/iterative-labeling/label-registry?slot=pv_fault').then(r => r.json()),
+        fetch('/api/accuracy-operations/slot-overview?slot=pv_fault').then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
       setState(ctState as Record<string, any>);
       setLabels(labelsResp?.labels ?? []);
+      setSplitConfig((overviewResp as any)?.split_config ?? null);
       const statePayload = ctState as Record<string, any>;
       setSelectedRetrainId(current => current
         ?? statePayload.production_model?.request_id
@@ -346,6 +349,15 @@ const PvFaultDeploymentView: React.FC = () => {
   const pendingCount = Number(state?.pending_change_count ?? 0);
   const retrainThreshold = Number(state?.retrain_label_threshold ?? 20);
   const retrainHistory = (state?.retrain_history ?? []) as Array<Record<string, any>>;
+  const completedRetrains = retrainHistory.filter(item => item.status === 'completed');
+  const newestCompleted = completedRetrains[0];
+  const previousCompleted = completedRetrains[1];
+  const newestF1 = newestCompleted?.train_summary?.accuracy_record?.macro_f1_mean;
+  const previousF1 = previousCompleted?.train_summary?.accuracy_record?.macro_f1_mean;
+  const f1Delta =
+    newestF1 != null && previousF1 != null && !Number.isNaN(Number(newestF1)) && !Number.isNaN(Number(previousF1))
+      ? Number(newestF1) - Number(previousF1)
+      : null;
   const selectedRetrain = retrainHistory.find(item => item.request_id === selectedRetrainId)
     ?? productionModel
     ?? latestCompleted
@@ -479,13 +491,27 @@ const PvFaultDeploymentView: React.FC = () => {
                   （登记大数据集后若仍有 queued 旧请求，刷新后会自动换新快照）
                 </Typography.Text>
               </Descriptions.Item>
+              <Descriptions.Item label="切分模式">
+                {splitConfig?.aligned === false ? (
+                  <Tag color="warning">训练/预测 solar_mode 不一致</Tag>
+                ) : (
+                  <Tag color="blue">
+                    {splitConfig?.active_solar_mode
+                      ?? splitConfig?.modes?.train?.solar_mode
+                      ?? '整天 resample（未启用 solar_mode）'}
+                  </Tag>
+                )}
+                <Typography.Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>
+                  训练={String(splitConfig?.modes?.train?.solar_mode ?? '—')}
+                  {' / '}
+                  预测={String(splitConfig?.modes?.predict?.solar_mode ?? '—')}
+                </Typography.Text>
+              </Descriptions.Item>
             </Descriptions>
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card
-            size="small"
-            title="标签体系"
+          <Card size="small" title="标签体系"
             bordered
             extra={
               <Space size={8}>
@@ -594,6 +620,50 @@ const PvFaultDeploymentView: React.FC = () => {
           </Card>
         </Col>
       </Row>
+
+      {previousCompleted && newestCompleted && (
+        <Card size="small" title="重训前后 Macro-F1 对照" bordered style={{ marginTop: 16 }}>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Statistic
+                title={`上一版（${previousCompleted.request_id ?? '—'}）`}
+                value={previousF1 ?? '—'}
+                precision={typeof previousF1 === 'number' ? 4 : undefined}
+              />
+            </Col>
+            <Col span={8}>
+              <Statistic
+                title={`当前（${newestCompleted.request_id ?? '—'}）`}
+                value={newestF1 ?? '—'}
+                precision={typeof newestF1 === 'number' ? 4 : undefined}
+              />
+            </Col>
+            <Col span={8}>
+              <Statistic
+                title="Δ Macro-F1"
+                value={f1Delta ?? '—'}
+                precision={typeof f1Delta === 'number' ? 4 : undefined}
+                valueStyle={{
+                  color:
+                    f1Delta == null
+                      ? undefined
+                      : f1Delta > 0
+                        ? '#3f8600'
+                        : f1Delta < 0
+                          ? '#cf1322'
+                          : undefined,
+                }}
+              />
+            </Col>
+          </Row>
+          {(newestCompleted?.train_summary?.accuracy_record?.confusion_matrix
+            || previousCompleted?.train_summary?.accuracy_record?.confusion_matrix) && (
+            <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0, fontSize: 12 }}>
+              混淆矩阵细节见下方「选中重训」评估区；此处仅对照相邻两次 completed 重训的 Macro-F1。
+            </Typography.Paragraph>
+          )}
+        </Card>
+      )}
 
       <Card size="small" title="重训历史" bordered style={{ marginTop: 16 }}>
         <Table

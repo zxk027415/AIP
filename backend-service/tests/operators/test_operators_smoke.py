@@ -649,6 +649,216 @@ SMOKE_CASES = [
         ["chart_option", "chart_type"],
         _chart_option_valid,
     ),
+    # ─── P3 W1 特征工程 ───
+    (
+        "autocorrelation_features",
+        lambda _tp: {"column": "value", "nlags": 8},
+        lambda _tp: {"data": _timeseries_df(80)},
+        ["data"],
+        _output_is_dataframe,
+    ),
+    (
+        "spectral_features",
+        lambda _tp: {"column": "value", "sampling_rate": 1.0},
+        lambda _tp: {"data": _timeseries_df(64)},
+        ["data"],
+        _output_is_dataframe,
+    ),
+    (
+        "shape_features",
+        lambda _tp: {"column": "value"},
+        lambda _tp: {"data": _timeseries_df(64)},
+        ["data"],
+        _output_is_dataframe,
+    ),
+    (
+        "chi2_select",
+        lambda _tp: {"k": 3},
+        lambda _tp: dict(zip(["features", "target"], _classification_features_target())),
+        ["data", "selected_columns", "scores"],
+        lambda r: (isinstance(r["data"], pd.DataFrame), len(r["selected_columns"]) <= 3),
+    ),
+    (
+        "quantile_transform",
+        lambda _tp: {"columns": ["a", "b"], "output_distribution": "uniform"},
+        lambda _tp: {"data": _numeric_df(rows=50, cols=3)},
+        ["data"],
+        _output_is_dataframe,
+    ),
+    # ─── P3 W1 异常检测 ───
+    (
+        "zscore_anomaly",
+        lambda _tp: {"column": "a", "threshold": 3.0},
+        lambda _tp: {"data": _numeric_df(rows=80, cols=2)},
+        ["labels", "scores"],
+        _labels_is_array,
+    ),
+    (
+        "iqr_anomaly",
+        lambda _tp: {"column": "a", "factor": 1.5},
+        lambda _tp: {"data": _numeric_df(rows=80, cols=2)},
+        ["labels", "scores"],
+        _labels_is_array,
+    ),
+    (
+        "mad_anomaly",
+        lambda _tp: {"column": "a", "threshold": 3.0},
+        lambda _tp: {"data": _numeric_df(rows=80, cols=2)},
+        ["labels", "scores"],
+        _labels_is_array,
+    ),
+    (
+        "ewma_anomaly",
+        lambda _tp: {"column": "value", "span": 10, "threshold": 3.0},
+        lambda _tp: {"data": _timeseries_df(80)},
+        ["labels", "scores"],
+        _labels_is_array,
+    ),
+    (
+        "knn_anomaly",
+        lambda _tp: {"n_neighbors": 5, "contamination": 0.1},
+        lambda _tp: {"data": _numeric_df(rows=60, cols=3)},
+        ["labels", "scores"],
+        _labels_is_array,
+    ),
+    # ─── P3 W2 时序预测 ───
+    (
+        "random_forest_forecast",
+        lambda _tp: {
+            "timestamp_column": "timestamp", "value_column": "value",
+            "forecast_horizon": 5, "n_lags": 8, "n_estimators": 20,
+        },
+        lambda _tp: {"data": _timeseries_df(80)},
+        ["forecast", "forecast_dates"],
+        lambda r: (isinstance(r["forecast"], list), len(r["forecast"]) == 5),
+    ),
+    (
+        "knn_forecast",
+        lambda _tp: {
+            "timestamp_column": "timestamp", "value_column": "value",
+            "forecast_horizon": 5, "n_lags": 8, "n_neighbors": 3,
+        },
+        lambda _tp: {"data": _timeseries_df(80)},
+        ["forecast", "forecast_dates"],
+        lambda r: (isinstance(r["forecast"], list), len(r["forecast"]) == 5),
+    ),
+    (
+        "quantile_regression_forecast",
+        lambda _tp: {
+            "timestamp_column": "timestamp", "value_column": "value",
+            "forecast_horizon": 4, "n_lags": 6, "quantile": 0.5,
+        },
+        lambda _tp: {"data": _timeseries_df(60)},
+        ["forecast", "forecast_dates"],
+        lambda r: (isinstance(r["forecast"], list), len(r["forecast"]) == 4),
+    ),
+    (
+        "exponential_smoothing",
+        lambda _tp: {
+            "timestamp_column": "timestamp", "value_column": "value",
+            "forecast_horizon": 5, "trend": "add",
+        },
+        lambda _tp: {"data": _timeseries_df(60)},
+        ["forecast", "forecast_dates"],
+        lambda r: (isinstance(r["forecast"], list), len(r["forecast"]) == 5),
+    ),
+    # ─── P3 W2 分类 ───
+    (
+        "extra_trees_classifier",
+        lambda _tp: {"mode": "train", "n_estimators": 20, "max_depth": 4, "save_model": "false"},
+        lambda _tp: dict(zip(["features", "target"], _classification_features_target())),
+        ["model", "model_id", "feature_list", "predictions", "y_true", "feature_importances"],
+        _classifier_train_output,
+    ),
+    (
+        "adaboost_classifier",
+        lambda _tp: {"mode": "train", "n_estimators": 20, "learning_rate": 0.5, "save_model": "false"},
+        lambda _tp: dict(zip(["features", "target"], _classification_features_target())),
+        ["model", "model_id", "feature_list", "predictions", "y_true", "feature_importances"],
+        _classifier_train_output,
+    ),
+    (
+        "calibrated_classifier",
+        lambda _tp: {"mode": "train", "cv": 2, "method": "sigmoid", "save_model": "false"},
+        lambda _tp: dict(zip(["features", "target"], _classification_features_target())),
+        ["model", "model_id", "feature_list", "predictions", "y_true", "feature_importances"],
+        _classifier_train_output,
+    ),
+    (
+        "lightgbm_classifier",
+        lambda _tp: {
+            "mode": "train", "n_estimators": 20, "max_depth": 3,
+            "learning_rate": 0.1, "save_model": "false",
+        },
+        lambda _tp: dict(zip(["features", "target"], _classification_features_target())),
+        ["model", "model_id", "feature_list", "predictions", "y_true", "feature_importances"],
+        _classifier_train_output,
+    ),
+    # ─── P3 W3 聚类 ───
+    (
+        "hdbscan_cluster",
+        lambda _tp: {"min_cluster_size": 5},
+        lambda _tp: {"data": _numeric_df(rows=80, cols=3)},
+        ["labels", "n_clusters_found"],
+        _labels_is_array,
+    ),
+    (
+        "gmm_cluster",
+        lambda _tp: {"n_components": 3, "random_state": 0},
+        lambda _tp: {"data": _numeric_df(rows=60, cols=3)},
+        ["labels", "n_clusters_found", "means", "weights"],
+        _labels_is_array,
+    ),
+    (
+        "optics_cluster",
+        lambda _tp: {"min_samples": 5, "xi": 0.05},
+        lambda _tp: {"data": _numeric_df(rows=80, cols=3)},
+        ["labels", "n_clusters_found"],
+        _labels_is_array,
+    ),
+    # ─── P3 W3 采样 / 诊断 / 评估 ───
+    (
+        "adasyn_oversample",
+        lambda _tp: {"n_neighbors": 3, "random_state": 0},
+        lambda _tp: dict(zip(["features", "target"], _classification_features_target())),
+        ["features", "target", "n_synthetic"],
+        lambda r: (
+            isinstance(r["features"], pd.DataFrame),
+            len(r["features"]) == len(r["target"]),
+            isinstance(r["n_synthetic"], int),
+        ),
+    ),
+    (
+        "stratified_sample",
+        lambda _tp: {"sample_ratio": 0.5, "random_state": 0},
+        lambda _tp: dict(zip(["features", "target"], _classification_features_target())),
+        ["features", "target", "sample_indices", "n_rows"],
+        lambda r: (
+            isinstance(r["features"], pd.DataFrame),
+            r["n_rows"] == len(r["features"]),
+        ),
+    ),
+    (
+        "class_imbalance_check",
+        lambda _tp: {"imbalance_threshold": 3.0},
+        lambda _tp: {"target": _classification_features_target()[1]},
+        ["class_counts", "imbalance_ratio", "is_imbalanced", "n_classes"],
+        lambda r: (isinstance(r["class_counts"], dict), isinstance(r["imbalance_ratio"], float)),
+    ),
+    (
+        "balanced_accuracy",
+        lambda _tp: {},
+        lambda _tp: {"y_true": [0, 1, 0, 1, 1], "y_pred": [0, 1, 0, 0, 1]},
+        ["score"],
+        lambda r: isinstance(r["score"], float),
+    ),
+    (
+        "pinball_loss",
+        lambda _tp: {"quantile": 0.5},
+        lambda _tp: {"y_true": [1.0, 2.0, 3.0, 4.0], "y_pred": [1.1, 1.9, 3.2, 3.8]},
+        ["score", "quantile"],
+        lambda r: isinstance(r["score"], float),
+    ),
 ]
 
 

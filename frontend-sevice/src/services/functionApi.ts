@@ -2,7 +2,7 @@
 /**
  * functionApi.ts — Backend-status API client for the function/operator library.
  * Calls GET /api/functions/backend-status to discover which operator IDs have
- * real backend implementations registered on the Python side.
+ * real backend implementations and which passed 5-layer + real-data e2e tests.
  */
 import api from './api';
 
@@ -11,10 +11,14 @@ export interface BackendStatusResponse {
   total_registered: number;
   /** Sorted list of operator IDs that have a real backend implementation */
   registered_operators: string[];
+  /** Operators that passed 5-layer tests AND real-data e2e (subset of registered) */
+  verified_operators?: string[];
+  /** Count of verified_operators */
+  total_verified?: number;
 }
 
 /**
- * getBackendStatus — fetch the set of operators that have real backend implementations.
+ * getBackendStatus — fetch registered / verified operator IDs.
  * Returns BackendStatusResponse on success; throws on network / server error.
  */
 export const getBackendStatus = (): Promise<BackendStatusResponse> =>

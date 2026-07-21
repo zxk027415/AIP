@@ -117,10 +117,17 @@ const FunctionLibraryPage: React.FC = () => {
   // @AI_GENERATED: end
 
   // @AI_GENERATED
-  // 后端可执行状态 hook — readySet 为空表示 API 未返回（加载中或出错）
-  const { readySet, loading: backendLoading, error: backendError } = useBackendReadyOperators();
-  // 筛选模式：'all' | 'ready' | 'definition-only'
-  const [backendFilter, setBackendFilter] = useState<'all' | 'ready' | 'definition-only'>('all');
+  // 后端可执行 / 已验证状态 — readySet / verifiedSet 为空表示 API 未返回（加载中或出错）
+  const {
+    readySet,
+    verifiedSet,
+    loading: backendLoading,
+    error: backendError,
+  } = useBackendReadyOperators();
+  // 筛选：全部 | 已验证 | 可执行未验证 | 仅定义
+  const [backendFilter, setBackendFilter] = useState<
+    'all' | 'verified' | 'ready-unverified' | 'definition-only'
+  >('all');
   // @AI_GENERATED: end
 
   const displayText = (text: string | null | undefined, fallbackId?: string): string => {
@@ -259,12 +266,16 @@ const FunctionLibraryPage: React.FC = () => {
     return displaySubCategories
       .map(sc => ({
         ...sc,
-        functions: sc.functions.filter(fn =>
-          backendFilter === 'ready' ? readySet.has(fn.id) : !readySet.has(fn.id),
-        ),
+        functions: sc.functions.filter(fn => {
+          if (backendFilter === 'verified') return verifiedSet.has(fn.id);
+          if (backendFilter === 'ready-unverified') {
+            return readySet.has(fn.id) && !verifiedSet.has(fn.id);
+          }
+          return !readySet.has(fn.id);
+        }),
       }))
       .filter(sc => sc.functions.length > 0);
-  }, [displaySubCategories, backendFilter, readySet, backendLoading, backendError]);
+  }, [displaySubCategories, backendFilter, readySet, verifiedSet, backendLoading, backendError]);
 
   const filteredFunctionCount = useMemo(
     () => filteredSubCategories.reduce((s, sc) => s + sc.functions.length, 0),
@@ -489,9 +500,11 @@ const FunctionLibraryPage: React.FC = () => {
                                 <Text strong style={{ fontSize: 13 }}>{displayFunctionName(fn)}</Text>
                                 {/* @AI_GENERATED */}
                                 {!backendLoading && !backendError && (
-                                  readySet.has(fn.id)
-                                    ? <Tag color="success" style={{ fontSize: 10, lineHeight: '16px', padding: '0 4px' }}>{t('functions.badgeReady')}</Tag>
-                                    : <Tag color="default" style={{ fontSize: 10, lineHeight: '16px', padding: '0 4px' }}>{t('functions.badgeDefinitionOnly')}</Tag>
+                                  verifiedSet.has(fn.id)
+                                    ? <Tag color="success" style={{ fontSize: 10, lineHeight: '16px', padding: '0 4px' }}>{t('functions.badgeVerified')}</Tag>
+                                    : readySet.has(fn.id)
+                                      ? <Tag color="warning" style={{ fontSize: 10, lineHeight: '16px', padding: '0 4px' }}>{t('functions.badgeReadyUnverified')}</Tag>
+                                      : <Tag color="default" style={{ fontSize: 10, lineHeight: '16px', padding: '0 4px' }}>{t('functions.badgeDefinitionOnly')}</Tag>
                                 )}
                                 {/* @AI_GENERATED: end */}
                               </Space>
@@ -598,10 +611,11 @@ const FunctionLibraryPage: React.FC = () => {
             <Segmented
               size="small"
               value={backendFilter}
-              onChange={v => setBackendFilter(v as 'all' | 'ready' | 'definition-only')}
+              onChange={v => setBackendFilter(v as 'all' | 'verified' | 'ready-unverified' | 'definition-only')}
               options={[
                 { label: t('functions.filterAll'), value: 'all' },
-                { label: t('functions.filterReady'), value: 'ready' },
+                { label: t('functions.filterVerified'), value: 'verified' },
+                { label: t('functions.filterReadyUnverified'), value: 'ready-unverified' },
                 { label: t('functions.filterDefinitionOnly'), value: 'definition-only' },
               ]}
             />

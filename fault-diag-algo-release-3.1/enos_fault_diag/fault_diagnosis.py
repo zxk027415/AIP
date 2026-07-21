@@ -16,16 +16,28 @@ np.set_printoptions(suppress=True)
 logger = logging.getLogger(__name__)
 
 
+# diagnosis_window 既可传经典频度（如 1d），也可传日照/夜间切分模式名
+SOLAR_MODES = {
+    'daylight': 'daylight',
+    'solar_period': 'solar_period',
+    'multiscale': 'multiscale',
+    'night': 'night',
+    'day_and_night': 'day_and_night',
+}
+
+
 class FaultDiagnosis:
     def __init__(self, time_zone, window_one_label=1, diagnosis_window='1d',
                  time_field='time', label_field='label',
-                 value_fields=None, id_fields=None):
+                 value_fields=None, id_fields=None, sub_window='4h'):
         if id_fields is None:
             id_fields = ['site_id', 'device_id', 'branch_id']
         if not isinstance(id_fields, list):
             id_fields = list(id_fields)
         self.time_zone = time_zone
         self.diagnosis_window = diagnosis_window
+        self.solar_mode = SOLAR_MODES.get(diagnosis_window, None)
+        self.sub_window = sub_window
         self.window_one_label = window_one_label
         self.time_field = time_field
         self.label_field = label_field

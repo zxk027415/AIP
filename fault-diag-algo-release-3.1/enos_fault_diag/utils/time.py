@@ -58,10 +58,28 @@ def detect_time_freq(data, time_col):
     return freq
 
 
-def set_time_window(data, id_cols, time_col, freq):
+def set_time_window(data, id_cols, time_col, freq, solar_mode=None, **solar_kwargs):
     """
-    set time window for data
+    set time window for data.
+
+    solar_mode=None 时：走原有 resample 逻辑。
+    solar_mode 非空时：委托给 segment_solar_window()。
     """
+    if solar_mode:
+        from utils.solar_window import segment_solar_window
+        segmented, _warnings = segment_solar_window(
+            data,
+            id_cols=id_cols,
+            time_col=time_col,
+            value_cols=solar_kwargs.get("value_cols", []),
+            solar_mode=solar_mode,
+            irr_threshold=solar_kwargs.get("irr_threshold", 0.05),
+            peak_ratio=solar_kwargs.get("peak_ratio", 0.30),
+            sub_window=solar_kwargs.get("sub_window", "4h"),
+            power_col=solar_kwargs.get("power_col"),
+        )
+        return segmented
+
     new_freq = get_standard_freq(freq)
 
     merge_list = []

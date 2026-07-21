@@ -1,45 +1,41 @@
 // @AI_GENERATED
 /**
- * useBackendReadyOperators — React hook that fetches the set of operators that
- * have real backend implementations.
+ * useBackendReadyOperators — React hook that fetches operators with real backends
+ * and those verified by 5-layer + real-data e2e tests.
  *
  * Caching strategy:
  *   - On mount, immediately reads sessionStorage key `aip:backend-ready-operators`
- *     and returns cached data synchronously (loading=false, readySet populated).
+ *     and returns cached data synchronously (loading=false, sets populated).
  *   - Then always fires an async fetch to refresh the cache.
- *   - On API failure: if cached data exists it is kept; otherwise readySet stays empty
+ *   - On API failure: if cached data exists it is kept; otherwise sets stay empty
  *     and error is set. A console.warn is always emitted on failure.
  *
  * Frontend↔Backend ID Alias Handling:
  *   The frontend static catalog (basicModuleFunctions.ts) uses semantic suffixes
  *   like `_forecast`, `_cluster`, `_anomaly`, `_chart`, `_score` because it lists
  *   many variants side-by-side. Backend operators use canonical names without
- *   these suffixes. The `readySet` returned by this hook is the UNION of:
+ *   these suffixes. readySet / verifiedSet are the UNION of:
  *     - raw backend IDs (canonical names)
  *     - frontend catalog IDs that alias to a backend ID via FRONTEND_TO_BACKEND_ALIASES
- *   So consumers can just check `readySet.has(fn.id)` regardless of naming scheme.
+ *   So consumers can just check `readySet.has(fn.id)` / `verifiedSet.has(fn.id)`.
  *
  * Return shape:
- *   readySet  — Set<string> of operator IDs with real backends (canonical + alias)
- *   total     — total_registered count from the API
- *   loading   — true while the first fetch is in-flight AND no cache exists yet
- *   error     — non-null when the fetch failed AND no cached data was available
+ *   readySet     — Set of operator IDs with real backends (canonical + alias)
+ *   verifiedSet  — Set of IDs that passed six-layer tests L1–L6 (strict)
+ *   total        — total_registered from API
+ *   totalVerified — total_verified from API
+ *   loading / error
  */
 import { useState, useEffect } from 'react';
 import { getBackendStatus } from '../services/functionApi';
 
-const CACHE_KEY = 'aip:backend-ready-operators';
+const CACHE_KEY = 'aip:backend-ready-operators:v2';
 
 /**
  * 前端目录 ID → 后端算子 ID 的别名映射。
  *
  * 前端 basicModuleFunctions.ts 用语义后缀区分同一算子的不同用法（预测/回归/聚类/异常），
  * 后端 operator_backends 用规范名。这个映射让徽标能正确显示。
- *
- * 举例：
- *   前端 `arima_forecast`（时序预测子分类下的 ARIMA） → 后端 `arima`
- *   前端 `kmeans_cluster`（聚类子分类下的 K-Means） → 后端 `kmeans`
- *   前端 `histogram_chart`（可视化子分类下的直方图） → 后端 `histogram`
  */
 const FRONTEND_TO_BACKEND_ALIASES: Record<string, string> = {
   // ── 时序预测子分类 ──
@@ -78,11 +74,15 @@ const FRONTEND_TO_BACKEND_ALIASES: Record<string, string> = {
 interface CacheShape {
   total_registered: number;
   registered_operators: string[];
+  verified_operators?: string[];
+  total_verified?: number;
 }
 
 export interface BackendReadyState {
   readySet: Set<string>;
+  verifiedSet: Set<string>;
   total: number;
+  totalVerified: number;
   loading: boolean;
   error: unknown;
 }
@@ -98,10 +98,9 @@ const parseCached = (): CacheShape | null => {
 };
 
 /**
- * 把后端 ID 集合 + 别名映射 合并成一个包含所有"可执行"标识的集合。
- * 例如后端返回 ["arima", "kmeans", ...]，前端目录里 "arima_forecast" 也算命中。
+ * 把后端 ID 集合 + 别名映射 合并成前端可直接 has(fn.id) 的集合。
  */
-const buildReadySet = (backendIds: string[]): Set<string> => {
+const buildIdSet = (backendIds: string[]): Set<string> => {
   const set = new Set(backendIds);
   const backendSet = new Set(backendIds);
   for (const [frontendId, backendId] of Object.entries(FRONTEND_TO_BACKEND_ALIASES)) {
@@ -113,13 +112,15 @@ const buildReadySet = (backendIds: string[]): Set<string> => {
 };
 
 const useBackendReadyOperators = (): BackendReadyState => {
-  // Initialise synchronously from cache so the first render is instant
   const cached = parseCached();
   const [readySet, setReadySet] = useState<Set<string>>(
-    () => buildReadySet(cached?.registered_operators ?? []),
+    () => buildIdSet(cached?.registered_operators ?? []),
+  );
+  const [verifiedSet, setVerifiedSet] = useState<Set<string>>(
+    () => buildIdSet(cached?.verified_operators ?? []),
   );
   const [total, setTotal] = useState<number>(cached?.total_registered ?? 0);
-  // loading=true only when there is no cache yet
+  const [totalVerified, setTotalVerified] = useState<number>(cached?.total_verified ?? 0);
   const [loading, setLoading] = useState<boolean>(cached === null);
   const [error, setError] = useState<unknown>(null);
 
@@ -130,20 +131,24 @@ const useBackendReadyOperators = (): BackendReadyState => {
       try {
         const data = await getBackendStatus();
         if (cancelled) return;
-        // Persist to sessionStorage for next mount within this browser session
+        const verified = data.verified_operators ?? [];
         try {
           sessionStorage.setItem(
             CACHE_KEY,
             JSON.stringify({
               total_registered: data.total_registered,
               registered_operators: data.registered_operators,
+              verified_operators: verified,
+              total_verified: data.total_verified ?? verified.length,
             }),
           );
         } catch {
-          // sessionStorage quota exceeded — ignore, in-memory state is still valid
+          // sessionStorage quota exceeded — ignore
         }
-        setReadySet(buildReadySet(data.registered_operators));
+        setReadySet(buildIdSet(data.registered_operators));
+        setVerifiedSet(buildIdSet(verified));
         setTotal(data.total_registered);
+        setTotalVerified(data.total_verified ?? verified.length);
         setError(null);
       } catch (err) {
         if (cancelled) return;
@@ -151,7 +156,6 @@ const useBackendReadyOperators = (): BackendReadyState => {
           '[useBackendReadyOperators] Failed to fetch backend status — badges will be hidden.',
           err,
         );
-        // Only surface the error to callers when there was no cached fallback
         if (parseCached() === null) {
           setError(err);
         }
@@ -166,7 +170,7 @@ const useBackendReadyOperators = (): BackendReadyState => {
     };
   }, []);
 
-  return { readySet, total, loading, error };
+  return { readySet, verifiedSet, total, totalVerified, loading, error };
 };
 
 export default useBackendReadyOperators;

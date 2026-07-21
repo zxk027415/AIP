@@ -16,6 +16,7 @@
    - GET /review-sessions/{review_id} - 读取会话状态
    - POST /review-sessions/{review_id}/verdicts - 提交人工裁决
    - GET /review-sessions/{review_id}/accuracy - 读取三方精度
+   - POST/GET/DELETE /review-sessions/{review_id}/freeform-labels - 自由时间窗框选打标
 
 3. 标签注册表 (Label_Registry):
    - GET /label-registry - 读取当前标签注册表
@@ -52,6 +53,7 @@ from services.iterative_labeling.accuracy_evaluator import AccuracyEvaluator
 from services.iterative_labeling.backfill import BackfillService
 # @AI_GENERATED: 正常光伏累计训练集、不可变快照与重训请求服务
 from services.iterative_labeling.cumulative_training import CumulativeTrainingService
+from services.iterative_labeling.freeform_labeling import FreeformLabelingService
 # @AI_GENERATED: end
 from services.iterative_labeling.iteration_tracker import IterationTracker
 from services.iterative_labeling.storage.file_backend import (
@@ -239,6 +241,15 @@ class GetReviewSessionResponse(BaseModel):
     total_count: int = Field(..., description="总数 — 待审核单元总数")
     units: List[Dict[str, Any]] = Field(..., description="待审核单元数组 — 含classifier_prediction/llm_suggestion/disagreement等")
     prediction_context: Optional[Dict[str, Any]] = Field(None, description="预测上下文 — 含source_csv_path/load_config/window_config/label_map")
+    sampling_strategy: Optional[str] = Field(
+        "uncertainty",
+        description="审核队列策略 — 默认 uncertainty（低置信度优先）",
+    )
+    freeform_labels: Optional[List[Dict[str, Any]]] = Field(
+        default_factory=list,
+        description="本会话自由时间窗标注列表 — 框选打标记录",
+    )
+
 
 class SubmitVerdictRequest(BaseModel):
     """提交人工裁决请求"""
@@ -247,6 +258,44 @@ class SubmitVerdictRequest(BaseModel):
     verdict_label: Optional[int] = Field(None, description="裁决标签 — confirm取predicted_label,correct从已有选,new_label走扩充,skip为null")
     new_label_name: Optional[str] = Field(None, description="新标签名 — new_label时必填")
     reviewer: str = Field(..., description="审核人 — 操作者标识")
+
+
+class CreateFreeformLabelRequest(BaseModel):
+    """创建自由时间窗标注请求"""
+    t_start: str = Field(..., description="框选起点时间 — ISO/空格分隔均可")
+    t_end: str = Field(..., description="框选终点时间 — 必须晚于 t_start")
+    action_type: str = Field(..., description="动作类型 — correct/new_label")
+    reviewer: str = Field("operator", description="审核人 — 操作者标识")
+    verdict_label: Optional[int] = Field(None, description="纠正标签 ID — correct 时必填")
+    new_label_name: Optional[str] = Field(None, description="新标签名 — new_label 时必填")
+    source_unit_key: Optional[str] = Field(None, description="来源诊断单元 — 用于继承 site/device/branch")
+    site_id: Optional[str] = Field(None, description="站点 ID — 可省略，由 source_unit_key 继承")
+    device_id: Optional[str] = Field(None, description="设备 ID — 可省略，由 source_unit_key 继承")
+    branch_id: Optional[str] = Field(None, description="支路 ID — 可省略，由 source_unit_key 继承")
+
+
+class CreateFreeformLabelResponse(BaseModel):
+    """创建自由时间窗标注响应"""
+    unit_key: str = Field(..., description="自由窗样本标识")
+    time_window: str = Field(..., description="专属窗口键 — 特征工程按此聚合")
+    verdict_label: int = Field(..., description="确认标签 ID")
+    dataset_path: str = Field(..., description="切片 CSV 相对路径")
+    row_count: Optional[int] = Field(None, description="切片行数")
+    cumulative_training: Dict[str, Any] = Field(default_factory=dict, description="累计训练集登记结果")
+    record: Dict[str, Any] = Field(default_factory=dict, description="完整标注记录")
+
+
+class ListFreeformLabelsResponse(BaseModel):
+    """列出本会话自由时间窗标注"""
+    review_id: str
+    labels: List[Dict[str, Any]] = Field(default_factory=list, description="自由窗标注数组")
+
+
+class RevokeFreeformLabelResponse(BaseModel):
+    """撤销自由时间窗标注响应"""
+    revoked: bool
+    unit_key: str
+    remaining: int = Field(..., description="撤销后剩余自由窗标注数")
 
 # @AI_GENERATED: 人工裁决响应回传累计训练集准入、快照与重训申请状态
 class SubmitVerdictResponse(BaseModel):
@@ -1279,6 +1328,103 @@ async def get_review_session(review_id: str, slot: str = "default"):
 # @AI_GENERATED: end
 
 
+def _freeform_service_for_slot(slot: str) -> FreeformLabelingService:
+    return FreeformLabelingService(
+        slot=slot,
+        review_service=_review_service_for_slot(slot),
+        registry=_registry_for_slot(slot),
+        cumulative=_cumulative_training_for_slot(slot),
+    )
+
+
+@router.get(
+    "/review-sessions/{review_id}/freeform-labels",
+    response_model=ListFreeformLabelsResponse,
+)
+async def list_freeform_labels(review_id: str, slot: str = "default"):
+    """列出本会话自由时间窗标注。"""
+    try:
+        resolved_slot = _normalize_slot(slot)
+        labels = _freeform_service_for_slot(resolved_slot).list_labels(review_id)
+        return ListFreeformLabelsResponse(review_id=review_id, labels=labels)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"审核会话 {review_id} 不存在")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("list freeform labels failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"读取自由窗标注失败: {e}")
+
+
+@router.post(
+    "/review-sessions/{review_id}/freeform-labels",
+    response_model=CreateFreeformLabelResponse,
+)
+async def create_freeform_label(
+    review_id: str,
+    request: CreateFreeformLabelRequest,
+    slot: str = "default",
+):
+    """框选时间窗打标：切片 → 专属 time_window → 登记累计训练集。"""
+    try:
+        resolved_slot = _normalize_slot(slot)
+        record = _freeform_service_for_slot(resolved_slot).create_label(
+            review_id,
+            t_start=request.t_start,
+            t_end=request.t_end,
+            action_type=request.action_type,
+            reviewer=request.reviewer,
+            verdict_label=request.verdict_label,
+            new_label_name=request.new_label_name,
+            source_unit_key=request.source_unit_key,
+            site_id=request.site_id,
+            device_id=request.device_id,
+            branch_id=request.branch_id,
+        )
+        return CreateFreeformLabelResponse(
+            unit_key=record["unit_key"],
+            time_window=record["time_window"],
+            verdict_label=int(record["verdict_label"]),
+            dataset_path=record["dataset_path"],
+            row_count=record.get("row_count"),
+            cumulative_training=record.get("cumulative_training") or {},
+            record=record,
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"审核会话 {review_id} 不存在")
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("create freeform label failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建自由窗标注失败: {e}")
+
+
+@router.delete(
+    "/review-sessions/{review_id}/freeform-labels/{unit_key:path}",
+    response_model=RevokeFreeformLabelResponse,
+)
+async def revoke_freeform_label(review_id: str, unit_key: str, slot: str = "default"):
+    """撤销本会话自由时间窗标注指针（MVP 不从累计账本物理删除）。"""
+    try:
+        resolved_slot = _normalize_slot(slot)
+        result = _freeform_service_for_slot(resolved_slot).revoke_label(review_id, unit_key)
+        return RevokeFreeformLabelResponse(**result)
+    except KeyError as e:
+        missing = str(e).strip("'\"")
+        if missing == review_id:
+            raise HTTPException(status_code=404, detail=f"审核会话 {review_id} 不存在")
+        raise HTTPException(status_code=404, detail=f"自由窗标注 {unit_key} 不存在")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("revoke freeform label failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"撤销自由窗标注失败: {e}")
+
+
 # @AI_GENERATED: 裁决持久化后立即同步正常累计训练集；账本异常结构化回传，避免已保存裁决被错误回滚
 @router.post("/review-sessions/{review_id}/verdicts", response_model=SubmitVerdictResponse)
 async def submit_verdict(review_id: str, request: SubmitVerdictRequest, slot: str = "default"):
@@ -1833,6 +1979,7 @@ async def create_training_slice(request: CreateTimeSliceRequest):
         import_result = ct.register_labeled_dataset(
             dataset_path=meta["dataset_path"],
             source_name=f"time-slice-{meta['slice_id']}",
+            change_units=1,
         )
         meta["cumulative_training"] = import_result
         return meta

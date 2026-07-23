@@ -3,7 +3,7 @@
  * AccuracyOperationsPage.tsx — 精度运营主页面。
  *
  * 汇合负荷预测的“指标 → 告警 → RCA → 仲裁 → 通道 A → 部署审计”故事线。
- * 页面只调用既有运营/部署接口，不包含虚拟周期或退化数据注入能力。
+ * 支持显式「人工注入劣化」实验控件；不伪造未来真值，不绕过 gap-1。
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, Col, Row, Select, Space, Typography, message } from 'antd';
@@ -19,8 +19,14 @@ import RCAReportViewer from './accuracy-operations/RCAReportViewer';
 import RecoveryDecisionPanel from './accuracy-operations/RecoveryDecisionPanel';
 import DeploymentSwitchLogCard from './accuracy-operations/DeploymentSwitchLogCard';
 import LoadForecastStoryRail from './accuracy-operations/LoadForecastStoryRail';
+import DegradationExperimentPanel from './accuracy-operations/DegradationExperimentPanel';
+import AccuracyTrendChart from './accuracy-operations/AccuracyTrendChart';
 import PvFaultStoryRail from './accuracy-operations/PvFaultStoryRail';
 import PvFaultPredictionEvidencePanel from './accuracy-operations/PvFaultPredictionEvidencePanel';
+import PvFaultSplitModeOpsPanel from './accuracy-operations/PvFaultSplitModeOpsPanel';
+import PvFaultWorkspaceShell from '../components/pv-fault/PvFaultWorkspaceShell';
+import PvFaultErrorBoundary from '../components/pv-fault/PvFaultErrorBoundary';
+import { usePvFaultAccuracyOpsBundle } from '../hooks/usePvFaultAccuracyOpsBundle';
 import './accuracy-operations/accuracyOperationsWorkspace.css';
 import type { AccuracyAlert, RecoveryDecision } from '../types/accuracy-operations';
 // @AI_GENERATED: PV 故障运营分支内联组件
@@ -32,11 +38,11 @@ const { Title, Text } = Typography;
 /** 历史隔离槽位仅保留 URL 兼容，不作为正式运营入口展示。 */
 const DEMO_SLOT = 'load_forecast_e2e_demo';
 const PRIMARY_SLOT_OPTIONS = [
-  { label: 'default（默认槽）', value: 'default' },
   { label: 'load_forecast（正式负荷预测）', value: 'load_forecast' },
   // @AI_GENERATED: 光伏故障诊断正式槽位
   { label: 'pv_fault（光伏故障诊断）', value: 'pv_fault' },
   // @AI_GENERATED: end
+  { label: 'default（legacy 默认槽）', value: 'default' },
 ];
 const SUPPORTED_SLOT_VALUES = new Set([...PRIMARY_SLOT_OPTIONS.map((option) => option.value), DEMO_SLOT]);
 
@@ -66,6 +72,7 @@ const AccuracyOperationsPage: React.FC = () => {
   const [schedulerLoading, setSchedulerLoading] = useState(false);
   const [schedulerError, setSchedulerError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [pvRefreshKey, setPvRefreshKey] = useState(0);
   const {
     currentSlot,
     setCurrentSlot,
@@ -85,6 +92,12 @@ const AccuracyOperationsPage: React.FC = () => {
     fetchMonitoringSnapshot,
     fetchLifecycle,
   } = useAccuracyOperationsStore();
+  const isPvFaultSlot = currentSlot === 'pv_fault';
+  const { bundle: pvOpsBundle, loading: pvOpsLoading } = usePvFaultAccuracyOpsBundle(
+    currentSlot,
+    pvRefreshKey,
+    isPvFaultSlot,
+  );
 
   const visibleRcaReport = selectedAlert?.rca_report_id === rcaReport?.rca_report_id
     ? rcaReport
@@ -105,6 +118,10 @@ const AccuracyOperationsPage: React.FC = () => {
   }, []);
 
   const refreshStory = useCallback(async () => {
+    if (currentSlot === 'pv_fault') {
+      setPvRefreshKey((key) => key + 1);
+      return;
+    }
     setRefreshing(true);
     await Promise.all([
       fetchOverview(currentSlot),
@@ -117,6 +134,11 @@ const AccuracyOperationsPage: React.FC = () => {
   }, [currentSlot, fetchAlerts, fetchLifecycle, fetchMonitoringSnapshot, fetchOverview, loadSchedulerTasks]);
 
   useEffect(() => {
+    if (currentSlot === 'pv_fault') return;
+    void refreshStory();
+  }, [refreshStory, currentSlot]);
+
+  useEffect(() => {
     const requestedSlot = searchParams.get('slot');
     if (requestedSlot && SUPPORTED_SLOT_VALUES.has(requestedSlot) && requestedSlot !== currentSlot) {
       setCurrentSlot(requestedSlot);
@@ -124,10 +146,6 @@ const AccuracyOperationsPage: React.FC = () => {
       setDecision(null);
     }
   }, [currentSlot, searchParams, setCurrentSlot, setSelectedAlert]);
-
-  useEffect(() => {
-    void refreshStory();
-  }, [refreshStory]);
 
   const selectedSchedulerTask = useMemo(
     () => schedulerTasks.find((task) => task.slot === currentSlot && task.pipeline === 'load_forecast')
@@ -198,8 +216,13 @@ const AccuracyOperationsPage: React.FC = () => {
     messageApi.success('通道 A 已执行：请查看模型生命周期和部署切换审计确认角色变化。');
   };
 
-  return (
-    <main className="accuracy-operations-page" aria-label="精度运营页面">
+  const isPvFault = currentSlot === 'pv_fault';
+  const pageClassName = isPvFault
+    ? 'accuracy-operations-page accuracy-operations-page--pv'
+    : 'accuracy-operations-page';
+
+  const pageBody = (
+    <>
       {contextHolder}
       <header className="accuracy-page-header">
         <div className="accuracy-page-heading">
@@ -211,7 +234,7 @@ const AccuracyOperationsPage: React.FC = () => {
           </Text>
         </div>
         <div className="accuracy-page-actions">
-          <Button icon={<ReloadOutlined />} onClick={() => void refreshStory()} loading={refreshing}>刷新证据</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => void refreshStory()} loading={isPvFaultSlot ? pvOpsLoading : refreshing}>刷新证据</Button>
           <span className="accuracy-page-actions-label">槽位</span>
           <Select<string>
             value={currentSlot}
@@ -251,12 +274,28 @@ const AccuracyOperationsPage: React.FC = () => {
           <div className="accuracy-story-scroll">
             <PvFaultStoryRail
               slot={currentSlot}
-              refreshing={refreshing}
-              onRefresh={() => void refreshStory()}
+              opsBundle={pvOpsBundle}
+              bundleLoading={pvOpsLoading}
+              onRefresh={() => setPvRefreshKey((key) => key + 1)}
             />
           </div>
-          <PvFaultPredictionEvidencePanel slot={currentSlot} refreshing={refreshing} />
-          <PvFaultOverviewSection slot={currentSlot} refreshing={refreshing} />
+          <div className="pv-section-label">切分模式与精度对比</div>
+          <PvFaultSplitModeOpsPanel
+            slot={currentSlot}
+            opsBundle={pvOpsBundle}
+          />
+          <div className="pv-section-label">预测证据与样本明细</div>
+          <PvFaultPredictionEvidencePanel
+            slot={currentSlot}
+            opsBundle={pvOpsBundle}
+            bundleLoading={pvOpsLoading}
+          />
+          <div className="pv-section-label">运营总览</div>
+          <PvFaultOverviewSection
+            slot={currentSlot}
+            opsBundle={pvOpsBundle}
+            bundleLoading={pvOpsLoading}
+          />
         </>
       ) : (
       <>
@@ -304,6 +343,13 @@ const AccuracyOperationsPage: React.FC = () => {
       {/* @AI_GENERATED: 负荷预测专用模块（模型生命周期、精度监控、告警、RCA、恢复决策、切换审计）在 pv_fault 下隐藏 */}
       {currentSlot !== 'pv_fault' && (
       <>
+      <DegradationExperimentPanel
+        slot={currentSlot}
+        onChanged={() => void refreshStory()}
+      />
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col span={24}><AccuracyTrendChart slot={currentSlot} /></Col>
+      </Row>
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col span={24}><ModelLifecycleCard slot={currentSlot} /></Col>
       </Row>
@@ -350,14 +396,35 @@ const AccuracyOperationsPage: React.FC = () => {
       </>
       )}
       {/* @AI_GENERATED: end */}
+    </>
+  );
+
+  if (isPvFault) {
+    return (
+      <PvFaultErrorBoundary title="精度运营（光伏）渲染失败">
+        <PvFaultWorkspaceShell as="main" className={pageClassName} aria-label="精度运营页面">
+          {pageBody}
+        </PvFaultWorkspaceShell>
+      </PvFaultErrorBoundary>
+    );
+  }
+
+  return (
+    <main className={pageClassName} aria-label="精度运营页面">
+      {pageBody}
     </main>
   );
 };
 
 // @AI_GENERATED: 光伏故障诊断运营分支组件 — 展示分类精度、标签分布、置信度和审核进度
-const PvFaultOverviewSection: React.FC<{ slot: string; refreshing: boolean }> = ({ slot, refreshing }) => {
+const PvFaultOverviewSection: React.FC<{
+  slot: string;
+  opsBundle?: import('../hooks/usePvFaultAccuracyOpsBundle').PvFaultOpsBundle | null;
+  bundleLoading?: boolean;
+}> = ({ slot, opsBundle, bundleLoading }) => {
   const [overview, setOverview] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(false);
+  const usingBundle = opsBundle !== undefined;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -371,10 +438,16 @@ const PvFaultOverviewSection: React.FC<{ slot: string; refreshing: boolean }> = 
     }
   }, [slot]);
 
-  useEffect(() => { void load(); }, [load]);
-  useEffect(() => { if (refreshing) void load(); }, [refreshing, load]);
+  useEffect(() => {
+    if (usingBundle) {
+      setOverview((opsBundle?.overview as Record<string, any> | null) ?? null);
+      return;
+    }
+    void load();
+  }, [load, usingBundle, opsBundle]);
 
-  if (loading && !overview) return <Card loading style={{ marginBottom: 16 }} />;
+  const showLoading = usingBundle ? Boolean(bundleLoading && !opsBundle) : loading && !overview;
+  if (showLoading) return <Card loading style={{ marginBottom: 16 }} />;
   if (!overview) return <Alert type="info" message="光伏运营数据暂不可用" style={{ marginBottom: 16 }} />;
 
   const qm = overview.quality_metrics as Record<string, any> | null;
@@ -384,7 +457,7 @@ const PvFaultOverviewSection: React.FC<{ slot: string; refreshing: boolean }> = 
   const latestDetail = overview.latest_prediction_detail as Record<string, any> | null;
 
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div className="pv-overview-section" style={{ marginBottom: 16 }}>
       <Card size="small" title="光伏故障诊断总览" style={{ marginBottom: 12 }}>
         <Row gutter={[16, 12]}>
           <Col xs={12} sm={6}>
@@ -423,13 +496,25 @@ const PvFaultOverviewSection: React.FC<{ slot: string; refreshing: boolean }> = 
       </Card>
 
       {qm && (
-        <Card size="small" title="分类精度（基于人工核对）" style={{ marginBottom: 12 }}>
-          <Row gutter={[16, 8]}>
-            <Col xs={12} sm={6}><Text type="secondary" style={{ fontSize: 12 }}>Accuracy</Text><div><Text strong>{(qm.accuracy * 100).toFixed(1)}%</Text></div></Col>
-            <Col xs={12} sm={6}><Text type="secondary" style={{ fontSize: 12 }}>Macro Precision</Text><div><Text strong>{(qm.macro_precision * 100).toFixed(1)}%</Text></div></Col>
-            <Col xs={12} sm={6}><Text type="secondary" style={{ fontSize: 12 }}>Macro Recall</Text><div><Text strong>{(qm.macro_recall * 100).toFixed(1)}%</Text></div></Col>
-            <Col xs={12} sm={6}><Text type="secondary" style={{ fontSize: 12 }}>Macro F1</Text><div><Text strong>{(qm.macro_f1 * 100).toFixed(1)}%</Text></div></Col>
-          </Row>
+        <Card size="small" title="分类精度（基于人工核对）" className="pv-metrics-card" style={{ marginBottom: 12 }}>
+          <div className="pv-quality-grid">
+            <div className="pv-quality-metric">
+              <span className="pv-metric-label">Accuracy</span>
+              <span className="pv-metric-value">{(qm.accuracy * 100).toFixed(1)}%</span>
+            </div>
+            <div className="pv-quality-metric">
+              <span className="pv-metric-label">Macro Precision</span>
+              <span className="pv-metric-value">{(qm.macro_precision * 100).toFixed(1)}%</span>
+            </div>
+            <div className="pv-quality-metric">
+              <span className="pv-metric-label">Macro Recall</span>
+              <span className="pv-metric-value">{(qm.macro_recall * 100).toFixed(1)}%</span>
+            </div>
+            <div className="pv-quality-metric pv-quality-metric--highlight">
+              <span className="pv-metric-label">Macro F1</span>
+              <span className="pv-metric-value">{(qm.macro_f1 * 100).toFixed(1)}%</span>
+            </div>
+          </div>
           <div style={{ marginTop: 8, fontSize: 12, color: '#8c8c8c' }}>统计样本：{qm.counted_units} 个已审核单元</div>
         </Card>
       )}

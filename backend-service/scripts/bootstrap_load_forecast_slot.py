@@ -1,237 +1,145 @@
 # @AI_GENERATED
-"""
-scripts/bootstrap_load_forecast_slot.py — 初始化 load_forecast 槽位并注册影子
+"""激活 load_forecast 运营指标，并可选按「自然日」推进威海 CSV mock 喂数。
 
-用途：
-  从 AutoResearch 候选池中选取精度最高的候选注册为影子版本，
-  把基线注册为生产版本，配置 cron 并启动调度管线，让精度运营链路真正跑起来。
+防数据穿越（硬约束）：
+  1. 平台预测路径禁止直读 CSV；只能读 mock 公司库里「已喂出」的行。
+  2. --feed-days 每次只推进 1 个完整业务日，禁止一次性灌入全部历史。
+  3. 日滚仍走 lf_daily_rolling 的 gap-1：训练/特征硬截止 T-1，预测 T+1。
+  4. --activate-metrics 只改 accuracy_metrics.json 状态，便于劣化注入演示；
+     它不写入未来真值、不改 StationData，也不得当作「已通过真实回填验收」。
 
-运行方式（在 backend-service/ 目录下）：
-  conda activate aip_web
+用法（在 backend-service/ 下，conda cp_web）：
   set PYTHONPATH=.
-  python scripts/bootstrap_load_forecast_slot.py
-
-做的事情：
-  1. 在 data/precision_ops/load_forecast/ 下初始化 version_registry.json + config.json
-  2. 把 baseline workflow 注册为 production
-  3. 把 Top 3 AutoResearch 候选注册为 shadow
-  4. 初始化 accuracy_metrics.json（用候选池里的 SMAPE 数据填充初始 baseline_mape）
-  5. 输出操作结果
+  python scripts/bootstrap_load_forecast_slot.py --activate-metrics
+  python scripts/bootstrap_load_forecast_slot.py --feed-days 40
+  python scripts/bootstrap_load_forecast_slot.py --activate-metrics --feed-days 3
 """
-import json
+from __future__ import annotations
+
+import argparse
 import sys
 from pathlib import Path
-from datetime import datetime, timezone
 
-# 确保 backend-service 在 path 中
 SCRIPT_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = SCRIPT_DIR.parent
-
-# 零依赖：直接定义工具函数，不走 services 包（避免 sqlalchemy 等重依赖）
-BASE_DATA_DIR = BACKEND_DIR / "data" / "precision_ops"
-
-
-def ensure_data_dir(slot: str) -> Path:
-    slot_dir = BASE_DATA_DIR / slot
-    slot_dir.mkdir(parents=True, exist_ok=True)
-    return slot_dir
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 
-def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def activate_metrics(slot: str, min_valid_cycles: int) -> dict:
+    from services.accuracy_operations.degradation_experiment import activate_slot_metrics_from_deployment
+    from services.deployment import DeploymentSlotStore
+    from services.precision_ops.accuracy_tracker import AccuracyTracker
 
-
-def _atomic_write_json(path: Path, data):
-    import tempfile, os
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_fd, tmp_path = tempfile.mkstemp(
-        dir=str(path.parent), suffix=".tmp", prefix=".atomic_"
+    tracker = AccuracyTracker()
+    slot_store = DeploymentSlotStore()
+    result = activate_slot_metrics_from_deployment(
+        slot=slot,
+        tracker=tracker,
+        slot_store=slot_store,
+        min_valid_cycles=min_valid_cycles,
     )
-    try:
-        with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        os.replace(tmp_path, str(path))
-    except Exception:
+    print(f"[activate] slot={slot} activated={result.get('count')}")
+    print(
+        "[activate] 注意：这是运营演示前置（指标 active），"
+        "不是真实回填证据；真实链路仍须日滚 gap-1 + backfill。"
+    )
+    for item in result.get("activated") or []:
+        print(
+            f"  - {item['workflow_id']}@{item['version_tag']} "
+            f"mape={item['rolling_mape']} cycles={item['valid_cycle_count']}"
+        )
+    return result
+
+
+def feed_days(slot: str, days: int) -> None:
+    """按自然日推进 mock；每天最多暴露 1 个业务日，避免未来行提前可见。"""
+    from services.db.adapter import get_default_adapter
+    from services.db.datasources.local_db_mock import (
+        LocalDbMockDataSource,
+        build_default_mock_feeder,
+    )
+    from services.scheduler.tasks.load_forecast_tasks import make_data_pull_task
+
+    if days > 400:
+        raise ValueError(
+            f"--feed-days={days} 过大；请分批推进，避免误把长时间跨度当成一次灌库"
+        )
+
+    adapter = get_default_adapter()
+    feeder = build_default_mock_feeder(adapter)
+    feeder.ensure_tables()
+    source = LocalDbMockDataSource(adapter)
+    # before_pull=None：喂数与拉取分离，平台侧只拉已暴露水位
+    pull = make_data_pull_task(source, None, slot)
+
+    for i in range(max(0, days)):
+        preview = feeder.preview_next_feed()
+        exhausted = bool(getattr(preview, "exhausted", False))
+        if hasattr(preview, "as_dict"):
+            exhausted = bool(preview.as_dict().get("exhausted"))
+        elif isinstance(preview, dict):
+            exhausted = bool(preview.get("exhausted"))
+        if exhausted:
+            print(f"[feed] day {i + 1}/{days}: CSV exhausted, stop")
+            break
+
+        result = feeder.feed_next_batch()
+        # feed_next_batch 对调度器可能返回 int；手动路径返回 MockFeedResult
+        if hasattr(result, "as_dict"):
+            as_dict = result.as_dict()
+            print(
+                f"[feed] day {i + 1}/{days}: business_date={as_dict.get('business_date')} "
+                f"rows={as_dict.get('inserted_row_count')} complete={as_dict.get('is_complete_day')}"
+            )
+            if as_dict.get("exhausted"):
+                print("[feed] source exhausted after this day")
+                break
+        else:
+            print(f"[feed] day {i + 1}/{days}: inserted={result}")
+
         try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-        raise
+            pull_result = pull()
+            print(f"[pull] {pull_result}")
+        except Exception as exc:
+            print(f"[pull] failed (non-fatal): {exc}")
 
-# ---------------------------------------------------------------------------
-# 配置
-# ---------------------------------------------------------------------------
-SLOT = "load_forecast"
-BASELINE_WORKFLOW_ID = "workflow-20260511-optimal-505"
-BASELINE_TAG = "optimal-505-production"
-BASELINE_MAPE = 5.6616  # 当前最新版 baseline 的 avg_smape
 
-# 影子候选：从截图中 baseline=5.6616 且 status=pending_promote 的候选
-# 这些是最新版本跑出来的，challenger MAPE 都在 4.x% 级别
-TOP_CANDIDATES = [
-    {
-        "id": "cand-3647f99d2f77",
-        "workflow_id": "workflow-20260511-optimal-505",
-        "version_tag": "shadow-run43-mape4109",
-        "source_run_id": "AutoResearch第43轮",
-        "source_candidate_id": "cand-3647f99d2f77",
-        "challenger_score": 95.8907,  # 100 - 4.1093
-        "challenger_smape": 4.1093,
-        "description": "AutoResearch R43, SMAPE 4.1093%, pending_promote",
-    },
-    {
-        "id": "cand-439b04179c12",
-        "workflow_id": "workflow-20260511-optimal-505",
-        "version_tag": "shadow-run7-generic-mape4109",
-        "source_run_id": "AutoResearch第7轮(通用算子版)",
-        "source_candidate_id": "cand-439b04179c12",
-        "challenger_score": 95.8907,  # 100 - 4.1093
-        "challenger_smape": 4.1093,
-        "description": "AutoResearch R7(通用算子版), SMAPE 4.1093%, pending_promote",
-    },
-]
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Bootstrap load_forecast ops（禁止数据穿越：按日喂数 + gap-1 日滚）"
+    )
+    parser.add_argument("--slot", default="load_forecast")
+    parser.add_argument(
+        "--activate-metrics",
+        action="store_true",
+        help="演示用：把部署版本指标写成 active（不写入未来真值，不作真实回填验收）",
+    )
+    parser.add_argument("--min-valid-cycles", type=int, default=3)
+    parser.add_argument(
+        "--feed-days",
+        type=int,
+        default=0,
+        help="按自然日推进 mock 喂数+pull 的天数（每天 1 日，禁止整表灌入）",
+    )
+    args = parser.parse_args()
 
-# ---------------------------------------------------------------------------
-# 执行
-# ---------------------------------------------------------------------------
+    if not args.activate_metrics and args.feed_days <= 0:
+        parser.print_help()
+        print("\n至少指定 --activate-metrics 或 --feed-days N")
+        return 2
 
-def main():
-    print("=" * 60)
-    print(f"初始化 load_forecast 槽位 — 精度运营链路 Bootstrap")
-    print("=" * 60)
-
-    # Step 1: 确保目录存在
-    slot_dir = ensure_data_dir(SLOT)
-    print(f"\n[1/5] 槽位目录: {slot_dir}")
-
-    # Step 2: 配置
-    print(f"\n[2/5] 写入配置 (config.json)")
-    config_data = {
-        "slot": SLOT,
-        "evaluation_window_days": 7,
-        "degradation_threshold_pct": 15,
-        "switch_margin_pct": 10,
-        "cooldown_hours": 24,
-        "min_valid_cycles": 3,
-        "shadow_timeout_seconds": 300,
-        "production_timeout_seconds": 120,
-        "max_shadow_versions": 5,
-        "rollback_window_hours": 48,
-        "auto_switch_enabled": True,
-        "prediction_retention_days": 90,
-        "min_eval_points": 72,
-        "post_switch_observation_points": 48,
-        "eval_window_points": 168,
-    }
-    config_path = BASE_DATA_DIR / SLOT / "config.json"
-    _atomic_write_json(config_path, config_data)
-    print(f"  auto_switch_enabled: True")
-    print(f"  degradation_threshold_pct: 15%")
-    print(f"  switch_margin_pct: 10%")
-    print(f"  cooldown_hours: 24h")
-    print(f"  max_shadow_versions: 5")
-
-    # Step 3: 注册生产版本 + 影子版本 (直接写 version_registry.json)
-    print(f"\n[3/5] 注册生产版本: {BASELINE_WORKFLOW_ID}")
-    now_str = now_iso()
-    versions = [
-        {
-            "workflow_id": BASELINE_WORKFLOW_ID,
-            "version_tag": BASELINE_TAG,
-            "status": "production",
-            "slot": SLOT,
-            "baseline_mape": BASELINE_MAPE,
-            "source_run_id": None,
-            "source_candidate_id": None,
-            "registered_at": now_str,
-        },
-    ]
-    print(f"  ✅ {BASELINE_WORKFLOW_ID} ({BASELINE_TAG}) → production (SMAPE {BASELINE_MAPE}%)")
-
-    # Step 4: 注册影子版本 (Top candidates)
-    print(f"\n[4/5] 注册影子版本 ({len(TOP_CANDIDATES)} 个 AutoResearch 候选)")
-    for cand in TOP_CANDIDATES:
-        versions.append({
-            "workflow_id": cand["workflow_id"],
-            "version_tag": cand["version_tag"],
-            "status": "shadow",
-            "slot": SLOT,
-            "baseline_mape": cand["challenger_smape"],
-            "source_run_id": cand["source_run_id"],
-            "source_candidate_id": cand["source_candidate_id"],
-            "registered_at": now_str,
-        })
-        print(f"  ✅ {cand['version_tag']} → shadow ({cand['description']})")
-
-    registry_data = {
-        "slot": SLOT,
-        "versions": versions,
-        "max_shadow_versions": 5,
-    }
-    registry_path = BASE_DATA_DIR / SLOT / "version_registry.json"
-    _atomic_write_json(registry_path, registry_data)
-    print(f"  写入 version_registry.json: {len(versions)} 个版本")
-
-    # Step 5: 初始化 accuracy_metrics
-    print(f"\n[5/5] 初始化精度指标 (accuracy_metrics.json)")
-    metrics_data = {
-        "slot": SLOT,
-        "evaluation_window_days": 7,
-        "metrics": {
-            BASELINE_WORKFLOW_ID: {
-                "rolling_mape": BASELINE_MAPE,
-                "rolling_mae": 1539.02,
-                "valid_cycle_count": 0,
-                "total_cycle_count": 0,
-                "last_evaluated_at": now_str,
-                "status": "insufficient_data",
-            },
-        },
-        "updated_at": now_str,
-    }
-    # 为每个影子也初始化一个 metrics 条目
-    for cand in TOP_CANDIDATES:
-        metrics_data["metrics"][f"{cand['workflow_id']}#{cand['version_tag']}"] = {
-            "rolling_mape": cand["challenger_smape"],
-            "rolling_mae": 0.0,
-            "valid_cycle_count": 0,
-            "total_cycle_count": 0,
-            "last_evaluated_at": now_str,
-            "status": "insufficient_data",
-        }
-
-    metrics_path = BASE_DATA_DIR / SLOT / "accuracy_metrics.json"
-    _atomic_write_json(metrics_path, metrics_data)
-    print(f"  ✅ 写入 {len(metrics_data['metrics'])} 个版本的初始指标")
-
-    metrics_path = BASE_DATA_DIR / SLOT / "accuracy_metrics.json"
-    _atomic_write_json(metrics_path, metrics_data)
-    print(f"  ✅ 写入 {len(metrics_data['metrics'])} 个版本的初始指标")
-
-    # 总结
-    print("\n" + "=" * 60)
-    print("✅ Bootstrap 完成！")
-    print(f"   槽位: {SLOT}")
-    print(f"   生产: {BASELINE_WORKFLOW_ID} (SMAPE ~12.82%)")
-    print(f"   影子: {len(TOP_CANDIDATES)} 个候选已注册")
-    print()
-    print("下一步:")
-    print(f"   生产 baseline MAPE: {BASELINE_MAPE}%")
-    print(f"   影子 challenger MAPE: ~{TOP_CANDIDATES[0]['challenger_smape']}%")
-    print()
-    print("  1. 启动后端: uvicorn main:app --port 8080")
-    print("  2. 启动 load_forecast 管线:")
-    print("     POST http://localhost:8080/api/scheduler/load_forecast/start")
-    print("  3. 或在前端 '定时调度' Tab 点击 '启动' 按钮")
-    print()
-    print("Cron 任务说明:")
-    print("  lf_data_pull         01:00 — 拉取最新数据")
-    print("  lf_daily_rolling     02:00 — 训练+预测(生产+影子)")
-    print("  lf_accuracy_backfill 04:00 — 回填真值+计算 MAPE")
-    print("=" * 60)
+    if args.activate_metrics:
+        activate_metrics(args.slot, args.min_valid_cycles)
+    if args.feed_days > 0:
+        try:
+            feed_days(args.slot, args.feed_days)
+        except Exception as exc:
+            print(f"[feed] aborted: {exc}")
+            return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
 # @AI_GENERATED: end

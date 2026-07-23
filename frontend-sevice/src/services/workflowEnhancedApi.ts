@@ -330,8 +330,15 @@ export const baselineCompareApi = {
 
   promoteCandidate: (
     candidateId: string,
-    body?: { note?: string; set_as_production?: boolean; production_slot?: string; force?: boolean },
-  ): Promise<{ success: boolean; candidate?: unknown; production_entry?: unknown }> =>
+    body?: {
+      note?: string;
+      set_as_production?: boolean;
+      production_slot?: string;
+      force?: boolean;
+      enter_prelaunch?: boolean;
+      prelaunch_slot?: string;
+    },
+  ): Promise<{ success: boolean; candidate?: unknown; production_entry?: unknown; prelaunch_entry?: unknown }> =>
     api.post(`/workflows/enhanced/tuning-candidate-pool/${candidateId}/promote`, body ?? {}),
 
   deleteCandidate: (candidateId: string): Promise<{ success: boolean; deleted_id: string; remaining: number }> =>

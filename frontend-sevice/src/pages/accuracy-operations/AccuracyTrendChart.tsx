@@ -1,16 +1,12 @@
 // @AI_GENERATED
 /**
- * AccuracyTrendChart.tsx — 精度趋势图组件
+ * AccuracyTrendChart.tsx — 精度对比 + 预测/真值曲线
  *
- * 展示当前 slot 下各模型形态（生产/影子）的 MAPE 对比。
- * 数据来源：useAccuracyOperationsStore 中的 monitoringSnapshot。
- * 无实时时序数据时，以柱状图展示快照指标对比。
- *
- * Props: { slot: string }
- * 相关 spec：accuracy-operations / Task 13.3
+ * - 上：各形态滚动 MAPE 快照对比（monitoringSnapshot）
+ * - 下：PredictionResult 时序（pred vs actual）；无点时提示需先跑 gap-1 日滚+回填
+ * 防穿越：曲线只读已落库预测与回填真值，不直读 CSV。
  */
-
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Card,
   Statistic,
@@ -24,42 +20,31 @@ import {
   Table,
 } from 'antd';
 import { LineChartOutlined } from '@ant-design/icons';
+import ReactECharts from 'echarts-for-react';
 import useAccuracyOperationsStore from '../../stores/accuracyOperationsStore';
+import { accuracyOperationsApi } from '../../services/accuracyOperationsApi';
 import type { MonitoringMetrics } from '../../types/accuracy-operations';
 
 const { Text } = Typography;
 
-// ===========================================================================
-// Props
-// ===========================================================================
-
 interface AccuracyTrendChartProps {
-  /** slot — 当前操作槽位名称 */
   slot: string;
 }
 
-// ===========================================================================
-// 辅助：MAPE 格式化
-// ===========================================================================
-
-/** formatMape — 将 MAPE 数值格式化为百分比字符串（保留 2 位小数） */
 function formatMape(value: number | null): string {
   if (value === null || value === undefined) return '—';
-  return `${(value * 100).toFixed(2)}%`;
+  // 后端滚动 MAPE 已是百分比数值（如 5.66），不是 0~1 比例
+  const pct = value > 0 && value < 1 ? value * 100 : value;
+  return `${pct.toFixed(2)}%`;
 }
 
-/** mapeColor — 根据 MAPE 值返回语义色 */
 function mapeColor(value: number | null): string {
   if (value === null) return '#8c8c8c';
-  const pct = value * 100;
-  if (pct < 5) return '#52c41a';   // 绿：优秀
-  if (pct < 10) return '#faad14';  // 橙：警戒
-  return '#f5222d';                // 红：退化
+  const pct = value > 0 && value < 1 ? value * 100 : value;
+  if (pct < 5) return '#52c41a';
+  if (pct < 10) return '#faad14';
+  return '#f5222d';
 }
-
-// ===========================================================================
-// 柱状图（纯 AntD Table 实现，无 ECharts 依赖）
-// ===========================================================================
 
 interface BarRow {
   key: string;
@@ -71,18 +56,11 @@ interface BarRow {
   status: string | null;
 }
 
-interface MapeBarProps {
-  value: number | null;
-  maxValue: number;
-}
-
-/** MapeBar — 用 div 宽度模拟水平柱状条 */
-const MapeBar: React.FC<MapeBarProps> = ({ value, maxValue }) => {
-  if (value === null) {
-    return <Text type="secondary">—</Text>;
-  }
-  const pct = value * 100;
-  const barWidth = maxValue > 0 ? Math.min((pct / maxValue) * 100, 100) : 0;
+const MapeBar: React.FC<{ value: number | null; maxValue: number }> = ({ value, maxValue }) => {
+  if (value === null) return <Text type="secondary">—</Text>;
+  const pct = value > 0 && value < 1 ? value * 100 : value;
+  const maxPct = maxValue > 0 && maxValue < 1 ? maxValue * 100 : maxValue;
+  const barWidth = maxPct > 0 ? Math.min((pct / maxPct) * 100, 100) : 0;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <div
@@ -93,258 +71,195 @@ const MapeBar: React.FC<MapeBarProps> = ({ value, maxValue }) => {
           height: 14,
           backgroundColor: mapeColor(value),
           borderRadius: 2,
-          transition: 'width 0.3s',
         }}
       />
-      <Text style={{ color: mapeColor(value), fontWeight: 600, whiteSpace: 'nowrap' }}>
-        {formatMape(value)}
-      </Text>
+      <Text style={{ color: mapeColor(value), fontWeight: 600 }}>{formatMape(value)}</Text>
     </div>
   );
 };
 
-// ===========================================================================
-// 主组件
-// ===========================================================================
+function toRow(form: string, label: string, m: MonitoringMetrics | null | undefined): BarRow | null {
+  if (!m) return null;
+  return {
+    key: `${form}-${m.workflow_id}-${m.version_tag}`,
+    label,
+    form,
+    mape: m.rolling_mape ?? m.rolling_wmape ?? null,
+    mae: m.rolling_mae ?? null,
+    cycles: m.valid_cycle_count ?? null,
+    status: m.status ?? null,
+  };
+}
 
 const AccuracyTrendChart: React.FC<AccuracyTrendChartProps> = ({ slot }) => {
-  const {
-    monitoringSnapshot,
-    loading,
-    error,
-    fetchMonitoringSnapshot,
-  } = useAccuracyOperationsStore();
+  const { monitoringSnapshot, fetchMonitoringSnapshot, loading, error } = useAccuracyOperationsStore();
+  const [seriesLoading, setSeriesLoading] = useState(false);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
+  const [seriesMeta, setSeriesMeta] = useState<{ workflow_id?: string; version_tag?: string; point_count?: number }>({});
+  const [points, setPoints] = useState<
+    Array<{ timestamp: string | null; predicted: number | null; actual: number | null }>
+  >([]);
 
-  // 槽位切换时重新拉取快照
   useEffect(() => {
-    if (slot) {
-      fetchMonitoringSnapshot(slot);
-    }
+    void fetchMonitoringSnapshot(slot);
   }, [slot, fetchMonitoringSnapshot]);
 
-  // ---------- 加载中 ----------
-  if (loading.snapshot) {
-    return (
-      <Card title={<><LineChartOutlined /> 精度趋势</>}>
-        <div style={{ textAlign: 'center', padding: '40px 0' }}>
-          <Spin tip="加载精度监控快照…" />
-        </div>
-      </Card>
-    );
-  }
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setSeriesLoading(true);
+      setSeriesError(null);
+      try {
+        const res = await accuracyOperationsApi.getPredictionSeries({ slot, days: 7 });
+        if (cancelled) return;
+        setPoints(res.points || []);
+        setSeriesMeta({
+          workflow_id: res.workflow_id,
+          version_tag: res.version_tag,
+          point_count: res.point_count,
+        });
+      } catch (err) {
+        if (!cancelled) {
+          setSeriesError((err as Error).message || '时序读取失败');
+          setPoints([]);
+        }
+      } finally {
+        if (!cancelled) setSeriesLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [slot]);
 
-  // ---------- 错误 ----------
-  if (error.snapshot) {
-    return (
-      <Card title={<><LineChartOutlined /> 精度趋势</>}>
-        <Alert
-          type="error"
-          message="加载失败"
-          description={error.snapshot}
-          showIcon
-          action={
-            <a onClick={() => fetchMonitoringSnapshot(slot)}>重试</a>
-          }
-        />
-      </Card>
-    );
-  }
-
-  // ---------- 空态 ----------
-  if (!monitoringSnapshot) {
-    return (
-      <Card title={<><LineChartOutlined /> 精度趋势</>}>
-        <Empty description="暂无精度监控数据" />
-      </Card>
-    );
-  }
-
-  // ---------- 构建表格行 ----------
-  const rows: BarRow[] = [];
-
-  if (monitoringSnapshot.production) {
-    const m = monitoringSnapshot.production;
-    rows.push({
-      key: `prod-${m.workflow_id}`,
-      label: `生产 · ${m.version_tag || m.workflow_id}`,
-      form: 'production',
-      mape: m.rolling_mape,
-      mae: m.rolling_mae,
-      cycles: m.valid_cycle_count,
-      status: m.status,
+  const rows = useMemo(() => {
+    const list: BarRow[] = [];
+    const prod = toRow('production', '生产', monitoringSnapshot?.production ?? null);
+    if (prod) list.push(prod);
+    (monitoringSnapshot?.shadows || []).forEach((s, idx) => {
+      const row = toRow('shadow', `影子#${idx + 1}`, s);
+      if (row) list.push(row);
     });
-  }
-
-  monitoringSnapshot.shadows.forEach((m: MonitoringMetrics, i: number) => {
-    rows.push({
-      key: `shadow-${m.workflow_id}-${i}`,
-      label: `影子${i + 1} · ${m.version_tag || m.workflow_id}`,
-      form: 'shadow',
-      mape: m.rolling_mape,
-      mae: m.rolling_mae,
-      cycles: m.valid_cycle_count,
-      status: m.status,
+    (monitoringSnapshot?.prelaunches || []).forEach((s, idx) => {
+      const row = toRow('prelaunch', `预上线#${idx + 1}`, s);
+      if (row) list.push(row);
     });
-  });
+    return list;
+  }, [monitoringSnapshot]);
 
-  monitoringSnapshot.prelaunches.forEach((m: MonitoringMetrics, i: number) => {
-    rows.push({
-      key: `pre-${m.workflow_id}-${i}`,
-      label: `预上线${i + 1} · ${m.version_tag || m.workflow_id}`,
-      form: 'prelaunch',
-      mape: m.rolling_mape,
-      mae: m.rolling_mae,
-      cycles: m.valid_cycle_count,
-      status: m.status,
-    });
-  });
+  const maxMape = Math.max(...rows.map((r) => r.mape ?? 0), 1);
 
-  // 计算最大 MAPE 用于柱宽比例（转为百分比单位）
-  const maxMapePct = rows.reduce((acc, r) => {
-    const pct = r.mape !== null ? r.mape * 100 : 0;
-    return Math.max(acc, pct);
-  }, 0);
-  const chartMax = Math.max(maxMapePct * 1.1, 1); // 留 10% 余量，至少 1%
+  const chartOption = useMemo(() => {
+    const times = points.map((p) => p.timestamp || '');
+    return {
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['预测', '真值'] },
+      grid: { left: 48, right: 24, top: 40, bottom: 40 },
+      xAxis: { type: 'category', data: times, axisLabel: { hideOverlap: true } },
+      yAxis: { type: 'value', name: '负荷' },
+      series: [
+        {
+          name: '预测',
+          type: 'line',
+          showSymbol: false,
+          data: points.map((p) => p.predicted),
+        },
+        {
+          name: '真值',
+          type: 'line',
+          showSymbol: false,
+          data: points.map((p) => p.actual),
+        },
+      ],
+    };
+  }, [points]);
 
-  // ---------- 汇总 Statistics ----------
-  const prod = monitoringSnapshot.production;
-  const bestShadow = monitoringSnapshot.shadows.reduce<MonitoringMetrics | null>(
-    (best, s) => {
-      if (s.rolling_mape === null) return best;
-      if (best === null || best.rolling_mape === null) return s;
-      return s.rolling_mape < best.rolling_mape ? s : best;
-    },
-    null,
-  );
-
-  // ---------- 表格列定义 ----------
   const columns = [
-    {
-      title: '形态 / 版本',
-      dataIndex: 'label',
-      key: 'label',
-      render: (text: string, record: BarRow) => (
-        <span>
-          <Tag
-            color={
-              record.form === 'production'
-                ? 'blue'
-                : record.form === 'shadow'
-                ? 'purple'
-                : 'cyan'
-            }
-            style={{ marginRight: 6 }}
-          >
-            {record.form === 'production'
-              ? '生产'
-              : record.form === 'shadow'
-              ? '影子'
-              : '预上线'}
-          </Tag>
-          <Text style={{ fontSize: 12 }}>{text.split(' · ')[1] ?? text}</Text>
-        </span>
-      ),
-    },
+    { title: '形态', dataIndex: 'label', key: 'label', width: 100 },
     {
       title: '滚动 MAPE',
       dataIndex: 'mape',
       key: 'mape',
-      width: 220,
-      render: (value: number | null) => (
-        <MapeBar value={value} maxValue={chartMax} />
-      ),
+      render: (v: number | null) => <MapeBar value={v} maxValue={maxMape} />,
     },
     {
-      title: '滚动 MAE',
-      dataIndex: 'mae',
-      key: 'mae',
-      render: (value: number | null) =>
-        value !== null ? value.toFixed(4) : <Text type="secondary">—</Text>,
-    },
-    {
-      title: '有效周期',
+      title: '周期',
       dataIndex: 'cycles',
       key: 'cycles',
-      render: (value: number | null) =>
-        value !== null ? value : <Text type="secondary">—</Text>,
+      width: 80,
+      render: (v: number | null) => v ?? '—',
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (value: string | null) =>
-        value ? (
-          <Tag color={value === 'active' ? 'green' : 'default'}>{value}</Tag>
-        ) : (
-          <Text type="secondary">—</Text>
-        ),
+      width: 120,
+      render: (v: string | null) => <Tag>{v || '—'}</Tag>,
     },
   ];
 
   return (
     <Card
-      title={<><LineChartOutlined /> 精度趋势</>}
-      extra={
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          滚动 MAPE 趋势图（多形态对比），基于监控快照
-        </Text>
+      size="small"
+      title={
+        <span>
+          <LineChartOutlined style={{ marginRight: 8 }} />
+          精度对比与预测曲线
+        </span>
       }
     >
-      {/* 汇总指标行 */}
-      <Row gutter={16} style={{ marginBottom: 20 }}>
-        <Col span={6}>
-          <Statistic
-            title="生产模型 MAPE"
-            value={prod?.rolling_mape !== null && prod?.rolling_mape !== undefined
-              ? (prod.rolling_mape * 100).toFixed(2)
-              : '—'}
-            suffix={prod?.rolling_mape !== null && prod?.rolling_mape !== undefined ? '%' : ''}
-            valueStyle={{ color: mapeColor(prod?.rolling_mape ?? null) }}
-          />
-        </Col>
-        <Col span={6}>
-          <Statistic
-            title="最优影子 MAPE"
-            value={bestShadow?.rolling_mape !== null && bestShadow?.rolling_mape !== undefined
-              ? (bestShadow.rolling_mape * 100).toFixed(2)
-              : '—'}
-            suffix={bestShadow?.rolling_mape !== null && bestShadow?.rolling_mape !== undefined ? '%' : ''}
-            valueStyle={{ color: mapeColor(bestShadow?.rolling_mape ?? null) }}
-          />
-        </Col>
-        <Col span={6}>
-          <Statistic
-            title="影子模型数"
-            value={monitoringSnapshot.shadows.length}
-          />
-        </Col>
-        <Col span={6}>
-          <Statistic
-            title="预上线模型数"
-            value={monitoringSnapshot.prelaunches.length}
-          />
-        </Col>
-      </Row>
+      {error.monitoring ? (
+        <Alert type="error" showIcon message={error.monitoring} style={{ marginBottom: 12 }} />
+      ) : null}
 
-      {/* 柱状对比表 */}
-      {rows.length === 0 ? (
-        <Empty description="暂无模型监控数据" />
-      ) : (
-        <Table<BarRow>
-          dataSource={rows}
-          columns={columns}
-          pagination={false}
-          size="small"
-          rowKey="key"
-          style={{ marginTop: 8 }}
-        />
-      )}
+      <Spin spinning={Boolean(loading.monitoring)}>
+        <Row gutter={16} style={{ marginBottom: 12 }}>
+          <Col span={8}>
+            <Statistic
+              title="生产滚动 MAPE"
+              value={formatMape(monitoringSnapshot?.production?.rolling_mape ?? null)}
+            />
+          </Col>
+          <Col span={8}>
+            <Statistic title="形态数" value={rows.length} />
+          </Col>
+          <Col span={8}>
+            <Statistic title="曲线点数" value={seriesMeta.point_count ?? 0} />
+          </Col>
+        </Row>
 
-      <div style={{ marginTop: 12 }}>
-        <Text type="secondary" style={{ fontSize: 11 }}>
-          说明：柱宽正比于滚动 MAPE 大小，颜色反映精度等级（绿&lt;5% / 橙5-10% / 红&gt;10%）。
-          ECharts 时序趋势图待接入历史评估数据后启用。
+        {rows.length === 0 ? (
+          <Empty description="暂无模型监控数据" />
+        ) : (
+          <Table<BarRow>
+            dataSource={rows}
+            columns={columns}
+            pagination={false}
+            size="small"
+            rowKey="key"
+          />
+        )}
+      </Spin>
+
+      <div style={{ marginTop: 16 }}>
+        <Text strong>
+          预测 vs 真值
+          {seriesMeta.workflow_id
+            ? `（${seriesMeta.workflow_id}@${seriesMeta.version_tag}）`
+            : ''}
         </Text>
+        <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
+          仅展示已落库 PredictionResult；真值来自回填后的 actual，不直读威海 CSV（防穿越）。
+        </Text>
+        {seriesError ? <Alert type="warning" showIcon message={seriesError} style={{ marginBottom: 8 }} /> : null}
+        <Spin spinning={seriesLoading}>
+          {points.length === 0 ? (
+            <Empty description="暂无预测时序。请先按日 mock 喂数 → pull → gap-1 日滚 → 回填。" />
+          ) : (
+            <ReactECharts option={chartOption} style={{ height: 320 }} />
+          )}
+        </Spin>
       </div>
     </Card>
   );

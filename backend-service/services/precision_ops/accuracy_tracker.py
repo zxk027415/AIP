@@ -114,17 +114,17 @@ class AccuracyTracker:
         # @AI_GENERATED: end
         if entry is None:
             return None
-        return RollingMetrics(
-            rolling_mape=float(entry.get("rolling_mape", 0.0)),
-            rolling_wmape=(float(entry["rolling_wmape"]) if entry.get("rolling_wmape") is not None else None),
-            rolling_mae=float(entry.get("rolling_mae", 0.0)),
-            valid_cycle_count=int(entry.get("valid_cycle_count", 0)),
-            total_cycle_count=int(entry.get("total_cycle_count", 0)),
-            coverage_rate=(float(entry["coverage_rate"]) if entry.get("coverage_rate") is not None else None),
-            window_days=(int(entry["window_days"]) if entry.get("window_days") is not None else None),
-            last_evaluated_at=str(entry.get("last_evaluated_at", "")),
-            status=str(entry.get("status", "insufficient_data")),
-        )
+        return {
+            "rolling_mape": float(entry.get("rolling_mape", 0.0)),
+            "rolling_wmape": (float(entry["rolling_wmape"]) if entry.get("rolling_wmape") is not None else None),
+            "rolling_mae": float(entry.get("rolling_mae", 0.0)),
+            "valid_cycle_count": int(entry.get("valid_cycle_count", 0)),
+            "total_cycle_count": int(entry.get("total_cycle_count", 0)),
+            "coverage_rate": (float(entry["coverage_rate"]) if entry.get("coverage_rate") is not None else None),
+            "window_days": (int(entry["window_days"]) if entry.get("window_days") is not None else None),
+            "last_evaluated_at": str(entry.get("last_evaluated_at", "")),
+            "status": str(entry.get("status", "insufficient_data")),
+        }
 
     def update_metrics(
         self,

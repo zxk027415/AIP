@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import ReactECharts from 'echarts-for-react';
 import dayjs from 'dayjs';
 import { enhancedWorkflowApi, baselineCompareApi, cloneWorkflowApi } from '../services/workflowEnhancedApi';
+import { prelaunchApi } from '../services/deploymentApi';
 import type { WorkflowParamsSummary, ParamField, NodeParamGroup } from '../services/workflowEnhancedApi';
 import type { EnhancedWorkflow, EnhancedWorkflowSummary } from '../types/workflow-enhanced';
 import DatasetPanel from '../components/DatasetPanel';
@@ -2091,10 +2092,16 @@ const WorkflowBaselineComparePage: React.FC = () => {
       await baselineCompareApi.promoteCandidate(promotingCandidate.id as string, {
         note: values.note as string | undefined,
         set_as_production: values.set_as_production as boolean | undefined,
-        production_slot: (values.production_slot as string) || 'default',
+        production_slot: (values.production_slot as string) || 'load_forecast',
         force: values.force as boolean | undefined,
+        enter_prelaunch: values.enter_prelaunch as boolean | undefined,
+        prelaunch_slot: (values.prelaunch_slot as string) || 'load_forecast',
       });
-      message.success('Promote 成功');
+      message.success(
+        values.enter_prelaunch
+          ? 'Promote 成功，并已写入算法部署预上线池'
+          : 'Promote 成功',
+      );
       setPromoteModalOpen(false);
       loadPool();
       loadProductionRef();
@@ -3944,13 +3951,41 @@ const WorkflowBaselineComparePage: React.FC = () => {
                       {
                         title: '操作',
                         key: 'actions',
-                        width: 140,
+                        width: 220,
                         render: (_: unknown, record: Record<string, unknown>) => {
                           const status = String(record.status || '');
                           return (
                             <Space size="small">
                               {status === 'passed' && (
-                                <Tag color="green">已通过</Tag>
+                                <>
+                                  <Tag color="green">已通过</Tag>
+                                  <Button
+                                    size="small"
+                                    type="primary"
+                                    onClick={async () => {
+                                      try {
+                                        const wf = String(record.challenger_workflow_id || '');
+                                        const cand = String(record.candidate_id || '');
+                                        if (!wf || !cand) {
+                                          message.error('复验项缺少 challenger_workflow_id / candidate_id');
+                                          return;
+                                        }
+                                        await prelaunchApi.enterPrelaunch('load_forecast', {
+                                          candidate_id: cand,
+                                          workflow_id: wf,
+                                          version_tag: `prelaunch-${cand.slice(0, 12)}`,
+                                          source_run_id: String(record.source_run_id || '') || undefined,
+                                          note: `verification_passed:${record.id}`,
+                                        });
+                                        message.success('已写入算法部署预上线池（load_forecast）');
+                                      } catch (e: unknown) {
+                                        message.error((e as Error).message || '入预上线失败');
+                                      }
+                                    }}
+                                  >
+                                    入预上线
+                                  </Button>
+                                </>
                               )}
                               {status === 'running' && (
                                 <Button
@@ -7671,12 +7706,20 @@ const WorkflowBaselineComparePage: React.FC = () => {
             type="info"
             showIcon
             style={{ marginBottom: 12 }}
-            message="默认只允许复验池 passed 的候选 Promote。未通过复验时可强制进入预上线观察。"
+            message="默认只允许复验池 passed 的候选 Promote。生产身份以算法部署 slots.json 为准；勾选「入预上线」才会写入部署预上线池。"
           />
           <Form.Item name="note" label="备注">
             <Input placeholder="可选备注" />
           </Form.Item>
-          <Form.Item name="set_as_production" label="同步更新生产模板登记" valuePropName="checked">
+          <Form.Item
+            name="enter_prelaunch"
+            label="同时进入部署预上线（load_forecast）"
+            valuePropName="checked"
+            initialValue={true}
+          >
+            <Switch />
+          </Form.Item>
+          <Form.Item name="set_as_production" label="同步更新生产模板登记（不改部署生产模型）" valuePropName="checked">
             <Switch />
           </Form.Item>
           <Form.Item
@@ -7685,13 +7728,13 @@ const WorkflowBaselineComparePage: React.FC = () => {
           >
             {({ getFieldValue }) =>
               getFieldValue('set_as_production') ? (
-                <Form.Item name="production_slot" label="生产槽位">
-                  <Input placeholder="default" />
+                <Form.Item name="production_slot" label="登记槽位" initialValue="load_forecast">
+                  <Input placeholder="load_forecast" />
                 </Form.Item>
               ) : null
             }
           </Form.Item>
-          <Form.Item name="force" label="强制进入预上线（跳过复验门控，进入 7 天观察期）" valuePropName="checked">
+          <Form.Item name="force" label="强制 Promote（跳过复验门控）" valuePropName="checked">
             <Switch />
           </Form.Item>
         </Form>

@@ -196,7 +196,11 @@ const ModelManagementTab: React.FC<{ storySlot?: string }> = ({ storySlot }) => 
       const res = await deploymentApi.listSlots();
       setSlots(res.slots ?? {});
     } catch (err: any) {
-      messageApi.error(`加载部署槽位失败：${err?.message ?? String(err)}`);
+      messageApi.error(
+        err?.code === 'ECONNABORTED'
+          ? '加载部署槽位超时（后端可能正忙于读大文件或 reload）。请稍后重试，或检查后端是否卡住。'
+          : `加载部署槽位失败：${err?.message ?? String(err)}`,
+      );
       setSlots({});
     } finally {
       setLoading(false);

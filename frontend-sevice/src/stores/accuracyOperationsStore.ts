@@ -174,7 +174,7 @@ const initialError: ErrorState = {
 
 export const useAccuracyOperationsStore = create<AccuracyOperationsState>((set) => ({
   // ---------- 初始数据状态 ----------
-  currentSlot: 'default',
+  currentSlot: 'load_forecast',
   overview: null,
   alerts: [],
   selectedAlert: null,

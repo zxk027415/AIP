@@ -174,6 +174,58 @@ export const accuracyOperationsApi = {
       slot,
       recovery_evidence: recoveryEvidence,
     }),
+
+  /** 查询人工劣化注入状态 */
+  getDegradationStatus: (slot: string): Promise<Record<string, unknown>> =>
+    api.get('/accuracy-operations/experiments/degradation-status', { params: { slot } }),
+
+  /** 激活部署版本指标为 active（演示前置） */
+  activateMetrics: (
+    slot: string,
+    minValidCycles = 3,
+  ): Promise<Record<string, unknown>> =>
+    api.post('/accuracy-operations/experiments/activate-metrics', {
+      slot,
+      min_valid_cycles: minValidCycles,
+    }),
+
+  /** 人工注入劣化并触发真实监控 */
+  injectDegradation: (body: {
+    slot?: string;
+    target_degradation_pct?: number;
+    model_form?: string;
+    note?: string;
+    run_monitor?: boolean;
+  }): Promise<Record<string, unknown>> =>
+    api.post('/accuracy-operations/experiments/inject-degradation', body),
+
+  /** 恢复劣化注入前的指标 */
+  restoreDegradation: (body: {
+    slot?: string;
+    close_open_alerts?: boolean;
+  }): Promise<Record<string, unknown>> =>
+    api.post('/accuracy-operations/experiments/restore-degradation', body),
+
+  /** 预测 vs 真值时序点 */
+  getPredictionSeries: (params: {
+    slot: string;
+    workflow_id?: string;
+    version_tag?: string;
+    days?: number;
+  }): Promise<{
+    slot: string;
+    workflow_id: string;
+    version_tag: string;
+    days: number;
+    point_count: number;
+    points: Array<{
+      timestamp: string | null;
+      predicted: number | null;
+      actual: number | null;
+      prediction_cycle_id?: string;
+      status?: string;
+    }>;
+  }> => api.get('/accuracy-operations/prediction-series', { params }),
 };
 
 export default accuracyOperationsApi;

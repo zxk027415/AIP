@@ -25,7 +25,43 @@
       "total_cycle_count": 0,
       "last_evaluated_at": "2026-07-09T09:37:35.115308+00:00",
       "status": "insufficient_data"
+    },
+    "workflow-20260511-optimal-505@optimal-505-production": {
+      "rolling_mape": 5.6616,
+      "rolling_mae": 0.0,
+      "valid_cycle_count": 3,
+      "total_cycle_count": 3,
+      "coverage_rate": 1.0,
+      "window_days": 7,
+      "status": "active",
+      "last_evaluated_at": "2026-07-23T09:32:24.009067+00:00",
+      "activated_for_ops_at": "2026-07-23T09:32:24.009067+00:00",
+      "activation_mode": "ops_demo_no_future_leak"
+    },
+    "workflow-20260511-optimal-505@shadow-run43-mape4109": {
+      "rolling_mape": 4.1093,
+      "rolling_mae": 0.0,
+      "valid_cycle_count": 3,
+      "total_cycle_count": 3,
+      "coverage_rate": 1.0,
+      "window_days": 7,
+      "status": "active",
+      "last_evaluated_at": "2026-07-23T09:32:24.080844+00:00",
+      "activated_for_ops_at": "2026-07-23T09:32:24.080844+00:00",
+      "activation_mode": "ops_demo_no_future_leak"
+    },
+    "workflow-20260511-optimal-505@shadow-run7-generic-mape4109": {
+      "rolling_mape": 4.1093,
+      "rolling_mae": 0.0,
+      "valid_cycle_count": 3,
+      "total_cycle_count": 3,
+      "coverage_rate": 1.0,
+      "window_days": 7,
+      "status": "active",
+      "last_evaluated_at": "2026-07-23T09:32:24.119869+00:00",
+      "activated_for_ops_at": "2026-07-23T09:32:24.119869+00:00",
+      "activation_mode": "ops_demo_no_future_leak"
     }
   },
-  "updated_at": "2026-07-09T09:37:35.115308+00:00"
+  "updated_at": "2026-07-23T09:32:24.120846+00:00"
 }

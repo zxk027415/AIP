@@ -1578,8 +1578,10 @@ async def promote_tuning_candidate(candidate_id: str, request: Request):
         pass
     note = str(payload.get("note") or "").strip()
     set_as_production = bool(payload.get("set_as_production"))
-    production_slot = str(payload.get("production_slot") or "default").strip() or "default"
+    production_slot = str(payload.get("production_slot") or "load_forecast").strip() or "load_forecast"
     force = bool(payload.get("force"))
+    enter_prelaunch = bool(payload.get("enter_prelaunch"))
+    prelaunch_slot = str(payload.get("prelaunch_slot") or production_slot or "load_forecast").strip() or "load_forecast"
     with _AUTO_RESEARCH_FILE_LOCK:
         pool = _load_candidate_pool_list()
         found: Optional[Dict[str, Any]] = None
@@ -1641,7 +1643,7 @@ async def promote_tuning_candidate(candidate_id: str, request: Request):
             "workflow_id": str(found.get("challenger_workflow_id", "")),
             "version_tag": f"promoted-{candidate_id[:12]}",
             "status": "production" if set_as_production else "shadow",
-            "slot": production_slot if set_as_production else "default",
+            "slot": production_slot if set_as_production else "load_forecast",
             "source_candidate_id": candidate_id,
             "baseline_mape": float(found.get("summary", {}).get("challenger_mape") or 0) or None,
         }
@@ -1670,10 +1672,42 @@ async def promote_tuning_candidate(candidate_id: str, request: Request):
             logging.getLogger(__name__).warning(
                 "precision_ops ProductionRegistry: Promote 后更新失败（非阻塞）: %s", _pr_exc
             )
+    # @AI_GENERATED: Promote 可选写入部署预上线池；绝不改 slots.json production_model
+    prelaunch_entry: Optional[Dict[str, Any]] = None
+    if enter_prelaunch:
+        cw = str(found.get("challenger_workflow_id") or "").strip()
+        if not cw:
+            raise HTTPException(status_code=400, detail="候选缺少 challenger_workflow_id，无法入预上线")
+        try:
+            from api.deployment import PrelaunchEnterBody, enter_prelaunch as deployment_enter_prelaunch
+            prelaunch_entry = deployment_enter_prelaunch(
+                prelaunch_slot,
+                PrelaunchEnterBody(
+                    candidate_id=candidate_id,
+                    workflow_id=cw,
+                    version_tag=f"prelaunch-{candidate_id[:12]}",
+                    source_run_id=str(found.get("source_run_id") or "") or None,
+                    note=note or f"promote_enter_prelaunch:{candidate_id}",
+                ),
+            )
+        except HTTPException:
+            raise
+        except Exception as _pl_exc:
+            raise HTTPException(
+                status_code=500,
+                detail=f"写入部署预上线失败: {_pl_exc}",
+            ) from _pl_exc
     return {
         "success": True,
         "candidate": _sanitize_json_floats(found),
         "production_entry": _sanitize_json_floats(production_entry) if production_entry else None,
+        "prelaunch_entry": _sanitize_json_floats(prelaunch_entry) if prelaunch_entry else None,
+        "note": (
+            "set_as_production 只更新 AutoResearch/精度登记侧，不改 DeploymentSlotStore.production_model；"
+            "生产身份以算法部署 slots.json 为准。"
+            if set_as_production
+            else None
+        ),
     }
 
 
@@ -2714,7 +2748,8 @@ def _execute_pipeline_sync(
                 if isinstance(df_out, _pd.DataFrame) and fault_predictions is None:
                     # 兼容不同列名：predictions 或 predict_label
                     if "predictions" in df_out.columns or "predict_label" in df_out.columns:
-                        fault_predictions = df_out.head(500).fillna("").to_dict(orient="records")
+                        # 完整写出供预测批次持久化；勿 head(500) 截断，否则大批次审核缺样本
+                        fault_predictions = df_out.fillna("").to_dict(orient="records")
     # @AI_GENERATED: end
 
     # 提取故障设备时序曲线
@@ -2735,6 +2770,31 @@ def _execute_pipeline_sync(
                                 break
                         except Exception:
                             pass
+
+            # 附加 explain_features（供 SHAP / 相似案例），按行序对齐为 _features 字典列
+            if "_features" not in preds_df.columns:
+                for _nid, _output in node_outputs.items():
+                    if not isinstance(_output, dict):
+                        continue
+                    _ef = _output.get("explain_features")
+                    if not isinstance(_ef, _pd.DataFrame) or len(_ef) != len(preds_df):
+                        continue
+                    id_like = {"site_id", "device_id", "branch_id", "time_window", "label", "predictions", "predict_label", "confidence"}
+                    feat_cols = [c for c in _ef.columns if c not in id_like]
+                    if not feat_cols:
+                        continue
+                    feature_rows = []
+                    for i in range(len(_ef)):
+                        row = {}
+                        for c in feat_cols:
+                            try:
+                                val = _ef.iloc[i][c]
+                                row[str(c)] = None if _pd.isna(val) else float(val)
+                            except Exception:
+                                row[str(c)] = None
+                        feature_rows.append(row)
+                    preds_df["_features"] = feature_rows
+                    break
 
             # 如果 preds_df 没有 device_id，尝试从 node_outputs 中找到有 id 字段的 DataFrame 合并
             if "device_id" not in preds_df.columns:
@@ -2806,7 +2866,7 @@ def _execute_pipeline_sync(
 
             # 同时更新 fault_predictions 使其包含完整 id 信息
             if "device_id" in preds_df.columns:
-                fault_predictions = preds_df.head(500).fillna("").to_dict(orient="records")
+                fault_predictions = preds_df.fillna("").to_dict(orient="records")
         except Exception as e:
             import traceback
             print(f"[TS-DEBUG] EXCEPTION: {e}\n{traceback.format_exc()}", flush=True)

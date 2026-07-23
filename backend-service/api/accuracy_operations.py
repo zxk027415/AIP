@@ -91,6 +91,7 @@ def _get_components() -> Dict[str, Any]:
         "rca_orchestrator": rca_orch,
         "arbitrator": arbitrator,
         "slot_store": slot_store,
+        "tracker": tracker,
     }
 
 
@@ -128,6 +129,29 @@ class CloseAlertRequest(BaseModel):
     """POST /alerts/{alert_id}/close 请求体"""
     slot: str                          # 槽位名称
     recovery_evidence: Dict[str, Any]  # 恢复证据，必须含 type="manual_close"
+
+
+class InjectDegradationRequest(BaseModel):
+    """POST /experiments/inject-degradation — 人工抬高滚动指标以触发真实监控"""
+    slot: str = "load_forecast"
+    target_degradation_pct: float = 20.0
+    model_form: str = "production"  # production | shadow
+    workflow_id: Optional[str] = None
+    version_tag: Optional[str] = None
+    note: str = ""
+    run_monitor: bool = True
+
+
+class RestoreDegradationRequest(BaseModel):
+    """POST /experiments/restore-degradation — 按快照恢复指标"""
+    slot: str = "load_forecast"
+    close_open_alerts: bool = True
+
+
+class ActivateMetricsRequest(BaseModel):
+    """POST /experiments/activate-metrics — 把部署版本指标写成 active（演示前置）"""
+    slot: str = "load_forecast"
+    min_valid_cycles: int = 3
 
 
 # ---------------------------------------------------------------------------
@@ -634,5 +658,150 @@ def get_slot_overview(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("GET /slot-overview 异常 slot=%s", slot)
+        raise HTTPException(status_code=500, detail=str(e))
+# @AI_GENERATED: end
+
+
+# @AI_GENERATED: 劣化实验 + 预测曲线
+@router.get("/experiments/degradation-status")
+def get_degradation_experiment_status(
+    slot: str = Query("load_forecast", description="槽位名称"),
+) -> Dict[str, Any]:
+    """查询是否处于人工注入劣化态，以及生产版本当前劣化%。"""
+    try:
+        from services.accuracy_operations.degradation_experiment import get_degradation_status
+        comps = _get_components()
+        return get_degradation_status(slot, comps["tracker"], comps["slot_store"])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("GET /experiments/degradation-status 异常 slot=%s", slot)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/experiments/inject-degradation")
+def post_inject_degradation(body: InjectDegradationRequest) -> Dict[str, Any]:
+    """人工抬高滚动 MAPE，再调用真实 AccuracyMonitor.evaluate。"""
+    try:
+        from services.accuracy_operations.degradation_experiment import inject_degradation
+        comps = _get_components()
+        return inject_degradation(
+            slot=body.slot,
+            tracker=comps["tracker"],
+            monitor=comps["monitor"],
+            slot_store=comps["slot_store"],
+            target_degradation_pct=body.target_degradation_pct,
+            model_form=body.model_form,
+            workflow_id=body.workflow_id,
+            version_tag=body.version_tag,
+            note=body.note,
+            run_monitor=body.run_monitor,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("POST /experiments/inject-degradation 异常")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/experiments/restore-degradation")
+def post_restore_degradation(body: RestoreDegradationRequest) -> Dict[str, Any]:
+    """按快照恢复滚动指标，可选关闭实验相关 open 告警。"""
+    try:
+        from services.accuracy_operations.degradation_experiment import restore_degradation
+        comps = _get_components()
+        return restore_degradation(
+            slot=body.slot,
+            tracker=comps["tracker"],
+            store=comps["store"],
+            close_open_alerts=body.close_open_alerts,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("POST /experiments/restore-degradation 异常")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/experiments/activate-metrics")
+def post_activate_metrics(body: ActivateMetricsRequest) -> Dict[str, Any]:
+    """把 slots.json 中 production/shadow 指标写成 active（演示前置，不伪造预测点）。"""
+    try:
+        from services.accuracy_operations.degradation_experiment import activate_slot_metrics_from_deployment
+        comps = _get_components()
+        return activate_slot_metrics_from_deployment(
+            slot=body.slot,
+            tracker=comps["tracker"],
+            slot_store=comps["slot_store"],
+            min_valid_cycles=body.min_valid_cycles,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("POST /experiments/activate-metrics 异常")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/prediction-series")
+def get_prediction_series(
+    slot: str = Query("load_forecast", description="槽位名称"),
+    workflow_id: Optional[str] = Query(None, description="工作流 ID；缺省取 production"),
+    version_tag: Optional[str] = Query(None, description="版本标签；缺省取 production"),
+    days: int = Query(7, ge=1, le=90, description="回溯天数"),
+) -> Dict[str, Any]:
+    """返回 pred/actual 时序点，供精度运营曲线图使用。"""
+    from datetime import datetime, timedelta, timezone
+
+    try:
+        comps = _get_components()
+        slot_store = comps["slot_store"]
+        slot_obj = slot_store.get(slot)
+        if slot_obj is None:
+            raise HTTPException(status_code=404, detail=f"槽位不存在: {slot}")
+
+        wf_id = workflow_id
+        v_tag = version_tag
+        if not wf_id or not v_tag:
+            if slot_obj.production_model is None:
+                raise HTTPException(status_code=400, detail="未指定版本且槽位无 production")
+            wf_id = wf_id or slot_obj.production_model.workflow_id
+            v_tag = v_tag or slot_obj.production_model.version_tag
+
+        end = datetime.now(timezone.utc).replace(tzinfo=None)
+        start = end - timedelta(days=days)
+        points: List[Dict[str, Any]] = []
+
+        try:
+            from services.precision_ops._db_helper import _get_lf_repo, _is_db_enabled
+            if _is_db_enabled():
+                repo = _get_lf_repo()
+                if repo is not None:
+                    rows = repo.query_predictions(slot, wf_id, start, end)
+                    for row in rows:
+                        if getattr(row, "version_tag", None) and str(row.version_tag) != str(v_tag):
+                            continue
+                        points.append({
+                            "timestamp": row.forecast_timestamp.isoformat() if row.forecast_timestamp else None,
+                            "predicted": float(row.predicted_value) if row.predicted_value is not None else None,
+                            "actual": float(row.actual_value) if row.actual_value is not None else None,
+                            "prediction_cycle_id": row.prediction_cycle_id,
+                            "status": row.status,
+                        })
+        except Exception as db_exc:
+            logger.warning("prediction-series DB 查询失败 slot=%s: %s", slot, db_exc)
+
+        points.sort(key=lambda p: p.get("timestamp") or "")
+        return {
+            "slot": slot,
+            "workflow_id": wf_id,
+            "version_tag": v_tag,
+            "days": days,
+            "point_count": len(points),
+            "points": points,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("GET /prediction-series 异常 slot=%s", slot)
         raise HTTPException(status_code=500, detail=str(e))
 # @AI_GENERATED: end

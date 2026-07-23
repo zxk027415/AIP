@@ -506,3 +506,18 @@
 }
 /* @AI_GENERATED: end */
 /* @AI_GENERATED: end */
+
+/* ── 光伏黑橙白主题（slot=pv_fault） ── */
+.pv-fault-workspace.accuracy-operations-page--pv {
+  --ops-ink: var(--pv-ink);
+  --ops-muted: var(--pv-muted);
+  --ops-line: var(--pv-line);
+  --ops-surface: var(--pv-surface);
+  --ops-canvas: var(--pv-canvas);
+  --ops-primary: var(--pv-primary);
+}
+
+.pv-fault-workspace.accuracy-operations-page--pv .accuracy-page-actions .ant-btn-primary {
+  background: var(--pv-primary);
+  border-color: var(--pv-primary);
+}

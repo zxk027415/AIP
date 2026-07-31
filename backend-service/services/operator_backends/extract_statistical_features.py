@@ -425,6 +425,10 @@ def _execute_groupby_aggregate(params: dict, options: dict, df: pd.DataFrame, op
             quantiles = json.loads(quantiles)
         except json.JSONDecodeError:
             quantiles = [0.15, 0.25, 0.35, 0.65, 0.75, 0.85, 0.95]
+    min_points = int(params.get("min_points") or options.get("min_points") or 48)
+    passthrough_fields = _parse_list(
+        params.get("passthrough_fields") or options.get("passthrough_fields"), []
+    )
 
     # 自动检测 id_fields：过滤掉不在 df 中的列
     actual_id_fields = [f for f in id_fields if f in df.columns]
@@ -478,13 +482,11 @@ def _execute_groupby_aggregate(params: dict, options: dict, df: pd.DataFrame, op
     basic_fe = _fa_groupby_named(groups, value_fields, _basic_func_defs).reset_index()
     merge_list.append(basic_fe)
 
-    # ── 2. 分位数（avg_count >= 48 才计算）────────────────────────────────────
-    avg_count = groups[value_fields].count().mean().mean()
-    if avg_count >= 48:
+    # ── 2. 分位数（列集合由 quantiles 配置唯一决定，不再用全局 avg_count 门控）──
+    if quantiles:
         q_agg_funcs = [
             (lambda x, q=q: np.nanquantile(x.dropna(), q)) for q in quantiles
         ]
-        # 手动命名，避免 lambda 名称都叫 <lambda>
         for i, q in enumerate(quantiles):
             q_agg_funcs[i].__name__ = f"quantile_{int(round(q * 100))}"
         q_fe = _fa_groupby_scalar(groups, value_fields, q_agg_funcs).reset_index()
@@ -531,19 +533,27 @@ def _execute_groupby_aggregate(params: dict, options: dict, df: pd.DataFrame, op
         diff_basic_fe = _fa_groupby_named(diff_groups, diff_cols, _basic_func_defs).reset_index()
         merge_list.append(diff_basic_fe)
 
-    # ── 6. 合并所有特征：以 actual_id_fields 为 key 逐个 merge，fillna(0) ────
+    # ── 6. 合并所有特征：以 actual_id_fields 为 key 逐个 merge ───────────────
     result = merge_list[0]
     for fe in merge_list[1:]:
-        # 只保留 id 列 + 新特征列（避免重复 id 列）
         new_cols = actual_id_fields + [c for c in fe.columns if c not in result.columns]
         result = result.merge(fe[new_cols], on=actual_id_fields, how="left")
-    result = result.fillna(0)
+
+    actual_passthrough = [f for f in passthrough_fields if f in data.columns]
+    if actual_passthrough:
+        pt = groups[actual_passthrough].first().reset_index()
+        result = result.merge(pt, on=actual_id_fields, how="left")
+
+    numeric_cols = [c for c in result.columns if pd.api.types.is_numeric_dtype(result[c])]
+    if numeric_cols:
+        result[numeric_cols] = result[numeric_cols].fillna(0)
 
     logger.info(
         f"[{operator_id}] groupby_aggregate: "
         f"groups={len(result)}, features={len(result.columns)}, "
         f"id_fields={actual_id_fields}, value_fields={value_fields}, "
-        f"avg_count={avg_count:.1f}, compute_diff={compute_diff}"
+        f"min_points={min_points}, compute_diff={compute_diff}, "
+        f"passthrough={actual_passthrough}"
     )
 
     return {"data": result}

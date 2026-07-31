@@ -490,13 +490,112 @@ export const cumulativeTrainingApi = {
       source_name: request.sourceName,
     }, { params: { slot } }),
 
+  // @AI_GENERATED: getSplitConfig / updateSplitConfig 已随 split parity 机制废弃并移除。
+  // 后端 /cumulative-training/split-config 现返回 410；切分策略改为随模型持久化
+  // （sample_strategy），不再由前端配置 solar_mode。二者在前端无任何调用方，
+  // 保留会诱导调用已废弃接口，故删除。
+  // 对齐：docs/specs/pv-fault-label-segment-redesign/tasks.md 任务 21。
+
+  getSplitModeCompare: (slot = 'pv_fault'): Promise<Record<string, unknown>> =>
+    api.get('/iterative-labeling/cumulative-training/split-mode-compare', { params: { slot } }),
+
+  runSplitModeCompare: (
+    body: {
+      modes?: Array<string | null>;
+      nRepeats?: number;
+      testRatio?: number;
+      datasetPath?: string;
+    } = {},
+    slot = 'pv_fault',
+  ): Promise<Record<string, unknown>> =>
+    api.post('/iterative-labeling/cumulative-training/split-mode-compare', {
+      modes: body.modes,
+      n_repeats: body.nRepeats ?? 3,
+      test_ratio: body.testRatio ?? 0.2,
+      dataset_path: body.datasetPath,
+    }, { params: { slot }, timeout: 60 * 1000 }),
+
+  getModelingPathCompare: (slot = 'pv_fault'): Promise<Record<string, unknown>> =>
+    api.get('/iterative-labeling/cumulative-training/modeling-path-compare', { params: { slot } }),
+
+  runModelingPathCompare: (
+    body: {
+      paths?: string[];
+      nRepeats?: number;
+      testRatio?: number;
+      randomState?: number;
+      legacyDatasetPath?: string;
+      siteId?: string;
+    } = {},
+    slot = 'pv_fault',
+  ): Promise<Record<string, unknown>> =>
+    api.post('/iterative-labeling/cumulative-training/modeling-path-compare', {
+      paths: body.paths,
+      n_repeats: body.nRepeats ?? 3,
+      test_ratio: body.testRatio ?? 0.2,
+      random_state: body.randomState ?? 90,
+      legacy_dataset_path: body.legacyDatasetPath,
+      site_id: body.siteId,
+    }, { params: { slot }, timeout: 60 * 1000 }),
+
+  getModelingPaths: (slot = 'pv_fault'): Promise<Record<string, unknown>> =>
+    api.get('/iterative-labeling/cumulative-training/modeling-paths', { params: { slot } }),
+
+  setModelingPaths: (
+    productionPath: string,
+    fallbackPath?: string,
+    slot = 'pv_fault',
+  ): Promise<Record<string, unknown>> =>
+    api.put('/iterative-labeling/cumulative-training/modeling-paths', {
+      production_path: productionPath,
+      fallback_path: fallbackPath,
+    }, { params: { slot } }),
+
+  switchModelingFallback: (reason: string, slot = 'pv_fault'): Promise<Record<string, unknown>> =>
+    api.post('/iterative-labeling/cumulative-training/modeling-paths/switch-fallback', {
+      reason,
+    }, { params: { slot } }),
+
+  createManualRetrainRequest: (slot = 'pv_fault'): Promise<Record<string, unknown>> =>
+    api.post('/iterative-labeling/cumulative-training/retrain-requests/manual', {}, { params: { slot } }),
+
   runRetrainRequest: (
     requestId: string,
-    slot = 'pv_fault'
+    slot = 'pv_fault',
   ): Promise<CumulativeRetrainRunResponse> =>
     api.post(`/iterative-labeling/cumulative-training/retrain-requests/${requestId}/run`, {}, {
       params: { slot },
     }),
+};
+
+export const pointLabelApi = {
+  getPendingQueue: (
+    params: {
+      siteId?: string;
+      deviceId?: string;
+      timeStart?: string;
+      timeEnd?: string;
+      minPoints?: number;
+      page?: number;
+      pageSize?: number;
+    } = {},
+    slot = 'pv_fault',
+  ): Promise<Record<string, unknown>> =>
+    api.get('/iterative-labeling/point-labels/pending-queue', {
+      params: {
+        slot,
+        site_id: params.siteId,
+        device_id: params.deviceId,
+        time_start: params.timeStart,
+        time_end: params.timeEnd,
+        min_points: params.minPoints ?? 1,
+        page: params.page ?? 1,
+        page_size: params.pageSize ?? 50,
+      },
+    }),
+
+  getSourceCoverage: (slot = 'pv_fault'): Promise<Record<string, unknown>> =>
+    api.get('/iterative-labeling/point-labels/source-coverage', { params: { slot } }),
 };
 // @AI_GENERATED: end
 

@@ -117,7 +117,6 @@ def _build_Xy(merged: pd.DataFrame, id_fields: list, target_col: str):
     non_numeric = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
     if non_numeric:
         X = X.drop(columns=non_numeric)
-    # 标签缺失的行剔除
     mask = y.notna()
     X = X.loc[mask].reset_index(drop=True)
     y = y.loc[mask].astype(int).reset_index(drop=True)
@@ -126,7 +125,24 @@ def _build_Xy(merged: pd.DataFrame, id_fields: list, target_col: str):
         raise OperatorExecutionError(
             OPERATOR_ID, "InputError", "拆分后没有可用的数值特征列。"
         )
-    return X, y.to_numpy()
+    return X, y.to_numpy(), mask
+
+
+def _stratified_split_by_group(
+    y: np.ndarray,
+    groups: np.ndarray,
+    test_ratio: float,
+    rng: np.random.RandomState,
+):
+    """按 group_col 整组分配，保证 train/test 零共享 group。"""
+    unique_groups = np.unique(groups)
+    rng.shuffle(unique_groups)
+    n_test_groups = max(1, int(round(len(unique_groups) * test_ratio)))
+    n_test_groups = min(n_test_groups, len(unique_groups) - 1) if len(unique_groups) > 1 else 1
+    test_groups = set(unique_groups[:n_test_groups])
+    train_idx = [i for i, g in enumerate(groups) if g not in test_groups]
+    test_idx = [i for i, g in enumerate(groups) if g in test_groups]
+    return train_idx, test_idx, []
 
 
 def _stratified_split(y: np.ndarray, test_ratio: float, rng: np.random.RandomState):
@@ -229,10 +245,36 @@ def execute(params: dict, inputs: dict) -> dict:
         average = "macro"
     id_fields = _parse_id_fields(params.get("id_fields"))
     target_col = str(params.get("target_col") or "label").strip()
+    group_col = str(params.get("group_col") or "").strip() or None
+    legacy_time_window_mode = str(params.get("legacy_time_window_mode") or "warn").strip().lower()
 
     # ── 合并特征 + 构造 X / y ────────────────────────────────────────────
     merged = _merge_feature_frames(inputs, id_fields, target_col)
-    X, y = _build_Xy(merged, id_fields, target_col)
+
+    if "time_window" in merged.columns:
+        tw = merged["time_window"].astype(str)
+        bad = tw.notna() & (tw != "") & (~tw.str.contains("#", na=False))
+        if bad.any():
+            msg = (
+                f"time_window 存在 {int(bad.sum())} 行不含 '#'，"
+                "禁止静默降级到旧切分逻辑"
+            )
+            if legacy_time_window_mode == "error":
+                raise OperatorExecutionError(OPERATOR_ID, "InputError", msg)
+            logger.warning("[%s] %s", OPERATOR_ID, msg)
+            warnings_set_pre = {msg}
+        else:
+            warnings_set_pre = set()
+    else:
+        warnings_set_pre = set()
+
+    groups_arr = None
+    if group_col and group_col in merged.columns:
+        y_raw = pd.to_numeric(merged[target_col], errors="coerce")
+        mask = y_raw.notna()
+        groups_arr = merged.loc[mask, group_col].astype(str).reset_index(drop=True).to_numpy()
+
+    X, y, _mask = _build_Xy(merged, id_fields, target_col)
 
     classes_all, counts_all = np.unique(y, return_counts=True)
     class_dist = {int(c): int(n) for c, n in zip(classes_all, counts_all)}
@@ -242,7 +284,7 @@ def execute(params: dict, inputs: dict) -> dict:
             f"只有 1 个类别({classes_all.tolist()})，无法做分类评估。"
         )
 
-    warnings_set = set()
+    warnings_set = set(warnings_set_pre)
     single_classes = [int(c) for c, n in class_dist.items() if n < 2]
     for c in single_classes:
         warnings_set.add(f"class_{c}_only_1_sample_train_only")
@@ -254,7 +296,10 @@ def execute(params: dict, inputs: dict) -> dict:
 
     for i in range(n_repeats):
         rng = np.random.RandomState(random_state + i)
-        train_idx, test_idx, _single = _stratified_split(y, test_ratio, rng)
+        if groups_arr is not None and len(groups_arr) == len(y):
+            train_idx, test_idx, _single = _stratified_split_by_group(y, groups_arr, test_ratio, rng)
+        else:
+            train_idx, test_idx, _single = _stratified_split(y, test_ratio, rng)
         if len(test_idx) == 0 or len(train_idx) == 0:
             warnings_set.add("empty_split_skipped")
             continue
@@ -396,7 +441,19 @@ def execute(params: dict, inputs: dict) -> dict:
         model_id = f"pv_fault_rfc_{trained_at}_{uuid.uuid4().hex[:6]}"
         model_path = os.path.join(models_dir, f"{model_id}.pkl")
         with open(model_path, "wb") as f:
-            pickle.dump({"model": final_clf, "feature_list": final_feat_list}, f)
+            sample_strategy = params.get("sample_strategy")
+            if isinstance(sample_strategy, str):
+                import json as _json
+                try:
+                    sample_strategy = _json.loads(sample_strategy)
+                except Exception:
+                    sample_strategy = None
+            pickle.dump({
+                "model": final_clf,
+                "feature_list": final_feat_list,
+                "sample_strategy": sample_strategy,
+                "label_snapshot_hash": params.get("label_snapshot_hash"),
+            }, f)
 
         # 保存评估指标
         import json as _json

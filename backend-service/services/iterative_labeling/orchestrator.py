@@ -475,6 +475,26 @@ class LoopOrchestrator:
         return candidate, os.path.relpath(candidate, project_root).replace(os.sep, "/")
 
     @classmethod
+    def _load_dataset_sidecar_meta(cls, dataset_file: str) -> Dict[str, Any]:
+        """读取快照 parquet/csv 旁的 .meta.json（含 sample_strategy）。"""
+        import json
+        import os
+
+        meta_path = os.path.splitext(dataset_file)[0] + ".meta.json"
+        if not os.path.isfile(meta_path):
+            alt = dataset_file + ".meta.json"
+            if os.path.isfile(alt):
+                meta_path = alt
+            else:
+                return {}
+        try:
+            with open(meta_path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            return payload if isinstance(payload, dict) else {}
+        except Exception:
+            return {}
+
+    @classmethod
     def _resolve_model_artifact(cls, model_ref: str, requested_model_path: Optional[str] = None) -> tuple:
         """Resolve an existing relative model artifact without exposing an absolute path."""
         import os
@@ -612,6 +632,9 @@ class LoopOrchestrator:
             raise ValueError("训练评估工作流模板 workflow-pv-fault-diag-quickval-cv-v1 不存在")
 
         params = model_params if isinstance(model_params, dict) else {}
+        sidecar_meta = self._load_dataset_sidecar_meta(dataset_file)
+        sample_strategy = sidecar_meta.get("sample_strategy")
+        label_snapshot_hash = sidecar_meta.get("label_snapshot_hash")
         load_node_found = False
         cv_node_found = False
         for node in workflow.nodes:
@@ -627,6 +650,10 @@ class LoopOrchestrator:
                     'k': 20,
                 }.items():
                     self._workflow_config_set(config, key, params.get(key, default))
+                if sample_strategy:
+                    self._workflow_config_set(config, 'sample_strategy', sample_strategy)
+                if label_snapshot_hash:
+                    self._workflow_config_set(config, 'label_snapshot_hash', label_snapshot_hash)
                 cv_node_found = True
         if not load_node_found or not cv_node_found:
             raise RuntimeError("训练评估工作流缺少 load_csv 或 stratified_cv_eval 节点")
@@ -673,6 +700,13 @@ class LoopOrchestrator:
             'feature_list': feature_list,
             'accuracy_record': accuracy_record,
             'label_space_snapshot': label_space_snapshot,
+            # @AI_GENERATED: 把快照 sidecar 的 sample_strategy / label_snapshot_hash
+            # 回传给调用方。修复前二者只被注入算子配置、不随 train_result 返回，
+            # 导致 state.json 的 train_summary.sample_strategy 恒为 None、
+            # 建模路径无法登记（review 问题 2）。
+            'sample_strategy': sample_strategy,
+            'label_snapshot_hash': label_snapshot_hash,
+            # @AI_GENERATED: end
         }
 
     def trigger_predict(
@@ -747,6 +781,7 @@ class LoopOrchestrator:
             raise RuntimeError("预测工作流未返回非空 fault_predictions")
 
         predictions = []
+        unit_features: Dict[str, Any] = {}
         for index, raw_prediction in enumerate(raw_predictions):
             if not isinstance(raw_prediction, dict):
                 raise RuntimeError(f"fault_predictions[{index}] 不是对象")
@@ -769,6 +804,13 @@ class LoopOrchestrator:
                 'predicted_label': predicted_label,
                 'confidence': raw_prediction['confidence'],
             }))
+            features = raw_prediction.get('_features')
+            if isinstance(features, dict) and features:
+                unit_key = (
+                    f"{raw_prediction['site_id']}|{raw_prediction['device_id']}|"
+                    f"{raw_prediction['branch_id']}|{raw_prediction['time_window']}"
+                )
+                unit_features[str(unit_key)] = self._json_safe(features)
         if not predictions:
             raise RuntimeError("预测工作流未产生可持久化的预测结果")
 
@@ -790,6 +832,8 @@ class LoopOrchestrator:
             'dataset_version': dataset_version,
             'model_ref': model_ref,
             'model_path': model_path,
+            'feature_list': feature_list,
+            'unit_features': unit_features,
             'predictions': predictions,
             'iteration': loop_state['iteration_round'],
         }

@@ -41,8 +41,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
+import asyncio
 import logging
 import re
+import threading
 # @AI_GENERATED: end
 
 # 导入服务层
@@ -54,6 +56,12 @@ from services.iterative_labeling.backfill import BackfillService
 # @AI_GENERATED: 正常光伏累计训练集、不可变快照与重训请求服务
 from services.iterative_labeling.cumulative_training import CumulativeTrainingService
 from services.iterative_labeling.freeform_labeling import FreeformLabelingService
+from services.iterative_labeling.pending_label_queue import PendingLabelQueueService
+from services.iterative_labeling.point_label_service import PointLabelService, PointLabelValidationError
+from services.iterative_labeling.point_label_wiring import submit_review_verdict_as_point_label
+from services.db.adapter import DBAdapter
+from services.db.config import DBConfig
+from services.db.repositories.point_label import PointLabelRepository
 # @AI_GENERATED: end
 from services.iterative_labeling.iteration_tracker import IterationTracker
 from services.iterative_labeling.storage.file_backend import (
@@ -84,6 +92,26 @@ def _get_pv_workspace() -> PVTrainingWorkspaceService:
     if _pv_workspace_instance is None:
         _pv_workspace_instance = PVTrainingWorkspaceService()
     return _pv_workspace_instance
+
+
+def _point_label_service_for_slot(slot: str) -> PointLabelService:
+    if _pv_repo_instance is None:
+        raise RuntimeError("PVFaultRepository 未注入，无法写入 point_labels")
+    adapter = DBAdapter(DBConfig())
+    point_repo = PointLabelRepository(adapter)
+    return PointLabelService(
+        point_repo,
+        _pv_repo_instance,
+        _registry_for_slot(slot),
+        slot=slot,
+    )
+
+
+def _pending_queue_for_slot(slot: str) -> PendingLabelQueueService:
+    if _pv_repo_instance is None:
+        raise RuntimeError("PVFaultRepository 未注入，无法查询待标注队列")
+    adapter = DBAdapter(DBConfig())
+    return PendingLabelQueueService(PointLabelRepository(adapter), _pv_repo_instance)
 # @AI_GENERATED: end
 
 # ============================================================================
@@ -226,6 +254,14 @@ class CreateReviewSessionRequest(BaseModel):
     prediction_batch_id: str = Field(..., description="预测批次标识 — 基于哪一批预测结果")
     enable_llm: Optional[bool] = Field(True, description="启用LLM辅助 — 是否生成LLM建议")
     slot: str = Field("pv_fault", description="槽位 — 审核、标签和回流数据的隔离分区")
+    sampling_strategy: Optional[str] = Field(
+        "uncertainty",
+        description="审核队列策略 — uncertainty/diversity/disagreement_first/random",
+    )
+    disagreement_first: Optional[bool] = Field(
+        False,
+        description="是否将分类器与 LLM 分歧单元前置",
+    )
 # @AI_GENERATED: end
 
 class CreateReviewSessionResponse(BaseModel):
@@ -322,6 +358,7 @@ class GetAccuracyResponse(BaseModel):
     llm_coverage: float = Field(..., description="LLM覆盖率 — 有LLM建议的已审核单元占比")
     macro: Dict[str, float] = Field(..., description="宏平均指标 — 含precision/recall/f1")
     counted_units: int = Field(..., description="纳入统计单元数 — 仅confirm/correct/new_label,排除pending")
+    by_source: Dict[str, Any] = Field(default_factory=dict, description="按 label_source 分组的精度")
 
 
 # --------- 标签注册表相关 ---------
@@ -391,6 +428,11 @@ class CreateReviewSessionFromPredictionRequest(BaseModel):
     loop_id: Optional[str] = Field(None, description="所属迭代闭环 — 可选,编辑器驱动可不传")
     reviewer: Optional[str] = Field("operator", description="审核人标识")
     slot: str = Field("default", description="槽位 — 审核、标签和累计训练集的隔离分区")
+    sampling_strategy: Optional[str] = Field(
+        "uncertainty",
+        description="审核队列策略 — uncertainty/diversity/disagreement_first/random",
+    )
+    disagreement_first: Optional[bool] = Field(False, description="分歧单元是否前置")
 
 
 class CreateManualReviewFromDatasetRequest(BaseModel):
@@ -478,6 +520,165 @@ def _cumulative_training_for_slot(slot: str) -> CumulativeTrainingService:
         service = CumulativeTrainingService(slot=slot, review_repo=_review_repo)
         _cumulative_training_services[slot] = service
     return service
+
+
+_auto_retrain_lock = threading.Lock()
+_auto_retrain_inflight: set[str] = set()
+
+
+def _spawn_auto_retrain_if_requested(payload: Dict[str, Any], slot: str) -> None:
+    """后台启动阈值触发的自动重训；同一 request_id 只调度一次。"""
+    request_id = str(
+        payload.pop("_auto_retrain_request_id", None)
+        or payload.pop("_pending_auto_retrain_request_id", None)
+        or ""
+    ).strip()
+    if not request_id:
+        return
+    with _auto_retrain_lock:
+        if request_id in _auto_retrain_inflight:
+            return
+        _auto_retrain_inflight.add(request_id)
+
+    def _worker() -> None:
+        try:
+            asyncio.run(_execute_cumulative_retrain(request_id, slot))
+        except Exception as exc:
+            logger.error(
+                "Auto cumulative retrain failed request_id=%s slot=%s: %s",
+                request_id,
+                slot,
+                exc,
+                exc_info=True,
+            )
+        finally:
+            with _auto_retrain_lock:
+                _auto_retrain_inflight.discard(request_id)
+
+    threading.Thread(target=_worker, daemon=True, name=f"auto-retrain-{request_id}").start()
+
+
+async def _execute_cumulative_retrain(
+    request_id: str,
+    slot: str,
+) -> Dict[str, Any]:
+    """执行累计训练重训并在成功后切换生产模型。"""
+    resolved_slot = _normalize_slot(slot)
+    service = _cumulative_training_for_slot(resolved_slot)
+
+    retrain_request = service.get_retrain_request(request_id)
+    if retrain_request.get("status") != "queued":
+        raise HTTPException(
+            status_code=409,
+            detail=f"重训请求当前状态为 {retrain_request.get('status')}，仅 queued 状态可执行",
+        )
+    service.mark_retrain_request(request_id, "running")
+    service.update_retrain_progress(
+        request_id,
+        stage="preparing_snapshot",
+        percent=10,
+        message="正在校验不可变训练快照",
+    )
+    try:
+        orchestrator = _orchestrator_for_slot(resolved_slot)
+        loop = orchestrator.create_loop(base_dataset_version=retrain_request["dataset_path"])
+        service.update_retrain_progress(
+            request_id,
+            stage="training_and_evaluation",
+            percent=25,
+            message="正在训练模型并执行分层交叉验证",
+        )
+        train_result = await asyncio.to_thread(
+            orchestrator.trigger_train_eval,
+            loop_id=loop["loop_id"],
+            dataset_version=retrain_request["dataset_path"],
+        )
+        service.update_retrain_progress(
+            request_id,
+            stage="registering_model",
+            percent=82,
+            message="训练评估完成，正在登记模型版本",
+        )
+        if resolved_slot == "pv_fault":
+            if _pv_repo_instance is None:
+                raise RuntimeError("PVFaultRepository 未注入，模型版本无法登记，生产模型未切换")
+            label_space = train_result.get("label_space_snapshot") or {}
+            _pv_repo_instance.save_model_version(
+                {
+                    "id": train_result["model_ref"],
+                    "version_tag": train_result["model_ref"],
+                    "training_sample_count": retrain_request.get("sample_count"),
+                    "label_space_version": label_space.get("label_space_version"),
+                    "artifact_path": train_result.get("model_path"),
+                }
+            )
+        service.update_retrain_progress(
+            request_id,
+            stage="promoting_model",
+            percent=94,
+            message="正在原子切换生产模型",
+        )
+        # @AI_GENERATED: train_summary 必须带上 sample_strategy 与 modeling_path。
+        # 修复前二者缺失，导致 state.json 的 train_summary.sample_strategy 恒为 None、
+        # path_models 永不登记，进而出现「production_path=legacy_day 但生产模型实际由
+        # by_day_night 产出」的自相矛盾（review 问题 2）。
+        # sample_strategy 来源是快照 .meta.json，由 orchestrator 注入 train_result。
+        _sample_strategy = train_result.get("sample_strategy")
+        _modeling_path = _infer_modeling_path(_sample_strategy, retrain_request)
+        completed = service.mark_retrain_request(
+            request_id,
+            "completed",
+            model_ref=train_result["model_ref"],
+            train_summary={
+                "model_ref": train_result.get("model_ref"),
+                "model_path": train_result.get("model_path"),
+                "accuracy_record": train_result.get("accuracy_record"),
+                "label_space_snapshot": train_result.get("label_space_snapshot"),
+                "sample_strategy": _sample_strategy,
+                "label_snapshot_hash": train_result.get("label_snapshot_hash"),
+                "modeling_path": _modeling_path,
+                "macro_f1_mean": ((train_result.get("accuracy_record") or {}).get("macro_f1_mean")),
+                "accuracy_mean": ((train_result.get("accuracy_record") or {}).get("accuracy_mean")),
+                "n_samples": ((train_result.get("accuracy_record") or {}).get("n_samples")),
+            },
+        )
+        # @AI_GENERATED: end
+        _spawn_auto_retrain_if_requested(completed, resolved_slot)
+    except Exception as training_error:
+        service.mark_retrain_request(request_id, "failed", error=str(training_error))
+        raise
+
+    return {
+        "request": completed,
+        "loop_id": loop["loop_id"],
+        "train_result": train_result,
+        "publication": "auto_promoted",
+        "production_model_ref": completed.get("model_ref"),
+    }
+
+
+# @AI_GENERATED
+def _infer_modeling_path(
+    sample_strategy: Optional[Dict[str, Any]],
+    retrain_request: Optional[Dict[str, Any]] = None,
+) -> str:
+    """从 sample_strategy 推断本次重训属于哪条建模路径（K7 双路径登记用）。
+
+    有 `split_mode` 说明走的是逐点标签快照（新路径），按 split_mode 映射；
+    没有则是老路径（legacy 快照 + 按值 day/night 切分）。
+
+    返回值须落在 `_ALLOWED_MODELING_PATHS` 内，否则 `mark_retrain_request`
+    不会写 `path_models`，就会重现 production_path 与实际模型不一致的问题。
+    """
+    split_mode = ""
+    if isinstance(sample_strategy, dict):
+        split_mode = str(sample_strategy.get("split_mode") or "").strip()
+    if split_mode == "by_day":
+        return "point_label_by_day"
+    if split_mode == "by_day_night":
+        return "point_label_by_day_night"
+    return "legacy_day"
+# @AI_GENERATED: end
 
 
 def _orchestrator_for_slot(slot: str) -> LoopOrchestrator:
@@ -743,7 +944,13 @@ async def create_review_session(request: CreateReviewSessionRequest):
                 "load_config": {},
                 "window_config": {},
                 "label_map": registry_service.get_current().get("label_map", {}),
+                "model_ref": batch.get("model_ref"),
+                "model_path": batch.get("model_path"),
+                "feature_list": batch.get("feature_list") or [],
+                "has_unit_features": bool(batch.get("unit_features")),
             },
+            sampling_strategy=request.sampling_strategy or "uncertainty",
+            disagreement_first=bool(request.disagreement_first),
         )
         _accuracy_evaluators[_accuracy_key(slot, session["review_id"])] = AccuracyEvaluator()
         if request.enable_llm:
@@ -871,7 +1078,9 @@ async def create_review_session_from_prediction(request: CreateReviewSessionFrom
                 'load_config': request.load_config or {},
                 'window_config': request.window_config or {},
                 'label_map': request.label_map or {},
-            }
+            },
+            sampling_strategy=request.sampling_strategy or "uncertainty",
+            disagreement_first=bool(request.disagreement_first),
         )
         _accuracy_evaluators[_accuracy_key(slot, session["review_id"])] = AccuracyEvaluator()
 
@@ -1329,11 +1538,18 @@ async def get_review_session(review_id: str, slot: str = "default"):
 
 
 def _freeform_service_for_slot(slot: str) -> FreeformLabelingService:
+    point_label_service = None
+    if slot == "pv_fault" and _pv_repo_instance is not None:
+        try:
+            point_label_service = _point_label_service_for_slot(slot)
+        except Exception as exc:
+            logger.warning("point_label_service unavailable for freeform: %s", exc)
     return FreeformLabelingService(
         slot=slot,
         review_service=_review_service_for_slot(slot),
         registry=_registry_for_slot(slot),
         cumulative=_cumulative_training_for_slot(slot),
+        point_label_service=point_label_service,
     )
 
 
@@ -1442,30 +1658,78 @@ async def submit_verdict(review_id: str, request: SubmitVerdictRequest, slot: st
         )
 
         evaluator_key = _accuracy_key(resolved_slot, review_id)
+        unit = next(
+            (
+                item
+                for item in result.get("session_state", {}).get("units", [])
+                if item.get("unit_key") == request.unit_key
+            ),
+            None,
+        )
         if evaluator_key in _accuracy_evaluators:
             evaluator = _accuracy_evaluators[evaluator_key]
-            classifier_prediction: Dict[str, Any] = {}
-            llm_suggestion = None
-            for unit in result.get("session_state", {}).get("units", []):
-                if unit.get("unit_key") == request.unit_key:
-                    classifier_prediction = unit.get("classifier_prediction", {}) or {}
-                    llm_suggestion = unit.get("llm_suggestion")
-                    break
+            classifier_prediction: Dict[str, Any] = unit.get("classifier_prediction", {}) if unit else {}
+            llm_suggestion = unit.get("llm_suggestion") if unit else None
             evaluator.update(
                 verdict=result["verdict"],
                 classifier_prediction=classifier_prediction,
                 llm_suggestion=llm_suggestion,
+                label_source=(unit or {}).get("label_source"),
             )
             accuracy_snapshot = evaluator.get_current_accuracy()
         else:
             accuracy_snapshot = {}
 
         try:
-            cumulative_training = _cumulative_training_for_slot(resolved_slot).admit_verdict(
-                review_id=review_id,
-                session=result["session_state"],
-                verdict=result["verdict"],
+            verdict = result["verdict"]
+            if resolved_slot == "pv_fault" and _pv_repo_instance is not None and unit is not None:
+                point_result = None
+                if verdict.get("action_type") in {"confirm", "correct", "new_label"}:
+                    point_result = submit_review_verdict_as_point_label(
+                        _point_label_service_for_slot(resolved_slot),
+                        _pv_repo_instance,
+                        review_id=review_id,
+                        unit=unit,
+                        verdict=verdict,
+                    )
+                if point_result:
+                    cumulative_training = _cumulative_training_for_slot(resolved_slot).admit_point_label_op(
+                        review_id=review_id,
+                        op_id=point_result["op_id"],
+                        verdict=verdict,
+                    )
+                elif verdict.get("action_type") == "skip":
+                    cumulative_training = _cumulative_training_for_slot(resolved_slot).admit_point_label_op(
+                        review_id=review_id,
+                        op_id=f"skip-{review_id}-{request.unit_key}",
+                        verdict=verdict,
+                    )
+                else:
+                    cumulative_training = {
+                        "admitted": False,
+                        "reason": "not_ground_truth",
+                        "snapshot_mode": "point_label",
+                    }
+            else:
+                cumulative_training = _cumulative_training_for_slot(resolved_slot).admit_verdict(
+                    review_id=review_id,
+                    session=result["session_state"],
+                    verdict=verdict,
+                )
+            _spawn_auto_retrain_if_requested(cumulative_training, resolved_slot)
+        except PointLabelValidationError as admission_error:
+            logger.error(
+                "Point label admission failed review_id=%s unit_key=%s: %s",
+                review_id,
+                request.unit_key,
+                admission_error,
+                exc_info=True,
             )
+            cumulative_training = {
+                "admitted": False,
+                "admission_error": str(admission_error),
+                "action_required": "修复逐点标签校验错误后，重新提交同一裁决以重试",
+            }
         except Exception as admission_error:  # 审核裁决已原子持久化，不能为账本失败而伪装为未提交。
             logger.error(
                 "Cumulative training admission failed review_id=%s unit_key=%s: %s",
@@ -1509,6 +1773,7 @@ async def get_accuracy(review_id: str, slot: str = "default"):
                 llm_coverage=0.0,
                 macro={"precision": 0.0, "recall": 0.0, "f1": 0.0},
                 counted_units=0,
+                by_source={},
             )
         return GetAccuracyResponse(**evaluator.get_current_accuracy())
     except HTTPException:
@@ -1519,12 +1784,340 @@ async def get_accuracy(review_id: str, slot: str = "default"):
 # @AI_GENERATED: end
 
 
+# @AI_GENERATED: 特征增强 B 路径 — 伪标签 / SHAP / 相似案例 / IAA（可开关后端 MVP）
+class PseudoBackfillRequest(BaseModel):
+    prediction_batch_id: str = Field(..., description="预测批次 ID")
+    slot: str = Field("pv_fault", description="槽位")
+    pseudo_label_threshold: float = Field(0.92, ge=0.0, le=1.0)
+    pseudo_label_max_ratio: float = Field(0.5, ge=0.0, le=1.0)
+
+
+class IAAComputeRequest(BaseModel):
+    overlap_verdicts: Dict[str, List[Dict[str, Any]]] = Field(
+        ...,
+        description="reviewer_id -> [{unit_key, verdict_label}, ...]",
+    )
+    all_verdicts: Optional[Dict[str, List[Dict[str, Any]]]] = Field(
+        None,
+        description="可选：全量裁决，用于偏差检测",
+    )
+    bias_threshold: float = Field(0.2, ge=0.0, le=1.0)
+    overlap_ratio: Optional[float] = Field(None, description="若提供则顺带抽样 overlap batch 标识")
+
+
+@router.post("/loops/{loop_id}/pseudo-backfill")
+async def trigger_pseudo_backfill(loop_id: str, request: PseudoBackfillRequest):
+    """高置信伪标签回流（仅落盘，不自动进累计训练集）。"""
+    try:
+        import json
+        from pathlib import Path
+        from services.iterative_labeling.pseudo_backfill import PseudoBackfillService
+
+        slot = _normalize_slot(request.slot)
+        batch_id = str(request.prediction_batch_id or "").strip()
+        batch_path = (
+            Path(_PROJECT_ROOT)
+            / "backend-service"
+            / "data"
+            / "iterative_labeling"
+            / "prediction_batches"
+            / slot
+            / f"{batch_id}.json"
+        )
+        if not batch_path.exists():
+            raise HTTPException(status_code=404, detail=f"预测批次不存在: {batch_id}")
+        batch = json.loads(batch_path.read_text(encoding="utf-8"))
+        predictions = []
+        for row in batch.get("predictions") or []:
+            predictions.append(
+                {
+                    "site_id": row.get("site_id"),
+                    "device_id": row.get("device_id"),
+                    "branch_id": row.get("branch_id"),
+                    "time_window": row.get("time_window"),
+                    "predicted_label": row.get("predicted_label"),
+                    "confidence": row.get("confidence", 0.0),
+                }
+            )
+        return PseudoBackfillService().execute(
+            slot=slot,
+            loop_id=loop_id,
+            prediction_batch_id=batch_id,
+            predictions=predictions,
+            pseudo_label_threshold=request.pseudo_label_threshold,
+            pseudo_label_max_ratio=request.pseudo_label_max_ratio,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("pseudo-backfill failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"伪标签回流失败: {exc}")
+
+
+@router.get("/review-sessions/{review_id}/shap/{unit_key:path}")
+async def get_unit_shap(review_id: str, unit_key: str, slot: str = "default", top_k: int = 5):
+    """获取某审核单元的 SHAP/重要性解释。"""
+    try:
+        import numpy as np
+        from services.iterative_labeling.review_explanations import (
+            resolve_batch_for_session,
+            load_sklearn_model,
+            get_unit_feature_vector,
+        )
+        from services.iterative_labeling.shap_explainer import ShapExplainer
+
+        slot_n = _normalize_slot(slot)
+        session = _review_service_for_slot(slot_n).get_session(review_id)
+        if not session:
+            raise HTTPException(status_code=404, detail=f"审核会话不存在: {review_id}")
+        units = session.get("units") or []
+        if not any(u.get("unit_key") == unit_key for u in units):
+            raise HTTPException(status_code=404, detail=f"单元不存在: {unit_key}")
+
+        ctx = session.get("prediction_context") or {}
+        batch = resolve_batch_for_session(session, slot_n)
+        model_ref = (batch or {}).get("model_ref") or ctx.get("model_ref")
+        model_path = (batch or {}).get("model_path") or ctx.get("model_path")
+        feature_list = (batch or {}).get("feature_list") or ctx.get("feature_list") or []
+
+        model, model_features = load_sklearn_model(model_ref, model_path)
+        if model is None:
+            return {
+                "unit_key": unit_key,
+                "available": False,
+                "reason": "model_load_failed",
+                "top_features": [],
+                "note": "无法加载生产模型；请确认 model_ref 对应 pkl 存在",
+            }
+
+        names = list(feature_list) if feature_list else list(model_features)
+        if batch is None:
+            return {
+                "unit_key": unit_key,
+                "available": False,
+                "reason": "prediction_batch_missing",
+                "top_features": [],
+                "note": "会话未关联可读取的预测批次（旧会话或编辑器临时会话）",
+            }
+
+        vector, names, reason = get_unit_feature_vector(batch, unit_key, names or model_features)
+        if vector is None:
+            return {
+                "unit_key": unit_key,
+                "available": False,
+                "reason": reason,
+                "top_features": [],
+                "note": "该批次没有缓存特征向量。请重新跑预测后再建审核会话。",
+            }
+
+        matrix = vector.reshape(1, -1)
+        explanations = ShapExplainer().compute_explanations(
+            model, matrix, names, shap_top_k=top_k, timeout_seconds=15.0
+        )
+        item = explanations[0] if explanations else {"available": False, "top_features": []}
+        return {
+            "unit_key": unit_key,
+            "available": bool(item.get("available", True)),
+            "source": item.get("source"),
+            "reason": item.get("reason"),
+            "top_features": item.get("top_features") or [],
+            "model_ref": model_ref,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("get shap failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"读取 SHAP 失败: {exc}")
+
+
+@router.get("/review-sessions/{review_id}/similar/{unit_key:path}")
+async def get_similar_cases(
+    review_id: str,
+    unit_key: str,
+    slot: str = "default",
+    k: int = 3,
+):
+    """相似案例检索：优先用批次真实特征向量；否则退回置信度+标签代理。"""
+    try:
+        import numpy as np
+        from services.iterative_labeling.review_explanations import (
+            resolve_batch_for_session,
+            load_sklearn_model,
+            get_unit_feature_vector,
+            build_feature_matrix_from_batch,
+        )
+        from services.iterative_labeling.similar_case_retriever import SimilarCaseRetriever
+
+        slot_n = _normalize_slot(slot)
+        session = _review_service_for_slot(slot_n).get_session(review_id)
+        if not session:
+            raise HTTPException(status_code=404, detail=f"审核会话不存在: {review_id}")
+        units = [u for u in (session.get("units") or []) if u.get("unit_key")]
+        target = next((u for u in units if u.get("unit_key") == unit_key), None)
+        if target is None:
+            raise HTTPException(status_code=404, detail=f"单元不存在: {unit_key}")
+
+        ctx = session.get("prediction_context") or {}
+        batch = resolve_batch_for_session(session, slot_n)
+        model_ref = (batch or {}).get("model_ref") or ctx.get("model_ref")
+        model_path = (batch or {}).get("model_path") or ctx.get("model_path")
+        _, model_features = load_sklearn_model(model_ref, model_path)
+        feature_list = (batch or {}).get("feature_list") or ctx.get("feature_list") or model_features
+
+        if batch and (batch.get("unit_features") or {}):
+            matrix, names, meta = build_feature_matrix_from_batch(batch, feature_list)
+            query, _, reason = get_unit_feature_vector(batch, unit_key, names)
+            if query is not None and matrix.size > 0:
+                retriever = SimilarCaseRetriever()
+                retriever.build_index(matrix, meta)
+                neighbors = [
+                    n for n in retriever.retrieve(query, k=max(k + 1, 2)) if n.get("unit_key") != unit_key
+                ][:k]
+                # 补 label_name
+                label_map = (ctx.get("label_map") or {})
+                inv = {int(v): str(k) for k, v in label_map.items()} if isinstance(label_map, dict) else {}
+                for n in neighbors:
+                    lab = n.get("label")
+                    try:
+                        n["label_name"] = inv.get(int(lab)) if lab is not None else None
+                    except Exception:
+                        n["label_name"] = None
+                return {
+                    "unit_key": unit_key,
+                    "source": "feature_vectors",
+                    "cases": neighbors,
+                    "note": "基于本预测批次真实特征向量的近邻",
+                }
+
+        # 弱代理回退
+        meta = []
+        rows = []
+        for u in units:
+            cp = u.get("classifier_prediction") or {}
+            rows.append(
+                [
+                    float(cp.get("confidence") or 0.0),
+                    float(cp.get("predicted_label") if cp.get("predicted_label") is not None else -1),
+                ]
+            )
+            meta.append(
+                {
+                    "unit_key": u.get("unit_key"),
+                    "label": cp.get("predicted_label"),
+                    "label_name": None,
+                }
+            )
+        matrix = np.asarray(rows, dtype=float)
+        retriever = SimilarCaseRetriever()
+        retriever.build_index(matrix, meta)
+        q = np.asarray(
+            [
+                float((target.get("classifier_prediction") or {}).get("confidence") or 0.0),
+                float(
+                    (target.get("classifier_prediction") or {}).get("predicted_label")
+                    if (target.get("classifier_prediction") or {}).get("predicted_label") is not None
+                    else -1
+                ),
+            ],
+            dtype=float,
+        )
+        neighbors = [
+            n for n in retriever.retrieve(q, k=max(k + 1, 2)) if n.get("unit_key") != unit_key
+        ][:k]
+        return {
+            "unit_key": unit_key,
+            "source": "confidence_label_proxy",
+            "cases": neighbors,
+            "note": "批次无特征向量，已回退置信度+预测标签代理；请重新预测以启用真实相似",
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("similar cases failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"相似案例检索失败: {exc}")
+
+
+@router.get("/review-sessions/{review_id}/iaa")
+async def get_review_iaa(review_id: str, slot: str = "default", overlap_ratio: float = 0.1):
+    """基于会话已有裁决计算 IAA；不足两人时返回抽样 overlap 与说明。"""
+    try:
+        from services.iterative_labeling.iaa_evaluator import IAAEvaluator
+
+        slot_n = _normalize_slot(slot)
+        session = _review_service_for_slot(slot_n).get_session(review_id)
+        if not session:
+            raise HTTPException(status_code=404, detail=f"审核会话不存在: {review_id}")
+
+        evaluator = IAAEvaluator()
+        unit_keys = [str(u.get("unit_key")) for u in (session.get("units") or []) if u.get("unit_key")]
+        overlap_batch = evaluator.create_overlap_batch(unit_keys, overlap_ratio=overlap_ratio)
+
+        by_reviewer: Dict[str, List[Dict[str, Any]]] = {}
+        for v in session.get("verdicts") or []:
+            reviewer = str(v.get("reviewer") or "unknown")
+            by_reviewer.setdefault(reviewer, []).append(
+                {"unit_key": v.get("unit_key"), "verdict_label": v.get("verdict_label")}
+            )
+
+        kappa = evaluator.compute_kappa(by_reviewer)
+        bias = evaluator.detect_bias(by_reviewer) if by_reviewer else []
+        return {
+            "review_id": review_id,
+            "overlap_batch": overlap_batch,
+            "kappa": kappa,
+            "bias": bias,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("iaa failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"IAA 评估失败: {exc}")
+
+
+@router.post("/review-sessions/{review_id}/iaa")
+async def compute_review_iaa(review_id: str, request: IAAComputeRequest, slot: str = "default"):
+    """显式提交多人 overlap 裁决计算 Kappa。"""
+    try:
+        from services.iterative_labeling.iaa_evaluator import IAAEvaluator
+
+        evaluator = IAAEvaluator()
+        kappa = evaluator.compute_kappa(request.overlap_verdicts)
+        bias = evaluator.detect_bias(
+            request.all_verdicts or request.overlap_verdicts,
+            bias_threshold=request.bias_threshold,
+        )
+        overlap_batch = None
+        if request.overlap_ratio is not None:
+            units = sorted(
+                {
+                    str(row.get("unit_key"))
+                    for rows in request.overlap_verdicts.values()
+                    for row in (rows or [])
+                    if row.get("unit_key")
+                }
+            )
+            overlap_batch = evaluator.create_overlap_batch(units, overlap_ratio=request.overlap_ratio)
+        return {
+            "review_id": review_id,
+            "kappa": kappa,
+            "bias": bias,
+            "overlap_batch": overlap_batch,
+        }
+    except Exception as exc:
+        logger.error("iaa compute failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"IAA 计算失败: {exc}")
+# @AI_GENERATED: end
+
+
 # @AI_GENERATED: 正常累计训练集 API（状态、带真值导入、阈值请求的显式训练）
 @router.get("/cumulative-training/state")
 async def get_cumulative_training_state(slot: str = "default"):
     """读取指定槽位唯一累计训练集的准入、快照和重训申请状态。"""
     try:
-        return _cumulative_training_for_slot(_normalize_slot(slot)).get_state()
+        resolved = _normalize_slot(slot)
+        result = _cumulative_training_for_slot(resolved).get_state()
+        _spawn_auto_retrain_if_requested(result, resolved)
+        return result
     except HTTPException:
         raise
     except Exception as exc:
@@ -1539,10 +2132,13 @@ async def register_cumulative_training_import(
 ):
     """登记带 label 的历史/数据库导入数据；无真值数据不会被当作训练样本。"""
     try:
-        return _cumulative_training_for_slot(_normalize_slot(slot)).register_labeled_dataset(
+        resolved = _normalize_slot(slot)
+        result = _cumulative_training_for_slot(resolved).register_labeled_dataset(
             dataset_path=request.dataset_path,
             source_name=request.source_name,
         )
+        _spawn_auto_retrain_if_requested(result, resolved)
+        return result
     except HTTPException:
         raise
     except ValueError as exc:
@@ -1552,87 +2148,318 @@ async def register_cumulative_training_import(
         raise HTTPException(status_code=500, detail=f"登记累计训练导入失败: {exc}")
 
 
-@router.post("/cumulative-training/retrain-requests/{request_id}/run")
-async def run_cumulative_retrain_request(request_id: str, slot: str = "default"):
-    """使用不可变累计快照训练；成功后原子切换为该槽位生产模型。"""
-    import asyncio
-
-    resolved_slot = _normalize_slot(slot)
-    service = _cumulative_training_for_slot(resolved_slot)
+@router.get("/point-labels/pending-queue")
+async def get_pending_label_queue(
+    slot: str = "pv_fault",
+    site_id: Optional[str] = None,
+    device_id: Optional[str] = None,
+    time_start: Optional[str] = None,
+    time_end: Optional[str] = None,
+    min_points: int = 1,
+    page: int = 1,
+    page_size: int = 50,
+):
+    """待标注队列：未覆盖或 label_id=NULL 的采样点聚合。"""
     try:
-        retrain_request = service.get_retrain_request(request_id)
-        if retrain_request.get("status") != "queued":
-            raise HTTPException(
-                status_code=409,
-                detail=f"重训请求当前状态为 {retrain_request.get('status')}，仅 queued 状态可执行",
-            )
-        service.mark_retrain_request(request_id, "running")
-        service.update_retrain_progress(
-            request_id,
-            stage="preparing_snapshot",
-            percent=10,
-            message="正在校验不可变训练快照",
+        _normalize_slot(slot)
+        parsed_start = datetime.fromisoformat(time_start.replace(" ", "T")) if time_start else None
+        parsed_end = datetime.fromisoformat(time_end.replace(" ", "T")) if time_end else None
+        return _pending_queue_for_slot(slot).list_queue(
+            site_id=site_id,
+            device_id=device_id,
+            time_start=parsed_start,
+            time_end=parsed_end,
+            min_points=min_points,
+            page=page,
+            page_size=page_size,
         )
-        try:
-            orchestrator = _orchestrator_for_slot(resolved_slot)
-            loop = orchestrator.create_loop(base_dataset_version=retrain_request["dataset_path"])
-            service.update_retrain_progress(
-                request_id,
-                stage="training_and_evaluation",
-                percent=25,
-                message="正在训练模型并执行分层交叉验证",
-            )
-            train_result = await asyncio.to_thread(
-                orchestrator.trigger_train_eval,
-                loop_id=loop["loop_id"],
-                dataset_version=retrain_request["dataset_path"],
-            )
-            service.update_retrain_progress(
-                request_id,
-                stage="registering_model",
-                percent=82,
-                message="训练评估完成，正在登记模型版本",
-            )
-            if resolved_slot == "pv_fault":
-                if _pv_repo_instance is None:
-                    raise RuntimeError("PVFaultRepository 未注入，模型版本无法登记，生产模型未切换")
-                label_space = train_result.get("label_space_snapshot") or {}
-                _pv_repo_instance.save_model_version(
-                    {
-                        "id": train_result["model_ref"],
-                        "version_tag": train_result["model_ref"],
-                        "training_sample_count": retrain_request.get("sample_count"),
-                        "label_space_version": label_space.get("label_space_version"),
-                        "artifact_path": train_result.get("model_path"),
-                    }
-                )
-            service.update_retrain_progress(
-                request_id,
-                stage="promoting_model",
-                percent=94,
-                message="正在原子切换生产模型",
-            )
-            completed = service.mark_retrain_request(
-                request_id,
-                "completed",
-                model_ref=train_result["model_ref"],
-                train_summary={
-                    "model_ref": train_result.get("model_ref"),
-                    "model_path": train_result.get("model_path"),
-                    "accuracy_record": train_result.get("accuracy_record"),
-                    "label_space_snapshot": train_result.get("label_space_snapshot"),
-                },
-            )
-        except Exception as training_error:
-            service.mark_retrain_request(request_id, "failed", error=str(training_error))
-            raise
-        return {
-            "request": completed,
-            "loop_id": loop["loop_id"],
-            "train_result": train_result,
-            "publication": "auto_promoted",
-            "production_model_ref": completed.get("model_ref"),
-        }
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        logger.error("get pending label queue failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"读取待标注队列失败: {exc}")
+
+
+@router.get("/point-labels/source-coverage")
+async def get_point_label_source_coverage(slot: str = "pv_fault"):
+    """各 label_source 覆盖点数与 unknown 分布（运营面板）。"""
+    try:
+        _normalize_slot(slot)
+        return _pending_queue_for_slot(slot).source_coverage()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        logger.error("get source coverage failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"读取标签来源覆盖失败: {exc}")
+
+
+@router.get("/cumulative-training/split-config")
+async def get_cumulative_split_config(slot: str = "pv_fault"):
+    """已废弃：split parity 机制已删除，样本策略随模型 pickle 持久化。"""
+    raise HTTPException(
+        status_code=410,
+        detail="split-config 已废弃；请使用 cumulative-training/state 中的 sample_strategy",
+    )
+
+
+class UpdateSplitConfigRequest(BaseModel):
+    solar_mode: Optional[str] = Field(
+        "day_and_night",
+        description="已废弃字段",
+    )
+    power_col: str = Field("value", description="已废弃字段")
+    irr_threshold: float = Field(0.05, ge=0.0, le=1.0)
+    attach_night_features: bool = Field(True, description="已废弃字段")
+
+
+@router.put("/cumulative-training/split-config")
+async def update_cumulative_split_config(
+    request: UpdateSplitConfigRequest,
+    slot: str = "pv_fault",
+):
+    """已废弃：split parity 机制已删除。"""
+    raise HTTPException(
+        status_code=410,
+        detail="split-config 已废弃；请通过重训后的 sample_strategy 对齐训练/预测",
+    )
+
+
+class SplitModeCompareRequest(BaseModel):
+    modes: Optional[List[Optional[str]]] = Field(
+        None,
+        description="要对比的切分模式列表；默认六种全跑。空字符串表示关闭日照切分",
+    )
+    n_repeats: int = Field(3, ge=1, le=10, description="每种模式的重复留出次数（越小越快）")
+    test_ratio: float = Field(0.2, ge=0.05, le=0.5)
+    dataset_path: Optional[str] = Field(
+        None,
+        description="可选：指定快照相对路径；默认用累计训练集最新快照",
+    )
+
+
+@router.get("/cumulative-training/split-mode-compare")
+async def get_split_mode_compare(slot: str = "pv_fault"):
+    """读取切分对比状态（running 含进度）与最近完成结果。"""
+    try:
+        from services.iterative_labeling.split_mode_compare import (
+            load_compare_status,
+            load_latest_compare,
+        )
+
+        resolved = _normalize_slot(slot)
+        status = load_compare_status(resolved)
+        latest = load_latest_compare(resolved)
+        if status.get("status") == "running":
+            return {
+                **status,
+                "results": status.get("partial_results") or [],
+                "latest": latest,
+            }
+        if latest is not None:
+            return {
+                **latest,
+                "status": status.get("status") or "completed",
+                "message": status.get("message") or "已完成",
+            }
+        return {"slot": resolved, "status": "idle", "results": [], "message": "尚无对比结果"}
+    except Exception as exc:
+        logger.error("get split-mode-compare failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"读取切分对比失败: {exc}")
+
+
+@router.post("/cumulative-training/split-mode-compare")
+async def run_split_mode_compare(request: SplitModeCompareRequest, slot: str = "pv_fault"):
+    """后台启动切分模式对比（可离开页面，状态与结果落盘持久化）。"""
+    from services.iterative_labeling.split_mode_compare import start_compare_job
+
+    resolved = _normalize_slot(slot)
+    service = _cumulative_training_for_slot(resolved)
+    try:
+        dataset_path = (request.dataset_path or "").strip()
+        if not dataset_path:
+            state = service.get_state()
+            snap = state.get("latest_snapshot") or {}
+            dataset_path = str(snap.get("dataset_path") or "").strip()
+        if not dataset_path:
+            raise HTTPException(status_code=422, detail="没有可用的训练快照，无法对比切分模式")
+
+        return start_compare_job(
+            slot=resolved,
+            dataset_path=dataset_path,
+            modes=request.modes,
+            n_repeats=request.n_repeats,
+            test_ratio=request.test_ratio,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("run split-mode-compare failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"切分模式对比失败: {exc}")
+
+
+class ModelingPathCompareRequest(BaseModel):
+    paths: Optional[List[str]] = Field(
+        None,
+        description="要对比的建模路径；默认 legacy_day + point_label_by_day + point_label_by_day_night",
+    )
+    n_repeats: int = Field(3, ge=1, le=10)
+    test_ratio: float = Field(0.2, ge=0.05, le=0.5)
+    random_state: int = Field(90, ge=0)
+    legacy_dataset_path: Optional[str] = Field(
+        None,
+        description="老路径 merged parquet 相对路径；默认自动搜索",
+    )
+    site_id: Optional[str] = Field(None, description="可选：仅对指定站点构建新路径快照")
+
+
+class SetModelingPathsRequest(BaseModel):
+    production_path: str = Field(..., description="生产主线路径 key")
+    fallback_path: Optional[str] = Field(None, description="备选路径 key")
+
+
+class RegisterPathModelRequest(BaseModel):
+    path_key: str
+    model_ref: str
+    request_id: Optional[str] = None
+    metrics: Optional[Dict[str, Any]] = None
+
+
+class SwitchFallbackPathRequest(BaseModel):
+    reason: str = Field(..., min_length=1, description="回退原因，记入审计")
+
+
+@router.get("/cumulative-training/modeling-path-compare")
+async def get_modeling_path_compare(slot: str = "pv_fault"):
+    """读取新旧建模路径 A/B 对比状态与最近结果（K7）。"""
+    try:
+        from services.iterative_labeling.modeling_path_compare import (
+            load_compare_status,
+            load_latest_compare,
+        )
+
+        resolved = _normalize_slot(slot)
+        status = load_compare_status(resolved)
+        latest = load_latest_compare(resolved)
+        if status.get("status") == "running":
+            return {
+                **status,
+                "results": status.get("partial_results") or [],
+                "latest": latest,
+            }
+        if latest is not None:
+            return {
+                **latest,
+                "status": status.get("status") or "completed",
+                "message": status.get("message") or "已完成",
+            }
+        return {"slot": resolved, "status": "idle", "results": [], "message": "尚无路径对比结果"}
+    except Exception as exc:
+        logger.error("get modeling-path-compare failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"读取路径对比失败: {exc}")
+
+
+@router.post("/cumulative-training/modeling-path-compare")
+async def run_modeling_path_compare(request: ModelingPathCompareRequest, slot: str = "pv_fault"):
+    """后台启动新旧建模路径 A/B 对比。"""
+    from services.iterative_labeling.modeling_path_compare import start_compare_job
+
+    resolved = _normalize_slot(slot)
+    try:
+        return start_compare_job(
+            slot=resolved,
+            paths=request.paths,
+            n_repeats=request.n_repeats,
+            test_ratio=request.test_ratio,
+            random_state=request.random_state,
+            legacy_dataset_path=request.legacy_dataset_path,
+            site_id=request.site_id,
+        )
+    except Exception as exc:
+        logger.error("run modeling-path-compare failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"路径对比启动失败: {exc}")
+
+
+@router.get("/cumulative-training/modeling-paths")
+async def get_modeling_paths(slot: str = "pv_fault"):
+    """读取生产主线/备选路径指针与各路径模型登记。"""
+    try:
+        return _cumulative_training_for_slot(_normalize_slot(slot)).get_modeling_paths()
+    except Exception as exc:
+        logger.error("get modeling-paths failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"读取建模路径配置失败: {exc}")
+
+
+@router.put("/cumulative-training/modeling-paths")
+async def set_modeling_paths(request: SetModelingPathsRequest, slot: str = "pv_fault"):
+    """设置生产主线与备选路径。"""
+    try:
+        return _cumulative_training_for_slot(_normalize_slot(slot)).set_modeling_paths(
+            request.production_path,
+            request.fallback_path,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.error("set modeling-paths failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"设置建模路径失败: {exc}")
+
+
+@router.post("/cumulative-training/modeling-paths/register-model")
+async def register_path_model(request: RegisterPathModelRequest, slot: str = "pv_fault"):
+    """登记某建模路径的最近可用模型。"""
+    try:
+        return _cumulative_training_for_slot(_normalize_slot(slot)).register_path_model(
+            request.path_key,
+            request.model_ref,
+            request_id=request.request_id,
+            metrics=request.metrics,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.error("register path model failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"登记路径模型失败: {exc}")
+
+
+@router.post("/cumulative-training/modeling-paths/switch-fallback")
+async def switch_modeling_fallback(request: SwitchFallbackPathRequest, slot: str = "pv_fault"):
+    """回退到备选路径最近可用模型。"""
+    try:
+        return _cumulative_training_for_slot(_normalize_slot(slot)).switch_to_fallback_path(
+            request.reason
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.error("switch modeling fallback failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"路径回退失败: {exc}")
+
+
+@router.post("/cumulative-training/retrain-requests/manual")
+async def create_manual_cumulative_retrain_request(slot: str = "default"):
+    """基于当前累计训练集创建手动重训请求（不依赖 20 次变更阈值）。"""
+    try:
+        resolved = _normalize_slot(slot)
+        return _cumulative_training_for_slot(resolved).request_manual_retrain()
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.error("Failed to create manual cumulative retrain request: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建手动重训请求失败: {exc}")
+
+
+@router.post("/cumulative-training/retrain-requests/{request_id}/run")
+async def run_cumulative_retrain_request(
+    request_id: str,
+    slot: str = "default",
+):
+    """使用不可变累计快照训练；成功后原子切换为该槽位生产模型。"""
+    try:
+        return await _execute_cumulative_retrain(request_id, _normalize_slot(slot))
     except HTTPException:
         raise
     except ValueError as exc:

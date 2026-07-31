@@ -14,6 +14,7 @@ from collections import defaultdict
 from datetime import datetime
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 import threading
@@ -23,6 +24,13 @@ import uuid
 import pandas as pd
 
 from .backfill import BackfillService
+from .snapshot_builder import SnapshotBuilder
+from .sample_builder import SampleStrategy
+from services.db.config import DBConfig
+from services.db.adapter import DBAdapter
+from services.db.repositories.point_label import PointLabelRepository
+from services.db.repositories.pv_fault import PVFaultRepository
+from services.iterative_labeling.daylight_window import DaylightWindowResolver
 from .storage.file_backend import (
     FileGroundTruthRepository,
     FileReviewResultRepository,
@@ -33,7 +41,13 @@ from .storage.file_backend import (
 
 _VALID_GROUND_TRUTH_ACTIONS = frozenset({"confirm", "correct", "new_label"})
 _DEFAULT_RETRAIN_LABEL_THRESHOLD = 20
+_ALLOWED_MODELING_PATHS = frozenset(
+    {"legacy_day", "point_label_by_day", "point_label_by_day_night"}
+)
+_DEFAULT_PRODUCTION_PATH = "legacy_day"
+_DEFAULT_FALLBACK_PATH = "point_label_by_day_night"
 _STATE_LOCKS: Dict[str, threading.RLock] = defaultdict(threading.RLock)
+logger = logging.getLogger(__name__)
 
 
 class CumulativeTrainingService:
@@ -75,9 +89,39 @@ class CumulativeTrainingService:
         """返回可展示的累计训练状态，不暴露本机绝对路径。"""
         with self._lock:
             state = self._load_state()
-            self._maybe_create_retrain_request(state)
+            auto_request = self._maybe_create_auto_retrain_request(state)
             self._save_state(state)
-            return self._summarize_state(state)
+            summary = self._summarize_state(state)
+            if auto_request and auto_request.get("auto_execute"):
+                summary["_auto_retrain_request_id"] = auto_request["request_id"]
+            return summary
+
+    def request_manual_retrain(self) -> Dict[str, Any]:
+        """基于当前累计训练集立即创建手动重训请求（不依赖变更阈值）。"""
+        with self._lock:
+            state = self._load_state()
+            active_running = next(
+                (
+                    request
+                    for request in state["retrain_requests"].values()
+                    if request.get("status") == "running"
+                ),
+                None,
+            )
+            if active_running is not None:
+                raise ValueError("已有重训正在执行，请等待完成后再手动触发")
+            request = self._create_retrain_request(
+                state,
+                trigger_reason="manual",
+                reset_pending_count=False,
+            )
+            if request is None:
+                blocker = state.get("last_retrain_blocker") or "累计训练集不满足重训条件"
+                raise ValueError(str(blocker))
+            self._save_state(state)
+            summary = self._summarize_state(state)
+            summary["retrain_request"] = request
+            return summary
 
     def admit_verdict(
         self,
@@ -105,7 +149,7 @@ class CumulativeTrainingService:
                 removed = state["verdict_entries"].pop(entry_key, None) is not None
                 if removed:
                     state["pending_change_count"] += 1
-                request = self._maybe_create_retrain_request(state)
+                request = self._maybe_create_auto_retrain_request(state)
                 self._save_state(state)
                 summary = self._summarize_state(state)
                 summary.update(
@@ -116,6 +160,8 @@ class CumulativeTrainingService:
                         "retrain_request": request,
                     }
                 )
+                if request and request.get("auto_execute"):
+                    summary["_auto_retrain_request_id"] = request["request_id"]
                 return summary
 
         source_csv_path = str((session.get("prediction_context") or {}).get("source_csv_path") or "").strip()
@@ -155,7 +201,7 @@ class CumulativeTrainingService:
                 state["verdict_entries"][entry_key] = normalized
                 state["pending_change_count"] += 1
 
-            request = self._maybe_create_retrain_request(state)
+            request = self._maybe_create_auto_retrain_request(state)
             self._save_state(state)
             summary = self._summarize_state(state)
             summary.update(
@@ -165,6 +211,92 @@ class CumulativeTrainingService:
                     "retrain_request": request,
                 }
             )
+            if request and request.get("auto_execute"):
+                summary["_auto_retrain_request_id"] = request["request_id"]
+            return summary
+
+    def admit_point_label_op(
+        self,
+        review_id: str,
+        op_id: str,
+        verdict: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """point_labels 主链路：按 review_id + op_id 幂等计入重训阈值。"""
+        if not review_id or not op_id:
+            raise ValueError("review_id 和 op_id 不能为空")
+        entry_key = f"{review_id}|{op_id}"
+        is_ground_truth = (
+            bool(verdict.get("is_ground_truth"))
+            and verdict.get("action_type") in _VALID_GROUND_TRUTH_ACTIONS
+        )
+
+        if not is_ground_truth:
+            with self._lock:
+                state = self._load_state()
+                state.setdefault("point_label_ops", {})
+                removed = state["point_label_ops"].pop(entry_key, None) is not None
+                if removed:
+                    state["pending_change_count"] += 1
+                request = self._maybe_create_auto_retrain_request(state)
+                self._save_state(state)
+                summary = self._summarize_state(state)
+                summary.update(
+                    {
+                        "admitted": False,
+                        "removed": removed,
+                        "reason": "ground_truth_removed" if removed else "not_ground_truth",
+                        "retrain_request": request,
+                        "snapshot_mode": "point_label",
+                    }
+                )
+                if request and request.get("auto_execute"):
+                    summary["_auto_retrain_request_id"] = request["request_id"]
+                return summary
+
+        if verdict.get("verdict_label") is None:
+            raise ValueError("有效人工裁决必须包含 verdict_label")
+
+        normalized = {
+            "review_id": review_id,
+            "op_id": op_id,
+            "verdict_label": int(verdict["verdict_label"]),
+            "action_type": verdict["action_type"],
+            "reviewer": verdict.get("reviewer"),
+            "reviewed_at": verdict.get("reviewed_at") or datetime.utcnow().isoformat(),
+        }
+
+        with self._lock:
+            state = self._load_state()
+            state.setdefault("point_label_ops", {})
+            previous = state["point_label_ops"].get(entry_key)
+            comparison_keys = {"review_id", "op_id", "verdict_label", "action_type", "reviewer"}
+            previous_comparable = (
+                {key: previous.get(key) for key in comparison_keys}
+                if previous
+                else None
+            )
+            normalized_comparable = {key: normalized.get(key) for key in comparison_keys}
+            changed = previous_comparable != normalized_comparable
+            if changed:
+                state["next_sequence"] += 1
+                normalized["sequence"] = state["next_sequence"]
+                state["point_label_ops"][entry_key] = normalized
+                state["pending_change_count"] += 1
+
+            request = self._maybe_create_auto_retrain_request(state)
+            self._save_state(state)
+            summary = self._summarize_state(state)
+            summary.update(
+                {
+                    "admitted": changed,
+                    "reason": "accepted" if changed else "duplicate_op",
+                    "retrain_request": request,
+                    "snapshot_mode": "point_label",
+                    "op_id": op_id,
+                }
+            )
+            if request and request.get("auto_execute"):
+                summary["_auto_retrain_request_id"] = request["request_id"]
             return summary
 
     def register_labeled_dataset(
@@ -212,7 +344,7 @@ class CumulativeTrainingService:
                 }
                 state["pending_change_count"] += delta
 
-            request = self._maybe_create_retrain_request(state)
+            request = self._maybe_create_auto_retrain_request(state)
             self._save_state(state)
             summary = self._summarize_state(state)
             summary.update(
@@ -223,6 +355,8 @@ class CumulativeTrainingService:
                     "retrain_request": request,
                 }
             )
+            if request and request.get("auto_execute"):
+                summary["_auto_retrain_request_id"] = request["request_id"]
             return summary
 
     def get_retrain_request(self, request_id: str) -> Dict[str, Any]:
@@ -247,6 +381,116 @@ class CumulativeTrainingService:
     def get_latest_completed_model_ref(self) -> Optional[str]:
         """兼容旧调用；生产预测应使用 ``get_production_model_ref``。"""
         return self.get_production_model_ref()
+
+    def get_modeling_paths(self) -> Dict[str, Any]:
+        """返回生产主线路径、备选路径及各路径最近模型登记。"""
+        with self._lock:
+            state = self._load_state()
+            return self._summarize_modeling_paths(state)
+
+    def set_modeling_paths(
+        self,
+        production_path: str,
+        fallback_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """设置生产主线与备选路径指针（K7）。"""
+        prod = str(production_path or "").strip()
+        if prod not in _ALLOWED_MODELING_PATHS:
+            raise ValueError(f"不支持的生产主线路径: {prod}")
+        with self._lock:
+            state = self._load_state()
+            if fallback_path is None:
+                fb = str(state.get("fallback_path") or _DEFAULT_FALLBACK_PATH).strip()
+            else:
+                fb = str(fallback_path or "").strip() or _DEFAULT_FALLBACK_PATH
+            if fb not in _ALLOWED_MODELING_PATHS:
+                raise ValueError(f"不支持的备选路径: {fb}")
+            if fb == prod:
+                raise ValueError("生产主线与备选路径不能相同")
+            state["production_path"] = prod
+            state["fallback_path"] = fb
+            self._save_state(state)
+            return self._summarize_modeling_paths(state)
+
+    def register_path_model(
+        self,
+        path_key: str,
+        model_ref: str,
+        *,
+        request_id: Optional[str] = None,
+        metrics: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """登记某建模路径的最近可用模型。"""
+        key = str(path_key or "").strip()
+        ref = str(model_ref or "").strip()
+        if key not in _ALLOWED_MODELING_PATHS:
+            raise ValueError(f"不支持的建模路径: {key}")
+        if not ref:
+            raise ValueError("model_ref 不能为空")
+        with self._lock:
+            state = self._load_state()
+            path_models = state.setdefault("path_models", {})
+            path_models[key] = {
+                "model_ref": ref,
+                "request_id": request_id,
+                "metrics": metrics or {},
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+            if key == str(state.get("production_path") or _DEFAULT_PRODUCTION_PATH):
+                state["production_model_ref"] = ref
+                if request_id:
+                    state["production_retrain_request_id"] = request_id
+            self._save_state(state)
+            return self._summarize_modeling_paths(state)
+
+    def switch_to_fallback_path(self, reason: str) -> Dict[str, Any]:
+        """主线出问题时的回退：交换主线/备选指针并切到备选最近模型。"""
+        audit_reason = str(reason or "").strip()
+        if not audit_reason:
+            raise ValueError("回退必须提供 reason")
+        with self._lock:
+            state = self._load_state()
+            prod = str(state.get("production_path") or _DEFAULT_PRODUCTION_PATH)
+            fb = str(state.get("fallback_path") or _DEFAULT_FALLBACK_PATH)
+            path_models = state.setdefault("path_models", {})
+            fb_entry = path_models.get(fb) or {}
+            fb_ref = str(fb_entry.get("model_ref") or "").strip()
+            if not fb_ref:
+                raise ValueError(f"备选路径 {fb} 尚无可用模型，无法回退")
+
+            state["production_path"] = fb
+            state["fallback_path"] = prod
+            state["production_model_ref"] = fb_ref
+            if fb_entry.get("request_id"):
+                state["production_retrain_request_id"] = fb_entry["request_id"]
+            state["production_promoted_at"] = datetime.utcnow().isoformat()
+            audit = state.setdefault("path_switch_audit", [])
+            audit.append(
+                {
+                    "action": "fallback_switch",
+                    "from_path": prod,
+                    "to_path": fb,
+                    "model_ref": fb_ref,
+                    "reason": audit_reason,
+                    "at": datetime.utcnow().isoformat(),
+                }
+            )
+            self._save_state(state)
+            return self._summarize_modeling_paths(state)
+
+    @staticmethod
+    def _summarize_modeling_paths(state: Dict[str, Any]) -> Dict[str, Any]:
+        production_path = str(state.get("production_path") or _DEFAULT_PRODUCTION_PATH)
+        fallback_path = str(state.get("fallback_path") or _DEFAULT_FALLBACK_PATH)
+        path_models = dict(state.get("path_models") or {})
+        active_ref = str(state.get("production_model_ref") or "").strip()
+        return {
+            "production_path": production_path,
+            "fallback_path": fallback_path,
+            "path_models": path_models,
+            "production_model_ref": active_ref or None,
+            "path_switch_audit": list(state.get("path_switch_audit") or [])[-10:],
+        }
 
     def mark_retrain_request(
         self,
@@ -278,6 +522,7 @@ class CumulativeTrainingService:
                 request["error"] = error
             if train_summary:
                 request["train_summary"] = train_summary
+            pending_auto_request: Optional[Dict[str, Any]] = None
             if status == "completed":
                 request["progress"] = {
                     "stage": "completed",
@@ -293,8 +538,44 @@ class CumulativeTrainingService:
                 state["production_model_ref"] = production_ref
                 state["production_retrain_request_id"] = request_id
                 state["production_promoted_at"] = promoted_at
-                # 若登记/审核在 queued 期间继续累积变更，完成后自动排队下一次全量快照。
-                self._maybe_create_retrain_request(state)
+                modeling_path = str((train_summary or {}).get("modeling_path") or "").strip()
+                if modeling_path in _ALLOWED_MODELING_PATHS:
+                    path_models = state.setdefault("path_models", {})
+                    path_models[modeling_path] = {
+                        "model_ref": production_ref,
+                        "request_id": request_id,
+                        "metrics": {
+                            k: (train_summary or {}).get(k)
+                            for k in ("macro_f1_mean", "accuracy_mean", "n_samples")
+                            if (train_summary or {}).get(k) is not None
+                        },
+                        "updated_at": promoted_at,
+                    }
+                    # @AI_GENERATED: 生产登记一致性（需求 23.5）。
+                    # 修复前 production_path 与 production_model_ref 各自独立更新，
+                    # 出现过「production_path=legacy_day 但生产模型由 by_day_night
+                    # 产出」的矛盾。这里把实际产出该模型的路径同步为主线，并把原
+                    # 主线降为备选，使两个指针恒一致、可审计。
+                    prev_path = str(state.get("production_path") or _DEFAULT_PRODUCTION_PATH)
+                    if modeling_path != prev_path:
+                        state["production_path"] = modeling_path
+                        state["fallback_path"] = prev_path
+                        state.setdefault("production_path_history", []).append({
+                            "from": prev_path,
+                            "to": modeling_path,
+                            "reason": "retrain_completed",
+                            "model_ref": production_ref,
+                            "request_id": request_id,
+                            "at": promoted_at,
+                        })
+                        logger.info(
+                            "生产主线路径随重训切换: %s -> %s (model=%s)",
+                            prev_path, modeling_path, production_ref,
+                        )
+                    state["production_model_path_key"] = modeling_path
+                    # @AI_GENERATED: end
+                # 若登记/审核在 running 期间继续累积变更，完成后自动排队下一次全量快照。
+                pending_auto_request = self._maybe_create_auto_retrain_request(state)
             elif status == "failed":
                 previous_progress = request.get("progress") or {}
                 request["progress"] = {
@@ -304,7 +585,10 @@ class CumulativeTrainingService:
                     "updated_at": request["updated_at"],
                 }
             self._save_state(state)
-            return dict(request)
+            result = dict(request)
+            if pending_auto_request and pending_auto_request.get("auto_execute"):
+                result["_pending_auto_retrain_request_id"] = pending_auto_request["request_id"]
+            return result
 
     def update_retrain_progress(
         self,
@@ -333,10 +617,22 @@ class CumulativeTrainingService:
             self._save_state(state)
             return dict(request)
 
-    def _maybe_create_retrain_request(self, state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _maybe_create_auto_retrain_request(self, state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if state["pending_change_count"] < self.retrain_label_threshold:
             return None
+        return self._create_retrain_request(
+            state,
+            trigger_reason="auto_threshold",
+            reset_pending_count=True,
+        )
 
+    def _create_retrain_request(
+        self,
+        state: Dict[str, Any],
+        *,
+        trigger_reason: str,
+        reset_pending_count: bool,
+    ) -> Optional[Dict[str, Any]]:
         active = next(
             (
                 request
@@ -360,7 +656,9 @@ class CumulativeTrainingService:
             state["last_retrain_blocker"] = str(exc)
             return None
         state.pop("last_retrain_blocker", None)
+        pending_before_reset = int(state["pending_change_count"])
         request_id = f"retrain-{uuid.uuid4().hex[:12]}"
+        is_auto = trigger_reason == "auto_threshold"
         request = {
             "request_id": request_id,
             "status": "queued",
@@ -368,22 +666,39 @@ class CumulativeTrainingService:
             "dataset_path": snapshot["dataset_path"],
             "sample_count": snapshot["sample_count"],
             "label_count": snapshot["label_count"],
-            "triggered_change_count": state["pending_change_count"],
+            "trigger_reason": trigger_reason,
+            "auto_execute": is_auto,
+            "triggered_change_count": pending_before_reset,
             "threshold": self.retrain_label_threshold,
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "progress": {
                 "stage": "queued",
                 "percent": 0,
-                "message": "等待人工确认执行",
+                "message": (
+                    "已达变更阈值，正在自动重训"
+                    if is_auto
+                    else "等待手动执行重训"
+                ),
                 "updated_at": datetime.utcnow().isoformat(),
             },
         }
         state["retrain_requests"][request_id] = request
-        state["pending_change_count"] = 0
+        if reset_pending_count:
+            state["pending_change_count"] = 0
         return dict(request)
 
     def _create_snapshot(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        mode = str(state.get("snapshot_mode") or os.getenv("PV_SNAPSHOT_MODE", "point_label")).strip().lower()
+        if mode == "legacy":
+            return self._create_snapshot_legacy(state)
+        try:
+            return self._create_snapshot_point_label(state)
+        except Exception as exc:
+            logger.warning("point_label 快照构建失败，回退 legacy: %s", exc)
+            return self._create_snapshot_legacy(state)
+
+    def _create_snapshot_legacy(self, state: Dict[str, Any]) -> Dict[str, Any]:
         frames: List[pd.DataFrame] = []
         source_descriptions: List[Dict[str, Any]] = []
 
@@ -469,6 +784,51 @@ class CumulativeTrainingService:
         state["snapshots"][snapshot_id] = snapshot
         return snapshot
 
+    def _create_snapshot_point_label(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """从 point_labels + training_samples 构建新路径快照（含 sample_id）。"""
+        adapter = DBAdapter(DBConfig())
+        point_repo = PointLabelRepository(adapter)
+        sample_repo = PVFaultRepository(adapter)
+        builder = SnapshotBuilder(point_repo, sample_repo)
+
+        split_mode = str(state.get("split_mode") or os.getenv("PV_SPLIT_MODE", "by_day_night"))
+        measurements = builder._load_measurements(None)
+        resolver = DaylightWindowResolver()
+        daylight_table = resolver.build_table(measurements)
+
+        strategy = SampleStrategy(
+            split_mode=split_mode,
+            min_points=int(state.get("min_points") or 12),
+            daylight_windows=daylight_table,
+        )
+        combined, meta = builder.build(strategy, measurements_df=measurements)
+
+        if combined["label"].nunique() < 2:
+            raise ValueError("point_label 快照至少需要两个有效标签类别")
+
+        snapshot_id = f"snapshot-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6]}"
+        snapshot_path = self.root / "snapshots" / f"{snapshot_id}.parquet"
+        rel_path = builder.write_parquet(combined, meta, snapshot_path)
+        dataset_path = self._to_project_relative(Path(rel_path))
+
+        snapshot = {
+            "snapshot_id": snapshot_id,
+            "dataset_path": dataset_path,
+            "sample_count": int(meta.get("sample_count", 0)),
+            "row_count": int(meta.get("row_count", len(combined))),
+            "label_count": int(combined["label"].nunique()),
+            "content_sha256": hashlib.sha256(
+                combined.to_csv(index=False).encode("utf-8")
+            ).hexdigest(),
+            "label_snapshot_hash": meta.get("label_snapshot_hash"),
+            "sample_strategy": meta.get("sample_strategy"),
+            "snapshot_mode": "point_label",
+            "sources": [{"kind": "point_labels", "split_mode": split_mode}],
+            "created_at": datetime.utcnow().isoformat(),
+        }
+        state["snapshots"][snapshot_id] = snapshot
+        return snapshot
+
     def _load_state(self) -> Dict[str, Any]:
         if not self.state_path.exists():
             return {
@@ -481,6 +841,10 @@ class CumulativeTrainingService:
                 "labeled_imports": {},
                 "snapshots": {},
                 "retrain_requests": {},
+                "production_path": _DEFAULT_PRODUCTION_PATH,
+                "fallback_path": _DEFAULT_FALLBACK_PATH,
+                "path_models": {},
+                "path_switch_audit": [],
             }
         try:
             with self.state_path.open("r", encoding="utf-8") as file:
@@ -492,9 +856,14 @@ class CumulativeTrainingService:
         state.setdefault("next_sequence", 0)
         state.setdefault("pending_change_count", 0)
         state.setdefault("verdict_entries", {})
+        state.setdefault("point_label_ops", {})
         state.setdefault("labeled_imports", {})
         state.setdefault("snapshots", {})
         state.setdefault("retrain_requests", {})
+        state.setdefault("production_path", _DEFAULT_PRODUCTION_PATH)
+        state.setdefault("fallback_path", _DEFAULT_FALLBACK_PATH)
+        state.setdefault("path_models", {})
+        state.setdefault("path_switch_audit", [])
         state["retrain_label_threshold"] = self.retrain_label_threshold
         return state
 
@@ -567,6 +936,7 @@ class CumulativeTrainingService:
             ),
             "retrain_history": requests,
             "latest_completed_model_ref": production_model_ref or None,
+            "modeling_paths": self._summarize_modeling_paths(state),
         }
 
     @staticmethod

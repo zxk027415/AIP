@@ -86,15 +86,11 @@
             "device_id",
             "branch_id"
           ],
-          "time_field": "time",
-          "solar_mode": "day_and_night",
-          "power_col": "value",
-          "irr_threshold": 0.05,
-          "attach_night_features": true
+          "time_field": "time"
         },
         "status": "idle",
         "error": null,
-        "description": "日照+夜间双样本切分（day_and_night），与预测模板保持一致"
+        "description": "快照已预置 sample_id 时纯透传；保留 window/id_fields/time_field"
       }
     },
     {
@@ -253,6 +249,21 @@
           "quantiles": [
             0.25,
             0.75
+          ],
+          "min_points": 12,
+          "passthrough_fields": [
+            "group_key",
+            "label_source",
+            "label_source_purity",
+            "label_op_id",
+            "period_is_whole",
+            "period_is_daylight",
+            "period_is_night",
+            "night_nonzero_current_ratio",
+            "night_current_mean",
+            "night_current_max",
+            "night_over_threshold_duration",
+            "night_power_residual_mean"
           ]
         },
         "status": "idle",
@@ -421,7 +432,8 @@
           "random_state": 90,
           "smote_limit": 500,
           "average": "macro",
-          "target_col": "label"
+          "target_col": "label",
+          "group_col": "group_key"
         },
         "status": "idle",
         "error": null,

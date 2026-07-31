@@ -56,6 +56,67 @@ class TrainingSample(Base):
     ingested_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
 
 
+# @AI_GENERATED
+class PointLabel(Base):
+    """逐点标签 — 光伏故障逐点标签重构（point-label-segment-redesign）的标签唯一事实来源。
+
+    每行对应一个采样点的生效标签，由 LabelMaterializer 从 LabelOp 物化产生。
+    不含任何测量数值列（测量值仍在 TrainingSample）。
+
+    对应设计文档 `.kiro/specs/pv-fault-label-segment-redesign/design.md` 数据模型第一节。
+    """
+
+    __tablename__ = "point_labels"
+    __table_args__ = (
+        Index("ix_point_labels_op_id", "op_id"),
+    )
+
+    site_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    branch_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    time: Mapped[datetime] = mapped_column(DateTime, primary_key=True)
+    label_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False)
+    op_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    label_space_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LabelOp(Base):
+    """标注操作日志 — 记录每一次标注动作（人工框选、审核裁决、聚类确认、批量导入、伪标签）。
+
+    是撤销与审计的唯一单元；撤销只迁移 status，不物理删除。
+    对应设计文档数据模型第二节。
+    """
+
+    __tablename__ = "label_ops"
+    __table_args__ = (
+        Index("ix_label_ops_device_range", "site_id", "device_id", "branch_id", "t_start", "t_end"),
+        Index("ix_label_ops_source_status", "source", "status"),
+    )
+
+    op_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    site_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    device_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    branch_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    t_start: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    t_end: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    label_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    reviewer: Mapped[str] = mapped_column(String(128), nullable=True)
+    source_ref: Mapped[str] = mapped_column(String(256), nullable=True)
+    rest_of_day_policy: Mapped[str] = mapped_column(String(16), nullable=True)
+    parent_op_id: Mapped[str] = mapped_column(String(16), nullable=True)
+    label_space_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    migration_batch_id: Mapped[str] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+# @AI_GENERATED: end
+
+
 class ModelVersion(Base):
     """模型版本元信息 — 记录每个训练产物的版本标签、样本量、标签空间版本和存储路径。"""
 

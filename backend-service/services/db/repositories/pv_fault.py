@@ -69,16 +69,17 @@ class PVFaultRepository:
     # Parquet 批量导入
     # ------------------------------------------------------------------
 
-    def ingest_parquet(self, file_path: str) -> Dict[str, int]:
+    def ingest_parquet(self, file_path: str, *, batch_commit: bool = True) -> Dict[str, int]:
         """
         读取 Parquet 文件，按复合键 (time, site_id, device_id, branch_id) 去重，
         用 INSERT IGNORE 批量写入 training_samples。
 
         文件缺少必需列时抛 IngestionError（校验在写入前完成，不产生部分写入）。
-        所有批次在同一事务内提交，保证原子性。
 
         Args:
             file_path: Parquet 文件路径（相对或绝对路径均可）。
+            batch_commit: 为 True 时每批独立 commit（防止远程 MySQL Lock wait
+                timeout，幂等可重试）；为 False 时全量单事务（原子性，适合小文件）。
 
         Returns:
             {"inserted": n, "skipped": m}
@@ -121,22 +122,42 @@ class PVFaultRepository:
         if not records:
             return {"inserted": 0, "skipped": 0}
 
-        # 4. 分批 INSERT IGNORE，全部批次在同一事务内
+        # 4. 分批 INSERT IGNORE
         total_inserted = 0
-        with self._adapter.get_sync_session() as session:
+        n_batches = (len(records) + _BATCH_SIZE - 1) // _BATCH_SIZE
+
+        if batch_commit:
+            # @AI_GENERATED: 每批独立 session/commit，防止远程 MySQL Lock wait timeout。
+            # INSERT IGNORE 幂等，中途失败可重跑、已成功的批次会被 skip。
             for i in range(0, len(records), _BATCH_SIZE):
                 batch = records[i : i + _BATCH_SIZE]
-                stmt = sa_insert(TrainingSample).prefix_with("IGNORE").values(batch)
-                result = session.execute(stmt)
-                total_inserted += result.rowcount
+                with self._adapter.get_sync_session() as session:
+                    stmt = sa_insert(TrainingSample).prefix_with("IGNORE").values(batch)
+                    result = session.execute(stmt)
+                    total_inserted += result.rowcount
+                if (i // _BATCH_SIZE) % 200 == 0:
+                    logger.info(
+                        "ingest_parquet progress: batch %d/%d inserted_so_far=%d",
+                        i // _BATCH_SIZE + 1, n_batches, total_inserted,
+                    )
+            # @AI_GENERATED: end
+        else:
+            # 单事务（原子性，适合小文件或测试）
+            with self._adapter.get_sync_session() as session:
+                for i in range(0, len(records), _BATCH_SIZE):
+                    batch = records[i : i + _BATCH_SIZE]
+                    stmt = sa_insert(TrainingSample).prefix_with("IGNORE").values(batch)
+                    result = session.execute(stmt)
+                    total_inserted += result.rowcount
 
         skipped = len(records) - total_inserted
         logger.info(
-            "ingest_parquet: file=%s total=%d inserted=%d skipped=%d",
+            "ingest_parquet: file=%s total=%d inserted=%d skipped=%d batch_commit=%s",
             file_path,
             len(records),
             total_inserted,
             skipped,
+            batch_commit,
         )
         return {"inserted": total_inserted, "skipped": skipped}
 
@@ -275,6 +296,39 @@ class PVFaultRepository:
         with self._adapter.get_sync_session() as session:
             rows = session.execute(stmt).mappings().all()
         return [dict(row) for row in rows]
+    # @AI_GENERATED: end
+
+    # @AI_GENERATED: 逐点标签物化（LabelMaterializer）需要按设备三元组 + 时间范围
+    # 精确取采样时刻集合；query_training_samples 只过滤 site_id，不够用，故新增。
+    def query_sample_times(
+        self,
+        site_id: str,
+        device_id: str,
+        branch_id: str,
+        t_start: Optional[datetime] = None,
+        t_end: Optional[datetime] = None,
+    ) -> List[datetime]:
+        """按设备三元组 + 半开区间 [t_start, t_end) 查真实存在的采样时刻。
+
+        标签只能落在 training_samples 中真实存在的采样点上，供
+        LabelMaterializer 物化前确定「哪些点需要判定标签」。
+
+        Requirements: 4.1（design.md 组件 1 物化算法第 2 步）
+        """
+        stmt = select(TrainingSample.time).where(
+            TrainingSample.site_id == site_id,
+            TrainingSample.device_id == device_id,
+            TrainingSample.branch_id == branch_id,
+        )
+        if t_start is not None:
+            stmt = stmt.where(TrainingSample.time >= t_start)
+        if t_end is not None:
+            stmt = stmt.where(TrainingSample.time < t_end)
+        stmt = stmt.order_by(TrainingSample.time.asc())
+
+        with self._adapter.get_sync_session() as session:
+            rows = session.execute(stmt).scalars().all()
+        return list(rows)
     # @AI_GENERATED: end
 
     # ------------------------------------------------------------------

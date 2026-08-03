@@ -25,6 +25,9 @@ import PipelineTab from './deployment/PipelineTab';
 import SchedulerTab from './deployment/SchedulerTab';
 import PrelaunchTab from './deployment/PrelaunchTab';
 import PvFaultClassificationMetrics from '../components/pv-fault/PvFaultClassificationMetrics';
+import PvFaultWorkspaceShell from '../components/pv-fault/PvFaultWorkspaceShell';
+import PvFaultErrorBoundary from '../components/pv-fault/PvFaultErrorBoundary';
+import { PV_FAULT_PRIMARY } from '../theme/pvFaultTheme';
 import './deployment/algorithmDeploymentWorkspace.css';
 // @AI_GENERATED: pv_fault 专用部署视图依赖
 import { cumulativeTrainingApi } from '../services/iterativeLabelingApi';
@@ -76,14 +79,30 @@ const AlgorithmDeploymentPage: React.FC = () => {
   const handleSlotChange = (value: string) => {
     const next = new URLSearchParams(searchParams);
     next.set('slot', value);
+    if (value === 'pv_fault' && next.get('tab') === 'prelaunch') {
+      next.set('tab', DEFAULT_TAB);
+    }
     setSearchParams(next, { replace: true });
   };
   // @AI_GENERATED: end
 
   const activeTab: TabKey = useMemo(() => {
     const raw = searchParams.get('tab');
-    return raw && (VALID_TABS as readonly string[]).includes(raw) ? (raw as TabKey) : DEFAULT_TAB;
-  }, [searchParams]);
+    const tab = raw && (VALID_TABS as readonly string[]).includes(raw) ? (raw as TabKey) : DEFAULT_TAB;
+    if (storySlot === 'pv_fault' && tab === 'prelaunch') {
+      return DEFAULT_TAB;
+    }
+    return tab;
+  }, [searchParams, storySlot]);
+
+  useEffect(() => {
+    if (storySlot !== 'pv_fault') return;
+    if (searchParams.get('tab') === 'prelaunch') {
+      const next = new URLSearchParams(searchParams);
+      next.set('tab', DEFAULT_TAB);
+      setSearchParams(next, { replace: true });
+    }
+  }, [storySlot, searchParams, setSearchParams]);
 
   const handleTabChange = (key: string) => {
     const next = new URLSearchParams(searchParams);
@@ -91,17 +110,22 @@ const AlgorithmDeploymentPage: React.FC = () => {
     setSearchParams(next, { replace: false });
   };
 
-  return (
-    <div className="algorithm-deployment-workspace">
+  const isPvFault = storySlot === 'pv_fault';
+  const workspaceClass = isPvFault
+    ? 'algorithm-deployment-workspace algorithm-deployment-workspace--pv'
+    : 'algorithm-deployment-workspace';
+
+  const pageContent = (
+    <div className={workspaceClass}>
       <div className="algorithm-deployment-container">
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Card className="deployment-page-header" bordered={false}>
             <Space direction="vertical" size={8} style={{ width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                 <Space align="center" size={12}>
-                  <RocketOutlined style={{ fontSize: 22, color: '#1677ff' }} />
+                  <RocketOutlined className="pv-accent-icon" style={{ fontSize: 22, color: isPvFault ? PV_FAULT_PRIMARY : '#1677ff' }} />
                   <Title level={3} style={{ margin: 0 }}>算法部署</Title>
-                  <Tag color="blue">模型全生命周期管理</Tag>
+                  <Tag color={isPvFault ? 'orange' : 'blue'}>模型全生命周期管理</Tag>
                 </Space>
                 {/* @AI_GENERATED: 槽位选择器 */}
                 <Space size={8}>
@@ -124,9 +148,10 @@ const AlgorithmDeploymentPage: React.FC = () => {
 
           <Card className="deployment-page-tabs" bordered={false} bodyStyle={{ padding: '8px 16px 16px' }}>
             <Tabs
+              key={storySlot}
               activeKey={activeTab}
               onChange={handleTabChange}
-              destroyInactiveTabPane={false}
+              destroyInactiveTabPane={storySlot === 'pv_fault'}
               items={storySlot === 'pv_fault' ? [
                 {
                   key: 'model',
@@ -171,6 +196,16 @@ const AlgorithmDeploymentPage: React.FC = () => {
       </div>
     </div>
   );
+
+  if (isPvFault) {
+    return (
+      <PvFaultErrorBoundary title="算法部署（光伏）渲染失败">
+        <PvFaultWorkspaceShell>{pageContent}</PvFaultWorkspaceShell>
+      </PvFaultErrorBoundary>
+    );
+  }
+
+  return pageContent;
 };
 
 // @AI_GENERATED: 光伏故障诊断部署专用视图 — 模型版本、累计训练、标签、重训
@@ -182,26 +217,28 @@ const PvFaultDeploymentView: React.FC = () => {
   const [retrainRunning, setRetrainRunning] = useState(false);
   const [lastTrainResult, setLastTrainResult] = useState<Record<string, any> | null>(null);
   const [selectedRetrainId, setSelectedRetrainId] = useState<string | null>(null);
+  // @AI_GENERATED: 下次重训的切分策略选择器状态（默认 by_day，A/B 验证最优）
+  const [nextSplitMode, setNextSplitMode] = useState<string>(
+    () => String((state as any)?.split_mode || 'by_day')
+  );
+  // @AI_GENERATED: end
   const [waveformOpen, setWaveformOpen] = useState(false);
   const [waveformLoading, setWaveformLoading] = useState(false);
   const [labelWaveforms, setLabelWaveforms] = useState<LabelWaveform[]>([]);
   const [labelRegistrationMode, setLabelRegistrationMode] = useState(false);
   const [reconcileNames, setReconcileNames] = useState<Record<string, string>>({});
   const [reconcileSaving, setReconcileSaving] = useState(false);
-  const [splitConfig, setSplitConfig] = useState<Record<string, any> | null>(null);
   const [messageApi, contextHolder] = message.useMessage();
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [ctState, labelsResp, overviewResp] = await Promise.all([
+      const [ctState, labelsResp] = await Promise.all([
         cumulativeTrainingApi.getState('pv_fault'),
         fetch('/api/iterative-labeling/label-registry?slot=pv_fault').then(r => r.json()),
-        fetch('/api/accuracy-operations/slot-overview?slot=pv_fault').then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
       setState(ctState as Record<string, any>);
       setLabels(labelsResp?.labels ?? []);
-      setSplitConfig((overviewResp as any)?.split_config ?? null);
       const statePayload = ctState as Record<string, any>;
       setSelectedRetrainId(current => current
         ?? statePayload.production_model?.request_id
@@ -236,14 +273,21 @@ const PvFaultDeploymentView: React.FC = () => {
   }, [refreshRetrainState, retrainRunning, state?.latest_retrain_request?.status]);
 
   const handleRetrain = async () => {
-    const requestId = state?.latest_retrain_request?.request_id;
-    if (!requestId || state?.latest_retrain_request?.status !== 'queued') {
-      messageApi.warning('当前没有可执行的 queued 重训请求');
+    if (state?.latest_retrain_request?.status === 'running') {
+      messageApi.warning('重训正在执行中，请等待完成');
       return;
     }
     setRetrainRunning(true);
     try {
-      const resp = await cumulativeTrainingApi.runRetrainRequest(requestId, 'pv_fault');
+      const created = await cumulativeTrainingApi.createManualRetrainRequest('pv_fault', nextSplitMode);
+      const requestId = String((created.retrain_request as Record<string, any> | undefined)?.request_id ?? '');
+      if (!requestId) {
+        throw new Error('无法创建手动重训请求');
+      }
+      const resp = await cumulativeTrainingApi.runRetrainRequest(
+        requestId,
+        'pv_fault',
+      );
       const trainResult = resp.train_result as Record<string, any>;
       const accuracy = trainResult?.accuracy_record as Record<string, any> | undefined;
       setLastTrainResult(trainResult as Record<string, any>);
@@ -252,7 +296,7 @@ const PvFaultDeploymentView: React.FC = () => {
       const acc = accuracy?.accuracy_mean;
       messageApi.success(
         f1 != null || acc != null
-          ? `重训并切换生产模型完成：Macro-F1=${f1 ?? '—'}，Accuracy=${acc ?? '—'}`
+          ? `重训并切换生产模型完成（切分=${selectedSolarMode || '整天'}）：Macro-F1=${f1 ?? '—'}，Accuracy=${acc ?? '—'}`
           : `重训完成，生产模型已切换为 ${resp.production_model_ref}`,
       );
       await load();
@@ -325,7 +369,26 @@ const PvFaultDeploymentView: React.FC = () => {
 
   if (loading && !state) return <Spin style={{ display: 'block', margin: '60px auto' }} />;
 
-  const latestRequest = state?.latest_retrain_request;
+  if (!state) {
+    return (
+      <div>
+        {contextHolder}
+        <Alert
+          type="warning"
+          showIcon
+          message="光伏部署数据暂不可用"
+          description="请确认后端已启动，或点击刷新后重试。"
+          action={
+            <Button size="small" onClick={() => void load()}>
+              重试
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  const latestRequest = state.latest_retrain_request;
   const retrainProgress = latestRequest?.progress as Record<string, any> | undefined;
   const retrainPercent = Number(
     retrainProgress?.percent
@@ -480,9 +543,9 @@ const PvFaultDeploymentView: React.FC = () => {
               <Descriptions.Item label="快照样本数">{latestSnapshot?.sample_count ?? '—'}</Descriptions.Item>
               <Descriptions.Item label="快照标签类别">{latestSnapshot?.label_count ?? '—'}</Descriptions.Item>
               <Descriptions.Item label="有效真值单元">{state?.effective_labeled_unit_count ?? 0}</Descriptions.Item>
-              <Descriptions.Item label="距下次重训">
+              <Descriptions.Item label="距下次自动重训">
                 {pendingCount >= retrainThreshold
-                  ? <Tag color="processing">已达阈值，应已生成 queued 重训</Tag>
+                  ? <Tag color="processing">已达阈值，将自动重训</Tag>
                   : `${state?.next_retrain_in ?? Math.max(0, retrainThreshold - pendingCount)} 次变更`}
               </Descriptions.Item>
               <Descriptions.Item label="未冻结变更计数">
@@ -491,21 +554,33 @@ const PvFaultDeploymentView: React.FC = () => {
                   （登记大数据集后若仍有 queued 旧请求，刷新后会自动换新快照）
                 </Typography.Text>
               </Descriptions.Item>
-              <Descriptions.Item label="切分模式">
-                {splitConfig?.aligned === false ? (
-                  <Tag color="warning">训练/预测 solar_mode 不一致</Tag>
-                ) : (
-                  <Tag color="blue">
-                    {splitConfig?.active_solar_mode
-                      ?? splitConfig?.modes?.train?.solar_mode
-                      ?? '整天 resample（未启用 solar_mode）'}
-                  </Tag>
-                )}
-                <Typography.Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>
-                  训练={String(splitConfig?.modes?.train?.solar_mode ?? '—')}
-                  {' / '}
-                  预测={String(splitConfig?.modes?.predict?.solar_mode ?? '—')}
-                </Typography.Text>
+              <Descriptions.Item label="样本策略">
+                <Space direction="vertical" size={4}>
+                  <div>
+                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>当前模型：</Typography.Text>
+                    <Tag color="blue">
+                      {String(
+                        (latestSnapshot?.sample_strategy as Record<string, any> | undefined)?.split_mode
+                        ?? latestSnapshot?.snapshot_mode
+                        ?? '未知',
+                      )}
+                    </Tag>
+                  </div>
+                  <div>
+                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>下次重训：</Typography.Text>
+                    <Tag color="green">{nextSplitMode}</Tag>
+                  </div>
+                  <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                    策略随模型 pickle 持久化；可在重训按钮旁切换下次策略。
+                  </Typography.Text>
+                  <Button
+                    size="small"
+                    type="link"
+                    onClick={() => navigate('/accuracy-operations?slot=pv_fault')}
+                  >
+                    去精度运营查看待标注队列
+                  </Button>
+                </Space>
               </Descriptions.Item>
             </Descriptions>
           </Card>
@@ -542,7 +617,7 @@ const PvFaultDeploymentView: React.FC = () => {
             </Typography.Text>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {snapshotLabelIds.length > 0 ? snapshotLabelIds.map(labelId => (
-                <Tag key={labelId} color={labelNameMap[labelId] ? 'green' : 'gold'} style={{ margin: 0 }}>
+                <Tag key={labelId} color={labelNameMap[labelId] ? 'orange' : 'gold'} style={{ margin: 0 }}>
                   {labelNameMap[labelId] ?? `类别 ${labelId}`}（{labelId}）
                 </Tag>
               )) : <Typography.Text type="secondary">暂无快照类别明细</Typography.Text>}
@@ -566,7 +641,7 @@ const PvFaultDeploymentView: React.FC = () => {
               <Descriptions.Item label="状态">
                 {latestRequest ? retrainStatusTag(latestRequest.status) : <Tag>未创建</Tag>}
               </Descriptions.Item>
-              <Descriptions.Item label="距下次自动冻结">{state?.next_retrain_in ?? '—'} 次变更</Descriptions.Item>
+              <Descriptions.Item label="距下次自动重训">{state?.next_retrain_in ?? '—'} 次变更</Descriptions.Item>
             </Descriptions>
             {latestRequest && (
               <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 8, background: '#f7f9fc' }}>
@@ -595,7 +670,7 @@ const PvFaultDeploymentView: React.FC = () => {
                         : 'active'
                   }
                   showInfo={false}
-                  strokeColor={latestRequest.status === 'failed' ? undefined : { from: '#1677ff', to: '#52c41a' }}
+                  strokeColor={latestRequest.status === 'failed' ? undefined : { from: PV_FAULT_PRIMARY, to: '#FFB366' }}
                 />
                 <Typography.Text
                   type={latestRequest.status === 'failed' ? 'danger' : 'secondary'}
@@ -603,19 +678,36 @@ const PvFaultDeploymentView: React.FC = () => {
                 >
                   {retrainProgress?.message
                     ?? latestRequest.error
-                    ?? (latestRequest.status === 'queued' ? '点击“立即执行重训”后开始' : '正在读取执行状态')}
+                    ?? (latestRequest.status === 'queued'
+                      ? '已排队，点击「立即执行重训」开始'
+                      : '正在读取执行状态')}
                 </Typography.Text>
               </div>
             )}
             <div style={{ marginTop: 12, textAlign: 'right' }}>
-              <Button
-                type="primary"
-                loading={retrainRunning}
-                disabled={latestRequest?.status !== 'queued'}
-                onClick={handleRetrain}
-              >
-                立即执行重训
-              </Button>
+              <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
+                可随时手动重训（例如切换切分模式后）；累计 {retrainThreshold} 次标签变更将自动重训。
+              </Typography.Text>
+              <Space>
+                <Select
+                  size="small"
+                  value={nextSplitMode}
+                  onChange={(v: string) => setNextSplitMode(v)}
+                  style={{ width: 150 }}
+                  options={[
+                    { label: 'by_day（按天）', value: 'by_day' },
+                    { label: 'by_day_night（日夜）', value: 'by_day_night' },
+                  ]}
+                />
+                <Button
+                  type="primary"
+                  loading={retrainRunning}
+                  disabled={retrainRunning || latestRequest?.status === 'running'}
+                  onClick={handleRetrain}
+                >
+                  立即执行重训
+                </Button>
+              </Space>
             </div>
           </Card>
         </Col>
@@ -673,7 +765,7 @@ const PvFaultDeploymentView: React.FC = () => {
           size="small"
           scroll={{ x: 1507 }}
           pagination={{ pageSize: 8, showSizeChanger: false, showTotal: total => `共 ${total} 次重训请求` }}
-          locale={{ emptyText: '暂无重训记录；达到阈值并生成请求后会记录在这里。' }}
+          locale={{ emptyText: '暂无重训记录；手动触发或达到自动重训阈值后会记录在这里。' }}
           rowClassName={record => record.request_id === selectedRetrain?.request_id ? 'ant-table-row-selected' : ''}
           onRow={record => ({
             onClick: () => setSelectedRetrainId(record.request_id),
@@ -802,7 +894,7 @@ const PvFaultDeploymentView: React.FC = () => {
                         smooth: true,
                         showSymbol: false,
                         lineStyle: { width: 1.5 },
-                        itemStyle: { color: index === 0 ? '#1677ff' : '#fa8c16' },
+                        itemStyle: { color: index === 0 ? PV_FAULT_PRIMARY : '#fa8c16' },
                       })),
                     }}
                   />

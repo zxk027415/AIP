@@ -2438,11 +2438,21 @@ async def switch_modeling_fallback(request: SwitchFallbackPathRequest, slot: str
 
 
 @router.post("/cumulative-training/retrain-requests/manual")
-async def create_manual_cumulative_retrain_request(slot: str = "default"):
-    """基于当前累计训练集创建手动重训请求（不依赖 20 次变更阈值）。"""
+async def create_manual_cumulative_retrain_request(slot: str = "default", split_mode: Optional[str] = None):
+    """基于当前累计训练集创建手动重训请求（不依赖 20 次变更阈值）。
+
+    Args:
+        split_mode: 可选，指定本次重训使用的切分策略（by_day / by_day_night）。
+            前端策略选择器在触发重训前传入，写进 state.json 供快照构建读取。
+    """
     try:
         resolved = _normalize_slot(slot)
-        return _cumulative_training_for_slot(resolved).request_manual_retrain()
+        service = _cumulative_training_for_slot(resolved)
+        # @AI_GENERATED: 前端策略选择器传入 split_mode 时，先更新 state 再创建请求
+        if split_mode and str(split_mode).strip():
+            service.set_split_mode(str(split_mode).strip())
+        # @AI_GENERATED: end
+        return service.request_manual_retrain()
     except HTTPException:
         raise
     except ValueError as exc:
@@ -2834,4 +2844,116 @@ async def get_prediction_batch(batch_id: str, slot: str = "pv_fault"):
     if batch is None:
         raise HTTPException(status_code=404, detail=f"预测批次 {batch_id} 不存在")
     return batch
+
+
+# ---------------------------------------------------------------------------
+# @AI_GENERATED: TSC 时序分类对比实验端点
+# ---------------------------------------------------------------------------
+
+
+class TscCompareRequest(BaseModel):
+    """启动 TSC 多模型对比实验的请求体。"""
+    model_names: Optional[List[str]] = None
+    window_configs: Optional[List[Dict[str, Any]]] = None
+    n_repeats: int = 5
+    test_ratio: float = 0.2
+    random_state: int = 90
+    tier_filter: Optional[int] = None
+    dataset_path: Optional[str] = None
+    preprocess_method: str = "per_sample_zscore"
+    fault_oversample: bool = True
+
+
+@router.post("/tsc/compare")
+async def start_tsc_compare(request: TscCompareRequest, slot: str = "pv_fault"):
+    """
+    启动 TSC 多模型对比实验（异步）。
+
+    返回 job_id，前端可轮询 GET /tsc/compare/status 获取进度。
+    """
+    from services.iterative_labeling.tsc.tsc_compare_job import (
+        start_tsc_compare_job,
+    )
+
+    # 确定数据集路径
+    dataset_path = request.dataset_path
+    if not dataset_path:
+        # 使用最新的累计训练快照
+        svc = _cumulative_training_for_slot(_normalize_slot(slot))
+        state = svc.get_state()
+        snapshot = state.get("latest_snapshot") or {}
+        dataset_path = snapshot.get("dataset_path")
+        if not dataset_path:
+            raise HTTPException(
+                status_code=400,
+                detail="未指定 dataset_path 且无可用的累计训练快照"
+            )
+
+    try:
+        job_id = start_tsc_compare_job(
+            slot=_normalize_slot(slot),
+            dataset_path=dataset_path,
+            model_names=request.model_names,
+            window_configs=request.window_configs,
+            n_repeats=request.n_repeats,
+            test_ratio=request.test_ratio,
+            random_state=request.random_state,
+            tier_filter=request.tier_filter,
+            preprocess_method=request.preprocess_method,
+            fault_oversample=request.fault_oversample,
+        )
+        return {"job_id": job_id, "status": "started"}
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@router.get("/tsc/compare/status")
+async def get_tsc_compare_status(slot: str = "pv_fault"):
+    """
+    轮询 TSC 对比实验进度。
+
+    返回: {status: running|completed|failed, completed, total, current_model, ...}
+    """
+    from services.iterative_labeling.tsc.tsc_compare_job import (
+        load_tsc_compare_status,
+    )
+
+    status = load_tsc_compare_status(_normalize_slot(slot))
+    if status is None:
+        return {"status": "idle", "message": "无正在运行或已完成的 TSC 对比任务"}
+    return status
+
+
+@router.get("/tsc/compare/result")
+async def get_tsc_compare_result(slot: str = "pv_fault"):
+    """
+    获取最近一次 TSC 对比实验的完整结果。
+
+    返回: {experiment_id, results: [...], ranking: {...}, best_model, ...}
+    """
+    from services.iterative_labeling.tsc.tsc_compare_job import (
+        load_tsc_compare_result,
+    )
+
+    result = load_tsc_compare_result(_normalize_slot(slot))
+    if result is None:
+        raise HTTPException(status_code=404, detail="无可用的 TSC 对比结果")
+    return result
+
+
+@router.get("/tsc/models")
+async def list_tsc_models(
+    slot: str = "pv_fault",
+    tier: Optional[int] = None,
+    gpu_available: Optional[bool] = None,
+):
+    """
+    列出可用的 TSC 模型及其 tier/GPU 要求。
+
+    返回: {models: [{name, tier, gpu_required, description}, ...]}
+    """
+    from services.iterative_labeling.tsc.model_registry import list_models
+
+    models = list_models(tier_filter=tier, gpu_available=gpu_available)
+    return {"models": models}
 # @AI_GENERATED: end

@@ -96,6 +96,18 @@ class CumulativeTrainingService:
                 summary["_auto_retrain_request_id"] = auto_request["request_id"]
             return summary
 
+    # @AI_GENERATED
+    def set_split_mode(self, split_mode: str) -> None:
+        """设置下次重训使用的切分策略，写入 state.json。
+
+        前端策略选择器在触发重训前调用此方法，使快照构建读到正确的 split_mode。
+        """
+        with self._lock:
+            state = self._load_state()
+            state["split_mode"] = str(split_mode).strip()
+            self._save_state(state)
+    # @AI_GENERATED: end
+
     def request_manual_retrain(self) -> Dict[str, Any]:
         """基于当前累计训练集立即创建手动重训请求（不依赖变更阈值）。"""
         with self._lock:

@@ -556,8 +556,8 @@ export const cumulativeTrainingApi = {
       reason,
     }, { params: { slot } }),
 
-  createManualRetrainRequest: (slot = 'pv_fault'): Promise<Record<string, unknown>> =>
-    api.post('/iterative-labeling/cumulative-training/retrain-requests/manual', {}, { params: { slot } }),
+  createManualRetrainRequest: (slot = 'pv_fault', splitMode?: string): Promise<Record<string, unknown>> =>
+    api.post('/iterative-labeling/cumulative-training/retrain-requests/manual', {}, { params: { slot, ...(splitMode ? { split_mode: splitMode } : {}) } }),
 
   runRetrainRequest: (
     requestId: string,
@@ -731,6 +731,66 @@ export const trainingWorkspaceApi = {
 };
 // @AI_GENERATED: end
 
+// @AI_GENERATED: TSC 时序分类对比实验 API
+export const tscExperimentApi = {
+  /**
+   * 启动 TSC 多模型对比实验（异步）
+   * POST /api/iterative-labeling/tsc/compare
+   */
+  startTscCompare: (
+    body: {
+      modelNames?: string[];
+      windowConfigs?: Array<{ window_length: number; stride: number }>;
+      nRepeats?: number;
+      testRatio?: number;
+      randomState?: number;
+      tierFilter?: number;
+      datasetPath?: string;
+      preprocessMethod?: string;
+      faultOversample?: boolean;
+    } = {},
+    slot = 'pv_fault',
+  ): Promise<{ job_id: string; status: string }> =>
+    api.post('/iterative-labeling/tsc/compare', {
+      model_names: body.modelNames,
+      window_configs: body.windowConfigs,
+      n_repeats: body.nRepeats ?? 5,
+      test_ratio: body.testRatio ?? 0.2,
+      random_state: body.randomState ?? 90,
+      tier_filter: body.tierFilter,
+      dataset_path: body.datasetPath,
+      preprocess_method: body.preprocessMethod ?? 'per_sample_zscore',
+      fault_oversample: body.faultOversample ?? true,
+    }, { params: { slot }, timeout: 10 * 1000 }),
+
+  /**
+   * 轮询 TSC 对比实验进度
+   * GET /api/iterative-labeling/tsc/compare/status
+   */
+  getTscCompareStatus: (slot = 'pv_fault'): Promise<Record<string, unknown>> =>
+    api.get('/iterative-labeling/tsc/compare/status', { params: { slot } }),
+
+  /**
+   * 获取最近一次 TSC 对比实验完整结果
+   * GET /api/iterative-labeling/tsc/compare/result
+   */
+  getTscCompareResult: (slot = 'pv_fault'): Promise<Record<string, unknown>> =>
+    api.get('/iterative-labeling/tsc/compare/result', { params: { slot } }),
+
+  /**
+   * 列出可用 TSC 模型及其 tier/GPU 要求
+   * GET /api/iterative-labeling/tsc/models
+   */
+  listModels: (
+    params: { tier?: number; gpuAvailable?: boolean } = {},
+    slot = 'pv_fault',
+  ): Promise<{ models: Array<{ name: string; tier: number; gpu_required: boolean; description: string }> }> =>
+    api.get('/iterative-labeling/tsc/models', {
+      params: { slot, tier: params.tier, gpu_available: params.gpuAvailable },
+    }),
+};
+// @AI_GENERATED: end
+
 /**
  * 默认导出：聚合所有 API 模块
  */
@@ -744,5 +804,8 @@ export default {
   iterationTracker: iterationTrackerApi,
   // @AI_GENERATED: 训练工作台和运营聚合
   trainingWorkspace: trainingWorkspaceApi,
+  // @AI_GENERATED: end
+  // @AI_GENERATED: TSC 时序分类
+  tscExperiment: tscExperimentApi,
   // @AI_GENERATED: end
 };

@@ -791,7 +791,7 @@ class CumulativeTrainingService:
         sample_repo = PVFaultRepository(adapter)
         builder = SnapshotBuilder(point_repo, sample_repo)
 
-        split_mode = str(state.get("split_mode") or os.getenv("PV_SPLIT_MODE", "by_day_night"))
+        split_mode = str(state.get("split_mode") or os.getenv("PV_SPLIT_MODE", "by_day"))
         measurements = builder._load_measurements(None)
         resolver = DaylightWindowResolver()
         daylight_table = resolver.build_table(measurements)

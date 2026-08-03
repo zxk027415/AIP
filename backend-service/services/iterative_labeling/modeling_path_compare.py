@@ -38,7 +38,7 @@ DEFAULT_COMPARE_PATHS = [
 PATH_LABELS = {
     "legacy_day": "老路径（label 列 + 按值 day/night 切分）",
     "point_label_by_day": "新路径 by_day（point_labels + 时钟窗）",
-    "point_label_by_day_night": "新路径 by_day_night（默认新口径）",
+    "point_label_by_day_night": "新路径 by_day_night（白天夜间分开）",
 }
 
 DEFAULT_LEGACY_DATASET_CANDIDATES = (
@@ -590,7 +590,7 @@ def compare_modeling_paths(
                 "两者数据量不同，F1 差异不可归因于路径优劣"
             ),
             "premise": (
-                "默认新路径 split_mode=by_day_night 且白天夜间按时钟判定；"
+                "默认新路径 split_mode=by_day 且白天夜间不分开；"
                 "老路径为天级 + 按值判定。对比必须分别完整跑一遍，不可直接比历史模型。"
             ),
             "note": "不会切换生产模型、不会改工作流模板落盘。",

@@ -135,6 +135,147 @@ class CumulativeTrainingService:
             summary["retrain_request"] = request
             return summary
 
+    # @AI_GENERATED
+    def reserve_manual_retrain_request(self) -> Dict[str, Any]:
+        """登记一条「待冻结快照」的手动重训请求，本身不做任何重活，立即返回。
+
+        与 ``request_manual_retrain`` 的唯一区别是**不在调用线程里构建快照**。
+        快照冻结要全量拉取测量数据（实测约 660s），远超前端 axios 的 120s 超时；
+        原同步实现下浏览器在 120s 中断后就再也不会调用 ``/run``，请求于是永久
+        停在 ``queued`` / 进度 0%，表现为「点重训没反应」。快照改由后台线程的
+        ``attach_snapshot_to_request`` 完成。
+
+        Returns:
+            ``_summarize_state`` 结果，并附 ``retrain_request`` 为新建请求。
+        Raises:
+            ValueError: 已有重训在执行或正在准备快照。
+        """
+        with self._lock:
+            state = self._load_state()
+            running = next(
+                (
+                    request
+                    for request in state["retrain_requests"].values()
+                    if request.get("status") == "running"
+                ),
+                None,
+            )
+            if running is not None:
+                raise ValueError("已有重训正在执行，请等待完成后再手动触发")
+            preparing = next(
+                (
+                    request
+                    for request in state["retrain_requests"].values()
+                    if request.get("status") == "queued" and request.get("active_job")
+                ),
+                None,
+            )
+            if preparing is not None:
+                raise ValueError("已有重训正在冻结快照，请等待完成后再手动触发")
+
+            now = datetime.utcnow().isoformat()
+            # 沿用 _create_retrain_request 的既有语义：新请求取代旧的排队请求。
+            for request in state["retrain_requests"].values():
+                if request.get("status") == "queued":
+                    request["status"] = "cancelled"
+                    request["cancelled_reason"] = "superseded_by_newer_snapshot"
+                    request["updated_at"] = now
+                    request["finished_at"] = now
+
+            request_id = f"retrain-{uuid.uuid4().hex[:12]}"
+            request = {
+                "request_id": request_id,
+                "status": "queued",
+                # active_job 标记「这条请求有后台线程正在推进」，用于拒绝并发手动触发；
+                # 与历史遗留的 queued 请求区分开。
+                "active_job": True,
+                "snapshot_id": None,
+                "dataset_path": None,
+                "sample_count": None,
+                "label_count": None,
+                "trigger_reason": "manual",
+                "auto_execute": False,
+                "triggered_change_count": int(state["pending_change_count"]),
+                "threshold": self.retrain_label_threshold,
+                "created_at": now,
+                "updated_at": now,
+                "progress": {
+                    "stage": "preparing_snapshot",
+                    "percent": 3,
+                    "message": "正在冻结累计训练快照（需全量拉取测量数据，通常数分钟）",
+                    "updated_at": now,
+                },
+            }
+            state["retrain_requests"][request_id] = request
+            self._save_state(state)
+            summary = self._summarize_state(state)
+            summary["retrain_request"] = dict(request)
+            return summary
+
+    def attach_snapshot_to_request(self, request_id: str) -> Dict[str, Any]:
+        """后台线程调用：冻结快照并回填到请求，使其可被 ``/run`` 执行。
+
+        已带 ``dataset_path`` 的请求直接返回，因此对「复用已有快照的排队请求」
+        也是安全的（后台执行既有 queued 请求时会走到这里）。
+
+        快照构建刻意放在锁外：它耗时数分钟，若持锁会把 ``get_state`` 的状态轮询
+        一起堵死，前端整页转圈——那正是本次修复要消除的现象之一。
+        """
+        with self._lock:
+            state = self._load_state()
+            request = state["retrain_requests"].get(request_id)
+            if request is None:
+                raise KeyError(request_id)
+            if str(request.get("dataset_path") or "").strip():
+                return dict(request)
+            if request.get("status") != "queued":
+                raise ValueError(f"状态 {request.get('status')} 不允许冻结快照")
+
+        scratch = self._load_state()
+        snapshot = self._create_snapshot(scratch)
+
+        with self._lock:
+            state = self._load_state()
+            request = state["retrain_requests"].get(request_id)
+            if request is None:
+                raise KeyError(request_id)
+            if request.get("status") != "queued":
+                raise ValueError(f"状态 {request.get('status')} 不允许回填快照")
+            now = datetime.utcnow().isoformat()
+            state["snapshots"][snapshot["snapshot_id"]] = snapshot
+            request.update(
+                {
+                    "snapshot_id": snapshot["snapshot_id"],
+                    "dataset_path": snapshot["dataset_path"],
+                    "sample_count": snapshot["sample_count"],
+                    "label_count": snapshot["label_count"],
+                    "updated_at": now,
+                    "progress": {
+                        "stage": "snapshot_ready",
+                        "percent": 8,
+                        "message": (
+                            f"快照已冻结（{snapshot['sample_count']} 样本 / "
+                            f"{snapshot['label_count']} 类），即将开始训练"
+                        ),
+                        "updated_at": now,
+                    },
+                }
+            )
+            state.pop("last_retrain_blocker", None)
+            self._save_state(state)
+            return dict(request)
+
+    def clear_retrain_job_flag(self, request_id: str) -> None:
+        """清除 ``active_job`` 标记，避免后台线程异常退出后永久占位。"""
+        with self._lock:
+            state = self._load_state()
+            request = state["retrain_requests"].get(request_id)
+            if request is None:
+                return
+            if request.pop("active_job", None) is not None:
+                self._save_state(state)
+    # @AI_GENERATED: end
+
     def admit_verdict(
         self,
         review_id: str,
@@ -656,6 +797,12 @@ class CumulativeTrainingService:
         if active is not None:
             if active.get("status") == "running":
                 return None
+            # @AI_GENERATED: 带 active_job 的 queued 请求正由后台线程冻结快照（数分钟），
+            # 不能当成陈旧排队请求取代掉：否则既会中断正在跑的重训，又会让本函数
+            # 在 get_state 轮询里同步重建快照，把状态接口堵死数分钟。
+            if active.get("active_job"):
+                return None
+            # @AI_GENERATED: end
             active["status"] = "cancelled"
             active["cancelled_reason"] = "superseded_by_newer_snapshot"
             active["updated_at"] = datetime.utcnow().isoformat()
@@ -949,6 +1096,11 @@ class CumulativeTrainingService:
             "retrain_history": requests,
             "latest_completed_model_ref": production_model_ref or None,
             "modeling_paths": self._summarize_modeling_paths(state),
+            # @AI_GENERATED: 暴露「下次重训使用的切分策略」。
+            # 前端策略选择器原先读 state.split_mode，但状态接口从未返回该字段，
+            # 导致刷新页面后选择器只能退回默认值、无法反映已持久化的选择。
+            "split_mode": state.get("split_mode") or os.getenv("PV_SPLIT_MODE", "by_day"),
+            # @AI_GENERATED: end
         }
 
     @staticmethod

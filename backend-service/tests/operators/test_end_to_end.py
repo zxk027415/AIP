@@ -358,6 +358,182 @@ class TestEndToEndP3W3ClusterSampleEvalPipeline:
         assert np.isfinite(pb["score"])
 
 
+class TestEndToEndLegacyWaveL1Pipeline:
+    """L5：Legacy L1 + ks_test 合成巡检（逐个执行 + 短链路）。"""
+
+    def test_legacy_wave_l1_ops_execute_once(self, router, tmp_path):
+        import importlib.util
+
+        legacy_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "legacy_smoke_cases.py",
+        )
+        spec = importlib.util.spec_from_file_location("legacy_l5", legacy_path)
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+
+        p4_ops = sorted(mod.LEGACY_WAVE_L1 | mod.P4_NEW_OPERATORS)
+        by_id = {s[0]: s for s in mod.legacy_wave_l1_smoke_specs()}
+
+        for op_id in p4_ops:
+            _op, params_builder, inputs_builder, expected_keys, _kind = by_id[op_id]
+            params = params_builder(tmp_path)
+            inputs = inputs_builder(tmp_path)
+            result = router.execute(op_id, params, inputs)
+            for key in expected_keys:
+                assert key in result, f"{op_id} missing {key}"
+
+    def test_legacy_load_to_features_short_chain(self, router, tmp_path):
+        import importlib.util
+
+        legacy_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "legacy_smoke_cases.py",
+        )
+        spec = importlib.util.spec_from_file_location("legacy_l5_chain", legacy_path)
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+
+        csv_path = mod._make_tmp_csv(tmp_path)
+        df = router.execute(
+            "load_csv",
+            {"file_path": csv_path, "timestamp_column": "record_time"},
+            {},
+        )["data"]
+        df = router.execute(
+            "handle_missing",
+            {"time_field": "record_time", "target_column": "value", "method": "linear"},
+            {"data": df},
+        )["data"]
+        df = router.execute(
+            "create_lag_features",
+            {"target_column": "value", "lags": [1]},
+            {"data": df},
+        )["data"]
+        assert "value_lag_1" in df.columns
+
+        seg_a = df["value"].iloc[:10].tolist()
+        seg_b = df["value"].iloc[10:20].tolist()
+        ks = router.execute("ks_test", {"alpha": 0.05}, {"sample_a": seg_a, "sample_b": seg_b})
+        assert "pvalue" in ks
+
+
+class TestEndToEndFeatureBetaPipeline:
+    """L5：P4-β 特征工程合成巡检 + 短链路。"""
+
+    def test_feature_beta_ops_execute_once(self, router, tmp_path):
+        import importlib.util
+
+        feat_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "feature_smoke_cases.py",
+        )
+        spec = importlib.util.spec_from_file_location("feat_l5", feat_path)
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+
+        for op_id in sorted(mod.P4_BETA_FE):
+            by_id = {s[0]: s for s in mod.feature_beta_smoke_specs()}
+            _op, params_builder, inputs_builder, expected_keys, _kind = by_id[op_id]
+            result = router.execute(op_id, params_builder(tmp_path), inputs_builder(tmp_path))
+            for key in expected_keys:
+                assert key in result, f"{op_id} missing {key}"
+
+    def test_feature_time_calendar_chain(self, router):
+        ts = pd.date_range("2024-01-01", periods=72, freq="h")
+        df = pd.DataFrame({"record_time": ts, "value": np.linspace(1, 2, 72)})
+        df = router.execute("extract_time_features", {
+            "timestamp_column": "record_time", "features": ["hour"],
+        }, {"data": df})["data"]
+        df = router.execute("workday_features", {"time_field": "record_time"}, {"data": df})["data"]
+        df = router.execute("shift_features", {"time_field": "record_time"}, {"data": df})["data"]
+        df = router.execute("pct_change_features", {"target_column": "value"}, {"data": df})["data"]
+        assert "is_workday" in df.columns and "value_pct_change_1" in df.columns
+
+
+class TestEndToEndEvalBetaPipeline:
+    """L5：P4-β 评估/采样合成巡检 + 短链路。"""
+
+    def test_eval_beta_ops_execute_once(self, router, tmp_path):
+        import importlib.util
+
+        eval_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "eval_smoke_cases.py",
+        )
+        spec = importlib.util.spec_from_file_location("eval_l5", eval_path)
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+
+        by_id = {s[0]: s for s in mod.eval_beta_smoke_specs()}
+        for op_id in sorted(mod.P4_BETA_EVAL):
+            _op, params_builder, inputs_builder, expected_keys, _kind = by_id[op_id]
+            result = router.execute(op_id, params_builder(tmp_path), inputs_builder(tmp_path))
+            for key in expected_keys:
+                assert key in result, f"{op_id} missing {key}"
+
+    def test_smote_rfc_eval_short_chain(self, router):
+        from sklearn.datasets import make_classification
+
+        x, y = make_classification(
+            n_samples=80, n_features=5, n_informative=3, n_classes=2, random_state=1,
+        )
+        feat = pd.DataFrame(x, columns=[f"f{i}" for i in range(5)])
+        sm = router.execute("smote_oversample", {"limit": 45}, {"features": feat, "target": y})
+        rfc = router.execute(
+            "random_forest_classifier",
+            {"mode": "train", "n_estimators": 20, "save_model": "false"},
+            {"features": sm["features"], "target": sm["target"]},
+        )
+        pr = router.execute(
+            "precision_recall_f1", {},
+            {"y_true": rfc["y_true"], "y_pred": rfc["predictions"]},
+        )
+        assert "f1" in pr
+
+
+class TestEndToEndP4GammaPipeline:
+    """L5：P4-γ 预测栈 + 模型 IO 合成巡检。"""
+
+    def test_gamma_ops_execute_once(self, router, tmp_path):
+        import importlib.util
+
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "p4_gamma_smoke_cases.py")
+        spec = importlib.util.spec_from_file_location("gamma_l5", path)
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+
+        by_id = {s[0]: s for s in mod.gamma_smoke_specs()}
+        skip = {"load_api", "lightgbm_forecast", "catboost_forecast", "auto_tune_lightgbm", "auto_tune_catboost"}
+        for op_id in sorted(mod.P4_GAMMA - skip):
+            if op_id in {"lightgbm_forecast", "catboost_forecast", "auto_tune_lightgbm", "auto_tune_catboost"}:
+                continue
+            _op, pb, ib, keys, _k = by_id[op_id]
+            result = router.execute(op_id, pb(tmp_path), ib(tmp_path))
+            for key in keys:
+                assert key in result, f"{op_id} missing {key}"
+
+    def test_forecast_artifact_short_chain(self, router, tmp_path):
+        import importlib.util
+
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "p4_gamma_smoke_cases.py")
+        spec = importlib.util.spec_from_file_location("gamma_chain", path)
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+
+        fmx = mod._forecast_matrix_inputs()
+        ridge = router.execute("ridge_forecast", {"mode": "train", "alpha": 1.0}, fmx)
+        saved = router.execute(
+            "save_model_artifact",
+            {"model_ref": "gamma-l5-ridge"},
+            {"model": ridge["model"], "feature_list": list(fmx["train_features"].columns)},
+        )
+        loaded = router.execute("load_model_artifact", {"model_ref": saved["model_ref"]}, {})
+        assert loaded["model"] is not None
+
+
 class TestEndToEndBatch67SoftCoverage:
     """
     L5：对上一批已有 L2+L6 的软目标算子做合成链路巡检（逐个执行一次）。

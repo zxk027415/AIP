@@ -51,6 +51,8 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
 import { reviewSessionApi } from '../services/iterativeLabelingApi';
+import PvFaultWorkspaceShell from '../components/pv-fault/PvFaultWorkspaceShell';
+import { PV_FAULT_PRIMARY, PV_FAULT_OK } from '../theme/pvFaultTheme';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -211,6 +213,26 @@ const IterativeLabelingReviewPage: React.FC = () => {
   const [freeformLabelId, setFreeformLabelId] = useState<number | undefined>();
   const [freeformNewName, setFreeformNewName] = useState('');
 
+  // SHAP / 相似案例
+  const [explainLoading, setExplainLoading] = useState(false);
+  const [shapResult, setShapResult] = useState<{
+    available?: boolean;
+    reason?: string;
+    note?: string;
+    source?: string;
+    top_features?: Array<{ name: string; value: number; shap_value: number }>;
+  } | null>(null);
+  const [similarResult, setSimilarResult] = useState<{
+    source?: string;
+    note?: string;
+    cases?: Array<{
+      unit_key?: string;
+      label?: number;
+      label_name?: string | null;
+      similarity_score?: number;
+    }>;
+  } | null>(null);
+
   /**
    * 加载审核会话
    */
@@ -236,7 +258,6 @@ const IterativeLabelingReviewPage: React.FC = () => {
       if (firstUnreviewedIndex !== -1) {
         setCurrentUnitIndex(firstUnreviewedIndex);
       }
-      
       message.success('加载审核会话成功');
     } catch (error) {
       message.error(`加载失败: ${error}`);
@@ -310,17 +331,14 @@ const IterativeLabelingReviewPage: React.FC = () => {
   };
 
   /**
-   * 加载各类故障参考波形（仅在首次渲染时加载一次）
+   * 加载各类故障参考波形（依赖已加载的 session，避免重复拉会话）
    */
-  const loadReferenceWaveforms = async () => {
-    if (!reviewId) return;
+  const loadReferenceWaveforms = async (sessData?: ReviewSession | null) => {
+    const sessionData = sessData ?? session;
+    if (!sessionData) return;
     setRefWaveformsLoading(true);
     try {
-      // 从会话的 prediction_context 获取训练数据路径
-      const sessResp = await fetch(`/api/iterative-labeling/review-sessions/${reviewId}?${slotQuery}`);
-      if (!sessResp.ok) return;
-      const sessData = await sessResp.json();
-      const ctx = sessData.prediction_context || {};
+      const ctx = sessionData.prediction_context || {};
       // 训练数据路径：使用相对于项目根目录的路径（后端 _resolve_data_path 会解析）
       // 训练数据已含 label 列，单文件模式即可
       const trainPath = ctx.reference_train_path || 'fault-diag-algo-release-3.1/relate_data/all_labeled_combined.parquet';
@@ -519,15 +537,19 @@ const IterativeLabelingReviewPage: React.FC = () => {
 
   // 初始化加载
   useEffect(() => {
-    loadReviewSession();
-    loadLabelRegistry();
-    loadAccuracy();
-    loadReferenceWaveforms();
-    
-    // 定期刷新精度（需求 6.4：增量更新）
+    void (async () => {
+      await Promise.all([loadReviewSession(), loadLabelRegistry()]);
+    })();
+    void loadAccuracy();
+
     const interval = setInterval(loadAccuracy, 5000);
     return () => clearInterval(interval);
   }, [reviewId, slot]);
+
+  useEffect(() => {
+    if (!session) return;
+    void loadReferenceWaveforms(session);
+  }, [session?.review_id]);
 
   // 当前单元变化时加载其原始时序波形
   useEffect(() => {
@@ -535,6 +557,45 @@ const IterativeLabelingReviewPage: React.FC = () => {
     if (unit?.unit_key) {
       loadUnitTimeseries(unit.unit_key);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewId, slot, currentUnitIndex, session?.units?.[currentUnitIndex]?.unit_key]);
+
+  // 当前单元变化时加载 SHAP + 相似案例
+  useEffect(() => {
+    const unit = session?.units?.[currentUnitIndex];
+    if (!reviewId || !unit?.unit_key || session?.prediction_context?.manual_labeling) {
+      setShapResult(null);
+      setSimilarResult(null);
+      return;
+    }
+    let cancelled = false;
+    const loadExplain = async () => {
+      setExplainLoading(true);
+      try {
+        const uk = encodeURIComponent(unit.unit_key);
+        const [shapResp, simResp] = await Promise.all([
+          fetch(`/api/iterative-labeling/review-sessions/${reviewId}/shap/${uk}?${slotQuery}&top_k=5`),
+          fetch(`/api/iterative-labeling/review-sessions/${reviewId}/similar/${uk}?${slotQuery}&k=3`),
+        ]);
+        const shapJson = shapResp.ok ? await shapResp.json() : { available: false, reason: 'http_error' };
+        const simJson = simResp.ok ? await simResp.json() : { cases: [], note: 'http_error' };
+        if (!cancelled) {
+          setShapResult(shapJson);
+          setSimilarResult(simJson);
+        }
+      } catch {
+        if (!cancelled) {
+          setShapResult({ available: false, reason: 'load_failed' });
+          setSimilarResult({ cases: [], note: 'load_failed' });
+        }
+      } finally {
+        if (!cancelled) setExplainLoading(false);
+      }
+    };
+    void loadExplain();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reviewId, slot, currentUnitIndex, session?.units?.[currentUnitIndex]?.unit_key]);
 
@@ -692,7 +753,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
     : 0;
 
   return (
-    <div style={{ padding: '24px' }}>
+    <PvFaultWorkspaceShell className="pv-page-shell">
       <Title level={2}>
         <FileTextOutlined /> {manualLabeling ? '人工打标' : '人工审核预测准确率'}
       </Title>
@@ -750,7 +811,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
                 title="分类器预测精度"
                 value={(accuracy.classifier_accuracy * 100).toFixed(2)}
                 suffix="%"
-                valueStyle={{ color: '#1890ff' }}
+                valueStyle={{ color: PV_FAULT_OK, fontWeight: 600 }}
               />
               <Text type="secondary" style={{ fontSize: 12 }}>
                 辅助建议
@@ -761,7 +822,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
                 title="LLM 建议精度"
                 value={(accuracy.llm_accuracy * 100).toFixed(2)}
                 suffix="%"
-                valueStyle={{ color: '#52c41a' }}
+                valueStyle={{ color: '#6B7280', fontWeight: 600 }}
               />
               <Text type="secondary" style={{ fontSize: 12 }}>
                 辅助建议 | 覆盖率 {(accuracy.llm_coverage * 100).toFixed(1)}%
@@ -772,7 +833,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
                 title="人工核对精度基线"
                 value={100}
                 suffix="%"
-                valueStyle={{ color: '#faad14' }}
+                valueStyle={{ color: PV_FAULT_PRIMARY, fontWeight: 600 }}
               />
               <Text type="secondary" style={{ fontSize: 12 }}>
                 已审核单元
@@ -858,7 +919,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
                   <Col key={ref.label_id} span={8}>
                     <div style={{ border: '1px solid #f0f0f0', borderRadius: 4, padding: '4px 8px' }}>
                       <Space size={4} style={{ marginBottom: 2 }}>
-                        <Tag color={ref.label_id === 0 || ref.label_id === 7 ? 'green' : 'red'} style={{ fontSize: 11 }}>
+                        <Tag color={ref.label_id === 0 || ref.label_id === 7 ? 'orange' : 'red'} style={{ fontSize: 11 }}>
                           label_{ref.label_id}
                         </Tag>
                         <span style={{ fontSize: 11 }}>{ref.label_name}（{ref.point_count}点）</span>
@@ -1067,6 +1128,115 @@ const IterativeLabelingReviewPage: React.FC = () => {
                   );
                 }}
               />
+            </Card>
+          )}
+
+          {!session?.prediction_context?.manual_labeling && (
+            <Card
+              size="small"
+              title="审核辅助：为什么判成这个 / 相似案例"
+              style={{ marginTop: 12 }}
+              loading={explainLoading}
+            >
+              <Row gutter={16}>
+                <Col xs={24} md={12}>
+                  <Typography.Text strong>特征贡献（SHAP）</Typography.Text>
+                  {shapResult?.available && (shapResult.top_features?.length ?? 0) > 0 ? (
+                    <List
+                      size="small"
+                      style={{ marginTop: 8 }}
+                      dataSource={shapResult.top_features || []}
+                      renderItem={(item) => (
+                        <List.Item>
+                          <Space direction="vertical" size={0} style={{ width: '100%' }}>
+                            <Text>{item.name}</Text>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              贡献 {Number(item.shap_value).toFixed(4)}
+                              {' · '}
+                              特征值 {Number(item.value).toFixed(4)}
+                            </Text>
+                          </Space>
+                        </List.Item>
+                      )}
+                    />
+                  ) : (
+                    <Alert
+                      style={{ marginTop: 8 }}
+                      type="info"
+                      showIcon
+                      message={shapResult?.available === false ? '暂无法计算 SHAP' : '暂无解释'}
+                      description={
+                        shapResult?.note
+                        || shapResult?.reason
+                        || '需要带特征向量的新预测批次（重新跑预测后建审核会话）'
+                      }
+                    />
+                  )}
+                  {shapResult?.source && (
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      来源：{shapResult.source}
+                    </Text>
+                  )}
+                </Col>
+                <Col xs={24} md={12}>
+                  <Typography.Text strong>相似案例</Typography.Text>
+                  {(similarResult?.cases?.length ?? 0) > 0 ? (
+                    <List
+                      size="small"
+                      style={{ marginTop: 8 }}
+                      dataSource={similarResult?.cases || []}
+                      renderItem={(item) => {
+                        const idx = session?.units?.findIndex((u) => u.unit_key === item.unit_key) ?? -1;
+                        const labelText =
+                          item.label_name
+                          || (item.label != null
+                            ? labelRegistry?.labels.find((l) => l.label_id === item.label)?.label_name
+                              || `label_${item.label}`
+                            : '—');
+                        return (
+                          <List.Item
+                            actions={
+                              idx >= 0
+                                ? [
+                                    <Button
+                                      key="jump"
+                                      type="link"
+                                      size="small"
+                                      onClick={() => setCurrentUnitIndex(idx)}
+                                    >
+                                      跳转
+                                    </Button>,
+                                  ]
+                                : undefined
+                            }
+                          >
+                            <Space direction="vertical" size={0}>
+                              <Text>{labelText}</Text>
+                              <Text type="secondary" style={{ fontSize: 12 }}>
+                                相似度 {(Number(item.similarity_score || 0) * 100).toFixed(1)}%
+                                {item.unit_key ? ` · ${item.unit_key}` : ''}
+                              </Text>
+                            </Space>
+                          </List.Item>
+                        );
+                      }}
+                    />
+                  ) : (
+                    <Alert
+                      style={{ marginTop: 8 }}
+                      type="info"
+                      showIcon
+                      message="暂无相似案例"
+                      description={similarResult?.note || '同批次可比较样本不足'}
+                    />
+                  )}
+                  {similarResult?.source && (
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      来源：{similarResult.source === 'feature_vectors' ? '真实特征向量' : '弱代理（建议重新预测）'}
+                    </Text>
+                  )}
+                </Col>
+              </Row>
             </Card>
           )}
 
@@ -1388,7 +1558,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
         ) : (
           <>
             <Alert
-              type="success"
+              type="info"
               showIcon
               style={{ marginBottom: 16 }}
               message="新数据集已生成"
@@ -1420,10 +1590,13 @@ const IterativeLabelingReviewPage: React.FC = () => {
         size="small"
         style={{ marginTop: 16 }}
       >
-        <DataPreviewTable reviewId={reviewId} slotQuery={slotQuery} />
+        <DataPreviewTable
+          sourceCsvPath={session.prediction_context?.source_csv_path as string | undefined}
+          slotQuery={slotQuery}
+        />
       </Card>
       {/* @AI_GENERATED: end */}
-    </div>
+    </PvFaultWorkspaceShell>
   );
 };
 
@@ -1431,24 +1604,20 @@ const IterativeLabelingReviewPage: React.FC = () => {
  * 数据预览子组件：从会话的 source_csv_path 加载前 20 行展示
  */
 // @AI_GENERATED: 将 URL 中的已编码槽位参数传入独立组件，确保数据预览与审核会话保持同一分区。
-const DataPreviewTable: React.FC<{ reviewId: string | null; slotQuery: string }> = ({ reviewId, slotQuery }) => {
+const DataPreviewTable: React.FC<{ sourceCsvPath?: string; slotQuery: string }> = ({ sourceCsvPath, slotQuery }) => {
   const [previewData, setPreviewData] = useState<{ columns: string[]; rows: Array<Record<string, unknown>> } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
-    if (!reviewId) return;
+    if (!sourceCsvPath) {
+      setPreviewData(null);
+      return;
+    }
     let cancelled = false;
     const load = async () => {
       setPreviewLoading(true);
       try {
-        // 先拿会话获取 source_csv_path
-        const sessResp = await fetch(`/api/iterative-labeling/review-sessions/${reviewId}?${slotQuery}`);
-        if (!sessResp.ok || cancelled) return;
-        const sess = await sessResp.json();
-        const csvPath = sess?.prediction_context?.source_csv_path;
-        if (!csvPath) { setPreviewData(null); return; }
-        // 调用预览接口
-        const resp = await fetch(`/api/iterative-labeling/data-preview?file_path=${encodeURIComponent(csvPath)}&rows=20&${slotQuery}`);
+        const resp = await fetch(`/api/iterative-labeling/data-preview?file_path=${encodeURIComponent(sourceCsvPath)}&rows=20&${slotQuery}`);
         if (!resp.ok || cancelled) return;
         const data = await resp.json();
         if (!cancelled) setPreviewData(data);
@@ -1460,7 +1629,7 @@ const DataPreviewTable: React.FC<{ reviewId: string | null; slotQuery: string }>
     };
     load();
     return () => { cancelled = true; };
-  }, [reviewId, slotQuery]);
+  }, [sourceCsvPath, slotQuery]);
 // @AI_GENERATED: end
 
   if (previewLoading) return <div style={{ textAlign: 'center', padding: 32 }}>加载数据预览...</div>;

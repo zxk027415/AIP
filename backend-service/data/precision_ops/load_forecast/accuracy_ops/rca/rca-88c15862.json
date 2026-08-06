@@ -1,0 +1,18 @@
+{
+  "rca_report_id": "rca-88c15862",
+  "alert_id": "alert-0fe0bdae",
+  "trigger_type": "manual",
+  "root_cause": "",
+  "confidence": 0.0,
+  "reasoning": "",
+  "supporting_evidence": [],
+  "undetermined": false,
+  "error_profile": null,
+  "data_quality_diagnosis": null,
+  "actionable_insights": [],
+  "candidate_strategies": [],
+  "recommended_strategy_id": null,
+  "artifacts_dir": "",
+  "status": "failed",
+  "created_at": "2026-07-27T09:58:34.696630+00:00"
+}

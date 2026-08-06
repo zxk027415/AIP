@@ -195,10 +195,15 @@ const AccuracyOperationsPage: React.FC = () => {
   const handleTriggerRca = async (alert: AccuracyAlert) => {
     const report = await triggerRCA(alert.alert_id, 'manual');
     if (!report) return;
-    setSelectedAlert({ ...alert, rca_report_id: report.rca_report_id, status: 'rca_running' });
+    const nextAlert = { ...alert, rca_report_id: report.rca_report_id, status: 'open' as const };
+    setSelectedAlert(nextAlert);
     setDecision(null);
     await fetchAlerts(alert.slot);
-    messageApi.success('RCA 已完成，可查看诊断证据并触发恢复仲裁。');
+    if (report.status === 'succeeded') {
+      messageApi.success('RCA 已完成，已定位数据层问题，可查看诊断证据并触发恢复仲裁。');
+    } else {
+      messageApi.warning(`RCA 状态：${report.status}，请查看详情或重试。`);
+    }
   };
 
   const handleTriggerDecision = async (slot: string, rcaReportId: string) => {
@@ -373,7 +378,14 @@ const AccuracyOperationsPage: React.FC = () => {
               <Space direction="vertical" size={2}>
                 <Text>告警 ID：<Text code>{selectedAlert.alert_id}</Text></Text>
                 <Text>退化版本：<Text code>{selectedAlert.workflow_id}@{selectedAlert.version_tag}</Text></Text>
-                <Text>基线 / 当前 MAPE：{selectedAlert.baseline_mape.toFixed(2)}% / {selectedAlert.current_rolling_mape.toFixed(2)}%</Text>
+                <Text>
+                  基线 / 当前 MAPE：
+                  {(selectedAlert.baseline_metric ?? selectedAlert.baseline_mape).toFixed(2)}% /{' '}
+                  {(selectedAlert.current_metric ?? selectedAlert.current_rolling_mape).toFixed(2)}%
+                  {(selectedAlert.recovery_evidence as { type?: string } | null)?.type === 'experiment_inject'
+                    ? `（线上口径；AR 参考 ${selectedAlert.baseline_mape.toFixed(2)}%）`
+                    : ''}
+                </Text>
                 <Text>退化趋势：{selectedAlert.degradation_trend === 'sudden' ? '骤升' : selectedAlert.degradation_trend === 'gradual' ? '渐升' : '持续高位'}；退化幅度 {selectedAlert.degradation_pct.toFixed(2)}%</Text>
                 <Text>冷却截止：{formatDateTime(selectedAlert.cooldown_until)}</Text>
                 <Text>RCA / 恢复决策：<Text code>{selectedAlert.rca_report_id ?? '未生成'}</Text> / <Text code>{selectedAlert.recovery_decision_id ?? '未生成'}</Text></Text>

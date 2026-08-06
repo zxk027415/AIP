@@ -36,6 +36,7 @@ import {
 import type { MenuProps } from 'antd';
 import { useWorkflowRunNavStore } from '../stores/workflowRunNavStore';
 import { usePipelineExecutionStore } from '../stores/pipelineExecutionStore';
+import '../styles/pvFaultWorkspace.css';
 
 const { Sider, Content, Header } = Layout;
 const { Text } = Typography;
@@ -80,6 +81,17 @@ const MainLayout: React.FC = () => {
   const executionStatus = usePipelineExecutionStore((s) => s.executionStatus);
   const pipelinePlannedNodeCount = usePipelineExecutionStore((s) => s.pipelinePlannedNodeCount);
   const here = `${location.pathname}${location.search}`;
+  const isPvFaultRoute = useMemo(() => {
+    const path = location.pathname;
+    return (
+      path === '/accuracy-operations'
+      || path === '/algorithm-deployment'
+      || path === '/algorithm-dev/deployment'
+      || path.startsWith('/iterative-labeling')
+      || path === '/precision-ops'
+      || path === '/algorithm-dev/ops'
+    );
+  }, [location.pathname]);
   const showRunningReturn =
     Boolean(runNav.returnHref) && runNav.phase !== 'idle' && here !== runNav.returnHref;
 
@@ -399,10 +411,11 @@ const MainLayout: React.FC = () => {
   if (!isMobile) {
     return (
       <>
-      <Layout style={{ minHeight: '100vh' }}>
+      <Layout className={isPvFaultRoute ? 'main-layout--pv-fault' : undefined} style={{ minHeight: '100vh' }}>
         <Sider
           width={siderWidth}
-          theme="light"
+          theme={isPvFaultRoute ? 'dark' : 'light'}
+          className={isPvFaultRoute ? 'pv-fault-sider' : undefined}
           style={{
             overflow: 'auto',
             height: '100vh',
@@ -410,8 +423,8 @@ const MainLayout: React.FC = () => {
             left: 0,
             top: 0,
             bottom: 0,
-            background: '#fff',
-            borderRight: '1px solid #f0f0f0',
+            background: isPvFaultRoute ? '#111111' : '#fff',
+            borderRight: isPvFaultRoute ? '1px solid #1f1f1f' : '1px solid #f0f0f0',
           }}
         >
           {/* Navigation CSS overrides per design spec fig.3 */}
@@ -423,8 +436,13 @@ const MainLayout: React.FC = () => {
               border-radius: 0;
             }
             .seventh-gen-nav .ant-menu-item-selected {
-              border-left: 3px solid #1677ff;
-              background-color: #e6f7ff !important;
+              border-left: 3px solid ${isPvFaultRoute ? '#FF6A00' : '#1677ff'};
+              background-color: ${isPvFaultRoute ? 'rgba(255, 106, 0, 0.15)' : '#e6f7ff'} !important;
+            }
+            .main-layout--pv-fault .seventh-gen-nav.ant-menu-dark .ant-menu-item-selected {
+              border-left: none;
+              background-color: #FF6A00 !important;
+              color: #ffffff !important;
             }
             .seventh-gen-nav .ant-menu-item-group-title {
               font-size: 11px;
@@ -440,29 +458,30 @@ const MainLayout: React.FC = () => {
             }
           `}</style>
           <div
+            className={isPvFaultRoute ? 'pv-fault-sider-brand' : undefined}
             style={{
               height: 56,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#262626',
+              color: isPvFaultRoute ? '#ffffff' : '#262626',
               fontSize: 15,
               fontWeight: 600,
-              borderBottom: '1px solid #f0f0f0',
-              background: '#fff',
+              borderBottom: isPvFaultRoute ? '1px solid #1f1f1f' : '1px solid #f0f0f0',
+              background: isPvFaultRoute ? '#111111' : '#fff',
             }}
           >
             {t('app.title')}
           </div>
           <Menu
             key={i18n.language}
-            theme="light"
+            theme={isPvFaultRoute ? 'dark' : 'light'}
             mode="inline"
             selectedKeys={[selectedMenuKey]}
             onClick={handleMenuClick}
             items={menuItems}
             style={{ borderRight: 0 }}
-            className="seventh-gen-nav"
+            className={`seventh-gen-nav${isPvFaultRoute ? ' pv-fault-nav' : ''}`}
           />
           <div
             onMouseDown={handleSiderResizeStart}

@@ -859,37 +859,5 @@ class PVTrainingWorkspaceService:
         except Exception:
             pass
 
-        overview["split_config"] = self._read_workflow_split_parity()
         return overview
-
-    @staticmethod
-    def _read_workflow_split_parity() -> Dict[str, Any]:
-        """读取训练/预测模板里 time_window_split 的 solar_mode，便于运营核对切分是否对齐。"""
-        templates = {
-            "train": "workflow-pv-fault-diag-quickval-cv-v1.json",
-            "predict": "workflow-pv-fault-diag-quickval-predict-v1.json",
-        }
-        result: Dict[str, Any] = {"aligned": True, "modes": {}}
-        for role, filename in templates.items():
-            path = _BACKEND_SERVICE_DIR / "data" / "workflows_enhanced" / filename
-            mode = None
-            window = None
-            try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
-                for node in payload.get("nodes") or []:
-                    cfg = ((node.get("data") or {}).get("config") or {})
-                    if cfg.get("functionId") == "time_window_split":
-                        mode = cfg.get("solar_mode") or None
-                        if isinstance(mode, str) and not mode.strip():
-                            mode = None
-                        window = cfg.get("window")
-                        break
-            except Exception:
-                mode = None
-            result["modes"][role] = {"solar_mode": mode, "window": window, "source": filename}
-        train_mode = (result["modes"].get("train") or {}).get("solar_mode")
-        predict_mode = (result["modes"].get("predict") or {}).get("solar_mode")
-        result["aligned"] = train_mode == predict_mode
-        result["active_solar_mode"] = train_mode if train_mode == predict_mode else None
-        return result
 # @AI_GENERATED: end

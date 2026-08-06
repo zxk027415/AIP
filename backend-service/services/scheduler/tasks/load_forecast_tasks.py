@@ -31,13 +31,66 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MOCK_WORKFLOW_ID = "mock-load-naive-v1"
 DEFAULT_MOCK_VERSION_TAG = "mock-naive-v1"
-DEFAULT_MOCK_STATION_ID = "mock_load_station"
+# 与 CsvMockCompanyFeeder / main.py 注册任务保持一致，避免 standalone 脚本找不到水位
+DEFAULT_MOCK_STATION_ID = "yARGkDuq"
 DEFAULT_MOCK_FEATURE_NAME = "load"
 
 
 # ---------------------------------------------------------------------------
 # Internal helper
 # ---------------------------------------------------------------------------
+
+def _resolve_station_watermark(
+    lf_repo: "LoadForecastRepository",
+    slot: str,
+    station_id: str,
+    feature_name: str,
+) -> Tuple[str, str, Optional[datetime]]:
+    """解析 slot 下用于精度回填的 station/feature 与真值水位。
+
+    优先使用调用方传入的 station_id；若无数据则在 slot 内按最新 timestamp 自动回退。
+    """
+    from sqlalchemy import func
+
+    with lf_repo._adapter.get_sync_session() as session:
+        latest = (
+            session.query(StationData.timestamp_utc)
+            .filter(
+                StationData.slot == slot,
+                StationData.station_id == station_id,
+                StationData.feature_name == feature_name,
+            )
+            .order_by(StationData.timestamp_utc.desc())
+            .limit(1)
+            .scalar()
+        )
+        if latest is not None:
+            return station_id, feature_name, latest
+
+        fallback = (
+            session.query(
+                StationData.station_id,
+                StationData.feature_name,
+                func.max(StationData.timestamp_utc),
+            )
+            .filter(StationData.slot == slot)
+            .group_by(StationData.station_id, StationData.feature_name)
+            .order_by(func.max(StationData.timestamp_utc).desc())
+            .first()
+        )
+        if fallback is None:
+            return station_id, feature_name, None
+        sid, fname, ts = fallback
+        if sid != station_id or fname != feature_name:
+            logger.info(
+                "accuracy_backfill_task: slot=%s 回退 station=%s feature=%s（原 station=%s）",
+                slot,
+                sid,
+                fname,
+                station_id,
+            )
+        return str(sid), str(fname), ts
+
 
 def _get_high_watermark(lf_repo: "LoadForecastRepository", slot: str, station_id: str) -> datetime:
     """
@@ -208,6 +261,7 @@ def make_daily_rolling_task(
     slot_store=None,
     production_registry=None,
     version_registry=None,
+    relax_history_readiness: bool = False,
 ) -> Callable:
     """
     返回 daily_rolling_task() — 每日滚动训练+预测主任务。
@@ -333,14 +387,24 @@ def make_daily_rolling_task(
             timestamps=available_timestamps,
         )
         if not history_readiness.ready:
-            logger.info(
-                "daily_rolling_task: slot=%s workflow=%s business_date=%s 跳过：%s",
-                slot,
-                production_workflow_id,
-                trigger_date.isoformat(),
-                history_readiness.reason(),
-            )
-            return None
+            if relax_history_readiness:
+                logger.warning(
+                    "daily_rolling_task: slot=%s workflow=%s business_date=%s "
+                    "experiment 模式忽略 history 门禁：%s",
+                    slot,
+                    production_workflow_id,
+                    trigger_date.isoformat(),
+                    history_readiness.reason(),
+                )
+            else:
+                logger.info(
+                    "daily_rolling_task: slot=%s workflow=%s business_date=%s 跳过：%s",
+                    slot,
+                    production_workflow_id,
+                    trigger_date.isoformat(),
+                    history_readiness.reason(),
+                )
+                return None
 
         window = compute_training_window(
             trigger_date=trigger_date,
@@ -447,7 +511,33 @@ def make_daily_rolling_task(
 
         # ---- Step 6: 逐个 workflow 执行 ----
         # 先收集所有需要跑的 workflow 列表（production + shadow + prelaunch）
+        # 每项可带 experiment_patch（AR 实验配置），日滚前真实 apply
         workflows_to_run: list = []
+
+        def _resolve_model_patch(model) -> tuple:
+            """返回 (patch, newly_loaded)。空 patch 时按 source_candidate_id 回填。"""
+            patch = getattr(model, "experiment_patch", None)
+            if isinstance(patch, dict) and patch:
+                return patch, False
+            cand_id = getattr(model, "source_candidate_id", None)
+            if not cand_id:
+                return None, False
+            try:
+                from services.deployment.experiment_patch import (
+                    load_experiment_patch_from_candidate_id,
+                )
+
+                loaded = load_experiment_patch_from_candidate_id(str(cand_id))
+                if loaded:
+                    model.experiment_patch = loaded
+                    return loaded, True
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "daily_rolling_task: 回填 experiment_patch 失败 candidate=%s: %s",
+                    cand_id,
+                    exc,
+                )
+            return None, False
 
         # production
         if production_registry is not None:
@@ -455,18 +545,25 @@ def make_daily_rolling_task(
         else:
             prod_entry = None
 
+        slot_dirty = False
+        working_slot_obj = None
         if slot_store is not None:
             try:
-                slot_obj = slot_store.get(slot)
+                working_slot_obj = slot_store.get(slot)
+                slot_obj = working_slot_obj
                 if slot_obj is not None and slot_obj.production_model is not None:
                     prod_wf_id = slot_obj.production_model.workflow_id
                     prod_tag = slot_obj.production_model.version_tag
+                    prod_patch, loaded = _resolve_model_patch(slot_obj.production_model)
+                    if loaded:
+                        slot_dirty = True
                     if prod_wf_id:
                         workflows_to_run.append({
                             "workflow_id": prod_wf_id,
                             "version_tag": prod_tag,
                             "is_shadow": False,
                             "role": "production",
+                            "experiment_patch": prod_patch,
                         })
             except Exception:
                 pass
@@ -478,6 +575,7 @@ def make_daily_rolling_task(
                 "version_tag": prod_entry.get("version_tag", "production"),
                 "is_shadow": False,
                 "role": "production",
+                "experiment_patch": None,
             })
 
         if not workflows_to_run:
@@ -488,21 +586,24 @@ def make_daily_rolling_task(
             return None
 
         # shadow（优先从 slot_store，降级到 version_registry）
-        if slot_store is not None:
+        if working_slot_obj is not None:
             try:
-                slot_obj = slot_store.get(slot)
-                if slot_obj is not None:
-                    active_shadows = sorted(
-                        [m for m in slot_obj.shadow_models if m.status == "shadow"],
-                        key=lambda m: m.accuracy_score if m.accuracy_score is not None else float("inf"),
-                    )[:max_shadow]
-                    for m in active_shadows:
-                        workflows_to_run.append({
-                            "workflow_id": m.workflow_id,
-                            "version_tag": m.version_tag,
-                            "is_shadow": True,
-                            "role": "shadow",
-                        })
+                slot_obj = working_slot_obj
+                active_shadows = sorted(
+                    [m for m in slot_obj.shadow_models if m.status == "shadow"],
+                    key=lambda m: m.accuracy_score if m.accuracy_score is not None else float("inf"),
+                )[:max_shadow]
+                for m in active_shadows:
+                    patch, loaded = _resolve_model_patch(m)
+                    if loaded:
+                        slot_dirty = True
+                    workflows_to_run.append({
+                        "workflow_id": m.workflow_id,
+                        "version_tag": m.version_tag,
+                        "is_shadow": True,
+                        "role": "shadow",
+                        "experiment_patch": patch,
+                    })
             except Exception as exc:
                 logger.warning("daily_rolling_task: 读取 shadow_models 失败: %s", exc)
         elif version_registry is not None:
@@ -515,21 +616,87 @@ def make_daily_rolling_task(
                         "version_tag": f"shadow-{s['workflow_id'][:20]}",
                         "is_shadow": True,
                         "role": "shadow",
+                        "experiment_patch": None,
                     })
 
-        # prelaunch
-        for wf_id, vtag in prelaunch_workflow_ids:
-            workflows_to_run.append({
-                "workflow_id": wf_id,
-                "version_tag": vtag,
-                "is_shadow": True,
-                "role": "prelaunch",
-            })
+        # prelaunch — 带完整 ModelVersion，保留 experiment_patch
+        if working_slot_obj is not None:
+            try:
+                slot_obj = working_slot_obj
+                active_prelaunches = sorted(
+                    [m for m in slot_obj.prelaunch_models if m.status == "prelaunch"],
+                    key=lambda m: (
+                        m.prelaunch_meta.started_at if m.prelaunch_meta else ""
+                    ),
+                )[:max_prelaunch]
+                for m in active_prelaunches:
+                    patch, loaded = _resolve_model_patch(m)
+                    if loaded:
+                        slot_dirty = True
+                    workflows_to_run.append({
+                        "workflow_id": m.workflow_id,
+                        "version_tag": m.version_tag,
+                        "is_shadow": True,
+                        "role": "prelaunch",
+                        "experiment_patch": patch,
+                    })
+            except Exception as exc:
+                logger.warning("daily_rolling_task: 读取 prelaunch_models 失败: %s", exc)
+        else:
+            for wf_id, vtag in prelaunch_workflow_ids:
+                workflows_to_run.append({
+                    "workflow_id": wf_id,
+                    "version_tag": vtag,
+                    "is_shadow": True,
+                    "role": "prelaunch",
+                    "experiment_patch": None,
+                })
+
+        if slot_dirty and slot_store is not None and working_slot_obj is not None:
+            try:
+                slot_store.upsert(working_slot_obj)
+                logger.info(
+                    "daily_rolling_task: slot=%s 已回写缺失的 experiment_patch",
+                    slot,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "daily_rolling_task: 回写 experiment_patch 失败 slot=%s: %s",
+                    slot,
+                    exc,
+                )
 
         # ---- Step 7: 执行每个 workflow ----
         first_cycle_id = None
         for wf in workflows_to_run:
             try:
+                # 若 patch 含 train_days，覆盖本版本的 online_training_start
+                train_start_iso = dt_cls.combine(
+                    window.training_start,
+                    dt_cls.min.time(),
+                ).isoformat()
+                patch = wf.get("experiment_patch") or {}
+                override = {}
+                if isinstance(patch, dict):
+                    override = patch.get("challenger_override") or {}
+                    if not isinstance(override, dict):
+                        override = {}
+                train_days_override = override.get("train_days")
+                if train_days_override is not None:
+                    try:
+                        td = int(train_days_override)
+                        if td > 0:
+                            from datetime import timedelta as _td
+
+                            custom_start = window.predict_target - _td(days=td + 1)
+                            # gap-1: training ends at T-1 already in train_end_dt
+                            train_start_iso = dt_cls.combine(
+                                custom_start,
+                                dt_cls.min.time(),
+                            ).isoformat()
+                    except (TypeError, ValueError):
+                        pass
+
                 cid = _run_single_prediction(
                     lf_repo=lf_repo,
                     slot=slot,
@@ -538,14 +705,12 @@ def make_daily_rolling_task(
                     input_data=online_input_data,
                     forecast_timestamps=forecast_timestamps,
                     is_shadow=wf["is_shadow"],
+                    experiment_patch=wf.get("experiment_patch"),
                     # 未来标记行只用作 T+1 推理特征，绝不参与训练或回测评分。
                     operator_param_overrides={
                         "train_test_split_ts": {
                             "mode": "online_forecast",
-                            "online_training_start": dt_cls.combine(
-                                window.training_start,
-                                dt_cls.min.time(),
-                            ).isoformat(),
+                            "online_training_start": train_start_iso,
                             "online_training_end": train_end_dt.isoformat(),
                         }
                     },
@@ -619,6 +784,7 @@ def _run_single_prediction(
     operator_param_overrides: Optional[dict] = None,
     *,
     online_mode: bool = False,
+    experiment_patch: Optional[dict] = None,
 ) -> Optional[str]:
     """Run one version and persist exactly one forecast value per target timestamp."""
     from services.scheduler.tasks.workflow_predictor import run_prediction
@@ -654,6 +820,7 @@ def _run_single_prediction(
         slot,
         operator_param_overrides=operator_param_overrides,
         online_mode=online_mode,
+        experiment_patch=experiment_patch,
     )
     predicted_values = result.get("predicted_values") or []
     valid_result = (
@@ -1051,58 +1218,60 @@ def make_accuracy_backfill_task(
         from services.precision_ops.config_manager import ConfigManager
         from services.precision_ops.versioning import make_version_key
 
-        # @AI_GENERATED: 生产精度口径固定为最近 7 天；配置只允许调整最少有效周期，不可放宽窗口
+        # @AI_GENERATED: 生产精度口径固定为最近 7 天；锚点用平台数据水位，禁止墙钟时间误伤 mock 业务日
         window_days = 7
         try:
             min_valid_cycles = int(ConfigManager().load_config(slot).min_valid_cycles)
         except Exception as exc:
             logger.warning("accuracy_backfill_task: 配置读取失败 slot=%s，使用最少 3 个有效周期: %s", slot, exc)
             min_valid_cycles = 3
-        # @AI_GENERATED: end
-        cutoff = datetime.utcnow() - timedelta(days=window_days)
 
         # 只用已经进入平台库的实测值回填，绝不直接读取外部 CSV 的未来标签。
-        with lf_repo._adapter.get_sync_session() as session:
-            latest_actual_ts = (
-                session.query(StationData.timestamp_utc)
-                .filter(
-                    StationData.slot == slot,
-                    StationData.station_id == station_id,
-                    StationData.feature_name == feature_name,
-                )
-                .order_by(StationData.timestamp_utc.desc())
-                .limit(1)
-                .scalar()
+        resolved_station_id, resolved_feature_name, latest_actual_ts = _resolve_station_watermark(
+            lf_repo, slot, station_id, feature_name
+        )
+        if latest_actual_ts is None:
+            logger.info(
+                "accuracy_backfill_task: slot=%s 无 StationData 水位，跳过回填",
+                slot,
             )
-            if latest_actual_ts is not None:
-                pending = (
-                    session.query(PredictionResult)
-                    .filter(
-                        PredictionResult.slot == slot,
-                        PredictionResult.actual_value.is_(None),
-                        PredictionResult.forecast_timestamp >= cutoff,
-                        PredictionResult.forecast_timestamp <= latest_actual_ts,
-                    )
-                    .all()
+            return 0
+
+        # 窗口终点 = 数据水位（业务时间），不是 datetime.utcnow()
+        window_end = latest_actual_ts
+        if getattr(window_end, "tzinfo", None) is not None:
+            window_end = window_end.replace(tzinfo=None)
+        cutoff = window_end - timedelta(days=window_days)
+
+        with lf_repo._adapter.get_sync_session() as session:
+            pending = (
+                session.query(PredictionResult)
+                .filter(
+                    PredictionResult.slot == slot,
+                    PredictionResult.actual_value.is_(None),
+                    PredictionResult.forecast_timestamp >= cutoff,
+                    PredictionResult.forecast_timestamp <= window_end,
                 )
-                for prediction in pending:
-                    actual = (
-                        session.query(StationData.value)
-                        .filter(
-                            StationData.slot == slot,
-                            StationData.station_id == station_id,
-                            StationData.feature_name == feature_name,
-                            StationData.timestamp_utc == prediction.forecast_timestamp,
-                        )
-                        .order_by(StationData.ingested_at.desc())
-                        .limit(1)
-                        .scalar()
+                .all()
+            )
+            for prediction in pending:
+                actual = (
+                    session.query(StationData.value)
+                    .filter(
+                        StationData.slot == slot,
+                        StationData.station_id == resolved_station_id,
+                        StationData.feature_name == resolved_feature_name,
+                        StationData.timestamp_utc == prediction.forecast_timestamp,
                     )
-                    if actual is None:
-                        continue
-                    prediction.actual_value = float(actual)
-                    prediction.status = "evaluated"
-                    prediction.evaluated_at = datetime.utcnow()
+                    .order_by(StationData.ingested_at.desc())
+                    .limit(1)
+                    .scalar()
+                )
+                if actual is None:
+                    continue
+                prediction.actual_value = float(actual)
+                prediction.status = "evaluated"
+                prediction.evaluated_at = datetime.utcnow()
 
         with lf_repo._adapter.get_sync_session() as session:
             rows = (
@@ -1110,11 +1279,12 @@ def make_accuracy_backfill_task(
                 .filter(
                     PredictionResult.slot == slot,
                     PredictionResult.forecast_timestamp >= cutoff,
-                    PredictionResult.forecast_timestamp <= datetime.utcnow(),
+                    PredictionResult.forecast_timestamp <= window_end,
                 )
                 .all()
             )
             session.expunge_all()
+        # @AI_GENERATED: end
 
         groups: dict[tuple[str, str], list] = defaultdict(list)
         for row in rows:
@@ -1125,39 +1295,58 @@ def make_accuracy_backfill_task(
         updated = 0
         for (wf_id, version_tag), predictions in groups.items():
             evaluated = [row for row in predictions if row.actual_value is not None]
-            valid_for_mape = [row for row in evaluated if row.actual_value != 0]
-            if not valid_for_mape:
+            if not evaluated:
                 continue
             total_points = len(predictions)
             coverage_rate = len(evaluated) / total_points if total_points else 0.0
             valid_cycle_count = len({row.prediction_cycle_id for row in evaluated})
             total_cycle_count = len({row.prediction_cycle_id for row in predictions})
-            mape = statistics.mean(
-                abs(float(row.predicted_value) - float(row.actual_value)) / abs(float(row.actual_value)) * 100
-                for row in valid_for_mape
+
+            from services.precision_ops.daily_mape import (
+                build_daily_series_from_predictions,
+                compute_pooled_mape,
+                compute_pooled_wmape,
+                merge_daily_series,
+                rolling_mape_from_daily_series,
             )
+
+            version_key = make_version_key(wf_id, version_tag)
+            existing_entry = (tracker.get_rolling_metrics(slot, wf_id, version_tag) or {})
+            existing_series = existing_entry.get("daily_mape_series")
+            if not isinstance(existing_series, list):
+                existing_series = []
+
+            fresh_daily = build_daily_series_from_predictions(predictions)
+            daily_series = merge_daily_series(existing_series, fresh_daily, keep_days=max(window_days * 4, 30))
+            rolling_mape = rolling_mape_from_daily_series(daily_series, window_days=window_days, method="median")
+            rolling_mape_pooled = compute_pooled_mape(
+                [row for row in predictions if row.actual_value is not None and row.actual_value != 0]
+            )
+            wmape = compute_pooled_wmape(evaluated)
             abs_error_sum = sum(abs(float(row.predicted_value) - float(row.actual_value)) for row in evaluated)
-            actual_abs_sum = sum(abs(float(row.actual_value)) for row in evaluated)
-            wmape = abs_error_sum / actual_abs_sum * 100 if actual_abs_sum else None
             mae = abs_error_sum / len(evaluated) if evaluated else None
             status = "active" if valid_cycle_count >= min_valid_cycles and coverage_rate >= 0.9 else "insufficient_data"
             metrics = {
-                "rolling_mape": mape,
+                # 主滚动口径：最近 N 个 business_day 的 daily_mape 中位数
+                "rolling_mape": rolling_mape if rolling_mape is not None else rolling_mape_pooled,
+                "rolling_mape_pooled": rolling_mape_pooled,
+                "rolling_mape_method": "daily_median",
                 "rolling_wmape": wmape,
                 "rolling_mae": mae or 0.0,
                 "valid_cycle_count": valid_cycle_count,
                 "total_cycle_count": total_cycle_count,
                 "coverage_rate": coverage_rate,
                 "window_days": window_days,
+                "daily_mape_series": daily_series,
                 "last_evaluated_at": datetime.utcnow().isoformat(),
                 "status": status,
             }
             tracker.update_metrics(slot, wf_id, metrics, version_tag=version_tag)
             lf_repo.upsert_accuracy_metrics(
                 slot,
-                make_version_key(wf_id, version_tag),
+                version_key,
                 {
-                    "rolling_mape": mape,
+                    "rolling_mape": metrics["rolling_mape"],
                     "rolling_mae": mae,
                     "valid_cycle_count": valid_cycle_count,
                     "total_cycle_count": total_cycle_count,

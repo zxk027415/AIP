@@ -70,12 +70,18 @@ class AccuracyEvaluator:
         self._per_class_stats: Dict[int, Dict[str, int]] = defaultdict(
             lambda: {"tp": 0, "fp": 0, "fn": 0, "support": 0}
         )
+        # label_source -> counted units / classifier correct
+        self._by_source: Dict[str, Dict[str, int]] = defaultdict(
+            lambda: {"counted": 0, "classifier_correct": 0}
+        )
     
     def update(
         self,
         verdict: Dict,
         classifier_prediction: Dict,
-        llm_suggestion: Optional[Dict] = None
+        llm_suggestion: Optional[Dict] = None,
+        *,
+        label_source: Optional[str] = None,
     ) -> None:
         """
         增量更新：提交一条新裁决，更新三方精度
@@ -108,10 +114,13 @@ class AccuracyEvaluator:
         
         # 纳入统计
         self._total_counted += 1
+        source_key = str(label_source or verdict.get("label_source") or "unknown")
+        self._by_source[source_key]["counted"] += 1
         
         # 分类器精度
         if predicted_label == verdict_label:
             self._classifier_correct += 1
+            self._by_source[source_key]["classifier_correct"] += 1
         
         # LLM 精度（仅在有 LLM 建议的单元上计算，需求 6.5）
         if llm_suggestion and llm_suggestion.get("available", False):
@@ -178,7 +187,8 @@ class AccuracyEvaluator:
                     "recall": 0.0,
                     "f1": 0.0
                 },
-                "counted_units": 0
+                "counted_units": 0,
+                "by_source": {},
             }
         
         # 分类器精度
@@ -204,8 +214,21 @@ class AccuracyEvaluator:
             "human_verified_accuracy": human_verified_accuracy,
             "llm_coverage": llm_coverage,
             "macro": macro_metrics,
-            "counted_units": self._total_counted
+            "counted_units": self._total_counted,
+            "by_source": self._compute_by_source_accuracy(),
         }
+    
+    def _compute_by_source_accuracy(self) -> Dict[str, Dict[str, float]]:
+        result: Dict[str, Dict[str, float]] = {}
+        for source, stats in self._by_source.items():
+            counted = stats["counted"]
+            if counted <= 0:
+                continue
+            result[source] = {
+                "counted_units": counted,
+                "classifier_accuracy": stats["classifier_correct"] / counted,
+            }
+        return result
     
     def _compute_macro_metrics(self) -> Dict[str, float]:
         """
@@ -272,3 +295,4 @@ class AccuracyEvaluator:
         self._llm_correct = 0
         self._llm_available_count = 0
         self._per_class_stats.clear()
+        self._by_source.clear()

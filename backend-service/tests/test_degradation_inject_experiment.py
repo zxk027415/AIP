@@ -131,6 +131,7 @@ def test_inject_restore_creates_and_clears_alert(slot_env):
         monitor=monitor,
         slot_store=slot_store,
         target_degradation_pct=20.0,
+        mode="metric_rewrite",
         note="unit-test",
     )
     assert injected["injected"] is True
@@ -161,10 +162,20 @@ def test_inject_rejects_double_inject(slot_env):
     monitor = slot_env["monitor"]
     activate_slot_metrics_from_deployment(slot=slot, tracker=tracker, slot_store=slot_store)
     inject_degradation(
-        slot=slot, tracker=tracker, monitor=monitor, slot_store=slot_store, target_degradation_pct=20
+        slot=slot,
+        tracker=tracker,
+        monitor=monitor,
+        slot_store=slot_store,
+        target_degradation_pct=20,
+        mode="metric_rewrite",
     )
     with pytest.raises(ValueError, match="未恢复"):
         inject_degradation(
-            slot=slot, tracker=tracker, monitor=monitor, slot_store=slot_store, target_degradation_pct=25
+            slot=slot,
+            tracker=tracker,
+            monitor=monitor,
+            slot_store=slot_store,
+            target_degradation_pct=25,
+            mode="metric_rewrite",
         )
 # @AI_GENERATED: end

@@ -1680,6 +1680,9 @@ async def promote_tuning_candidate(candidate_id: str, request: Request):
             raise HTTPException(status_code=400, detail="候选缺少 challenger_workflow_id，无法入预上线")
         try:
             from api.deployment import PrelaunchEnterBody, enter_prelaunch as deployment_enter_prelaunch
+            from services.deployment.experiment_patch import normalize_experiment_patch
+
+            ar_patch = normalize_experiment_patch(found)
             prelaunch_entry = deployment_enter_prelaunch(
                 prelaunch_slot,
                 PrelaunchEnterBody(
@@ -1688,6 +1691,7 @@ async def promote_tuning_candidate(candidate_id: str, request: Request):
                     version_tag=f"prelaunch-{candidate_id[:12]}",
                     source_run_id=str(found.get("source_run_id") or "") or None,
                     note=note or f"promote_enter_prelaunch:{candidate_id}",
+                    experiment_patch=ar_patch or None,
                 ),
             )
         except HTTPException:
@@ -8083,6 +8087,33 @@ def _dual_write_candidate_pool_to_db(candidates: List[Dict[str, Any]]) -> None:
                     best_mape = float(v)
                     break
             try:
+                # 把 AR 实验字段嵌进 evidence，避免 DB 读回丢 patch（部署/日滚依赖）
+                evidence_payload = c.get("evidence_records") or c.get("evidence") or {}
+                if not isinstance(evidence_payload, dict):
+                    evidence_payload = {}
+                else:
+                    evidence_payload = dict(evidence_payload)
+                ar_fields = {
+                    "challenger_override": c.get("challenger_override") or c.get("challenger_config_override"),
+                    "effective_parameter_patch": (
+                        c.get("effective_parameter_patch")
+                        or c.get("challenger_global_config_patch")
+                        or c.get("global_config_patch")
+                    ),
+                    "effective_structure_patch": (
+                        c.get("effective_structure_patch")
+                        or c.get("challenger_structure_override")
+                        or c.get("structure_patch")
+                    ),
+                    "node_param_patches": (
+                        c.get("node_param_patches")
+                        or c.get("challenger_node_param_patches")
+                    ),
+                }
+                if any(ar_fields.values()):
+                    evidence_payload["_ar_experiment_fields"] = {
+                        k: v for k, v in ar_fields.items() if v
+                    }
                 repo.upsert_candidate({
                     "id": str(cid)[:64],
                     "slot": str(c.get("slot") or "default")[:64],
@@ -8090,7 +8121,7 @@ def _dual_write_candidate_pool_to_db(candidates: List[Dict[str, Any]]) -> None:
                     "workflow_id": str(c.get("baseline_workflow_id") or c.get("challenger_workflow_id") or "")[:128],
                     "patch_signature": str(c.get("applied_patch_fingerprint") or c.get("patch_signature") or "")[:256],
                     "best_mape": best_mape,
-                    "evidence": c.get("evidence_records") or c.get("evidence") or {},
+                    "evidence": evidence_payload,
                     "status": str(c.get("status") or "candidate")[:32],
                 })
             except Exception as _e:
@@ -8158,7 +8189,8 @@ def _load_candidate_pool_from_db() -> Optional[List[Dict[str, Any]]]:
             return None  # DB 空时退回 JSON（可能是老数据还没迁移）
         result: List[Dict[str, Any]] = []
         for r in rows:
-            item = {
+            evidence = r.evidence if isinstance(r.evidence, dict) else {}
+            item: Dict[str, Any] = {
                 "id": r.id,
                 "slot": r.slot,
                 "run_id": r.run_id,
@@ -8166,9 +8198,20 @@ def _load_candidate_pool_from_db() -> Optional[List[Dict[str, Any]]]:
                 "applied_patch_fingerprint": r.patch_signature,
                 "best_mape": r.best_mape,
                 "status": r.status,
-                "evidence": r.evidence if isinstance(r.evidence, dict) else {},
+                "evidence": evidence,
                 "created_at": (r.created_at.isoformat() if r.created_at else None),
             }
+            # 展开双写时嵌入的 AR 实验字段，供 normalize_experiment_patch / 入预上线使用
+            payload = evidence.get("_ar_experiment_fields") if isinstance(evidence, dict) else None
+            if isinstance(payload, dict):
+                for key in (
+                    "challenger_override",
+                    "effective_parameter_patch",
+                    "effective_structure_patch",
+                    "node_param_patches",
+                ):
+                    if key in payload and payload[key] is not None:
+                        item[key] = payload[key]
             result.append(item)
         return result
     except Exception as exc:

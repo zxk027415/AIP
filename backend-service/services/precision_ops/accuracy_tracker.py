@@ -115,8 +115,15 @@ class AccuracyTracker:
         if entry is None:
             return None
         return {
-            "rolling_mape": float(entry.get("rolling_mape", 0.0)),
+            "rolling_mape": float(entry.get("rolling_mape", 0.0)) if entry.get("rolling_mape") is not None else None,
             "rolling_wmape": (float(entry["rolling_wmape"]) if entry.get("rolling_wmape") is not None else None),
+            "rolling_mape_pooled": (
+                float(entry["rolling_mape_pooled"])
+                if entry.get("rolling_mape_pooled") is not None
+                else None
+            ),
+            "rolling_mape_method": entry.get("rolling_mape_method"),
+            "daily_mape_series": entry.get("daily_mape_series") if isinstance(entry.get("daily_mape_series"), list) else [],
             "rolling_mae": float(entry.get("rolling_mae", 0.0)),
             "valid_cycle_count": int(entry.get("valid_cycle_count", 0)),
             "total_cycle_count": int(entry.get("total_cycle_count", 0)),

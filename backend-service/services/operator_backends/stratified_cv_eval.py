@@ -442,12 +442,21 @@ def execute(params: dict, inputs: dict) -> dict:
         model_path = os.path.join(models_dir, f"{model_id}.pkl")
         with open(model_path, "wb") as f:
             sample_strategy = params.get("sample_strategy")
+            # @AI_GENERATED: 策略解析失败原先静默置 None，pkl 里就没有 sample_strategy，
+            # 预测侧无从复现训练切分（且直到预测时才暴露）。改为抛出，在训练期就失败。
             if isinstance(sample_strategy, str):
                 import json as _json
                 try:
                     sample_strategy = _json.loads(sample_strategy)
-                except Exception:
-                    sample_strategy = None
+                except Exception as exc:
+                    raise ValueError(
+                        f"sample_strategy 不是合法 JSON，无法随模型持久化：{exc}"
+                    ) from exc
+            if sample_strategy is not None and not isinstance(sample_strategy, dict):
+                raise ValueError(
+                    f"sample_strategy 必须是对象，实际为 {type(sample_strategy).__name__}"
+                )
+            # @AI_GENERATED: end
             pickle.dump({
                 "model": final_clf,
                 "feature_list": final_feat_list,

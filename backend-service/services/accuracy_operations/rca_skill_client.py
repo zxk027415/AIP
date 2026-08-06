@@ -101,6 +101,16 @@ class RCASkillClient:
         :raises ValueError: rca_decision.json 格式不符合预期
         :returns: RCAReport（status=succeeded）
         """
+        from services.accuracy_operations.experiment_rca import try_build_experiment_inject_rca
+
+        local_report = try_build_experiment_inject_rca(slot, alert, rca_report_id, trigger_type)
+        if local_report is not None:
+            logger.info(
+                "[RCASkillClient] 使用实验劣化本地 RCA 路径 alert_id=%s",
+                alert.alert_id,
+            )
+            return local_report
+
         # 1. 构建 rca_input dict
         rca_input = self._build_rca_input(slot, alert, trigger_type)
 

@@ -132,7 +132,7 @@ class CloseAlertRequest(BaseModel):
 
 
 class InjectDegradationRequest(BaseModel):
-    """POST /experiments/inject-degradation — 人工抬高滚动指标以触发真实监控"""
+    """POST /experiments/inject-degradation — 默认数据层劣化，可选 metric_rewrite"""
     slot: str = "load_forecast"
     target_degradation_pct: float = 20.0
     model_form: str = "production"  # production | shadow
@@ -140,12 +140,28 @@ class InjectDegradationRequest(BaseModel):
     version_tag: Optional[str] = None
     note: str = ""
     run_monitor: bool = True
+    # noise|missing|zero_spike|metric_rewrite；默认 noise（改 StationData）
+    mode: str = "noise"
+    days: int = 5
+    fraction: float = 0.6
+    noise_pct: float = 45.0
+    station_id: Optional[str] = None
+    feature_name: Optional[str] = None
+    rerun_pipeline: bool = True
 
 
 class RestoreDegradationRequest(BaseModel):
-    """POST /experiments/restore-degradation — 按快照恢复指标"""
+    """POST /experiments/restore-degradation — 按快照恢复指标/StationData
+
+    rerun_pipeline — 是否在还原 StationData 后同步跑 gap-1 日滚 + 精度回填。
+    默认 False：仅还原数据与指标，接口快速返回；日滚可单独通过
+    POST /experiments/retrigger-pipeline 触发，避免超时卡住。
+    """
     slot: str = "load_forecast"
     close_open_alerts: bool = True
+    # @AI_GENERATED: 默认 False，避免日滚同步执行导致接口超时卡住
+    rerun_pipeline: bool = False
+    # @AI_GENERATED: end
 
 
 class ActivateMetricsRequest(BaseModel):
@@ -681,22 +697,32 @@ def get_degradation_experiment_status(
 
 @router.post("/experiments/inject-degradation")
 def post_inject_degradation(body: InjectDegradationRequest) -> Dict[str, Any]:
-    """人工抬高滚动 MAPE，再调用真实 AccuracyMonitor.evaluate。"""
+    """默认改 StationData（noise/missing/zero_spike），再回填指标并走真实监控。"""
     try:
         from services.accuracy_operations.degradation_experiment import inject_degradation
         comps = _get_components()
-        return inject_degradation(
-            slot=body.slot,
-            tracker=comps["tracker"],
-            monitor=comps["monitor"],
-            slot_store=comps["slot_store"],
-            target_degradation_pct=body.target_degradation_pct,
-            model_form=body.model_form,
-            workflow_id=body.workflow_id,
-            version_tag=body.version_tag,
-            note=body.note,
-            run_monitor=body.run_monitor,
-        )
+        kwargs = {
+            "slot": body.slot,
+            "tracker": comps["tracker"],
+            "monitor": comps["monitor"],
+            "slot_store": comps["slot_store"],
+            "target_degradation_pct": body.target_degradation_pct,
+            "model_form": body.model_form,
+            "workflow_id": body.workflow_id,
+            "version_tag": body.version_tag,
+            "note": body.note,
+            "run_monitor": body.run_monitor,
+            "mode": body.mode,
+            "days": body.days,
+            "fraction": body.fraction,
+            "noise_pct": body.noise_pct,
+            "rerun_pipeline": body.rerun_pipeline,
+        }
+        if body.station_id:
+            kwargs["station_id"] = body.station_id
+        if body.feature_name:
+            kwargs["feature_name"] = body.feature_name
+        return inject_degradation(**kwargs)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -706,7 +732,11 @@ def post_inject_degradation(body: InjectDegradationRequest) -> Dict[str, Any]:
 
 @router.post("/experiments/restore-degradation")
 def post_restore_degradation(body: RestoreDegradationRequest) -> Dict[str, Any]:
-    """按快照恢复滚动指标，可选关闭实验相关 open 告警。"""
+    """按快照恢复 StationData / 滚动指标，可选关闭实验相关 open 告警。
+
+    默认 rerun_pipeline=False：仅还原数据，接口立即返回；
+    若需要用还原后数据重训，请单独调用 POST /experiments/retrigger-pipeline。
+    """
     try:
         from services.accuracy_operations.degradation_experiment import restore_degradation
         comps = _get_components()
@@ -715,12 +745,67 @@ def post_restore_degradation(body: RestoreDegradationRequest) -> Dict[str, Any]:
             tracker=comps["tracker"],
             store=comps["store"],
             close_open_alerts=body.close_open_alerts,
+            slot_store=comps.get("slot_store"),
+            rerun_pipeline=body.rerun_pipeline,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("POST /experiments/restore-degradation 异常")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# @AI_GENERATED: 实验 pipeline 单独触发接口（从 restore 解耦，避免超时）
+class ReriggerPipelineRequest(BaseModel):
+    """POST /experiments/retrigger-pipeline — 对当前 slot 手动触发 gap-1 日滚 + 精度回填
+
+    用途：在 restore-degradation（rerun_pipeline=False）完成后，
+    按需触发重训，刷新指标与曲线。前端可在用户主动点击时调用，
+    不阻塞恢复操作本身。
+    station_id / feature_name — 可选，缺省自动从库中取最高水位站点。
+    """
+    slot: str = "load_forecast"
+    station_id: Optional[str] = None
+    feature_name: Optional[str] = None
+
+
+@router.post("/experiments/retrigger-pipeline")
+def post_retrigger_pipeline(body: ReriggerPipelineRequest) -> Dict[str, Any]:
+    """手动触发 gap-1 日滚 + 精度回填，刷新恢复后的指标与曲线。
+
+    通常在 restore-degradation（rerun_pipeline=False）完成后调用。
+    该接口同步执行，可能需要数分钟；前端建议按钮配合 loading 状态使用。
+    """
+    try:
+        from services.accuracy_operations.degradation_experiment import (
+            _resolve_station_feature,
+            _run_load_forecast_pipeline_after_data_change,
+        )
+        comps = _get_components()
+        station_id = body.station_id or None
+        feature_name = body.feature_name or None
+        # 自动解析站点（若未指定）
+        resolved_station, resolved_feature = _resolve_station_feature(
+            body.slot, station_id, feature_name
+        )
+        result = _run_load_forecast_pipeline_after_data_change(
+            slot=body.slot,
+            station_id=resolved_station,
+            feature_name=resolved_feature,
+            slot_store=comps.get("slot_store"),
+        )
+        return {
+            "slot": body.slot,
+            "station_id": resolved_station,
+            "feature_name": resolved_feature,
+            "pipeline": result,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("POST /experiments/retrigger-pipeline 异常")
+        raise HTTPException(status_code=500, detail=str(e))
+# @AI_GENERATED: end
 
 
 @router.post("/experiments/activate-metrics")
@@ -747,10 +832,46 @@ def get_prediction_series(
     slot: str = Query("load_forecast", description="槽位名称"),
     workflow_id: Optional[str] = Query(None, description="工作流 ID；缺省取 production"),
     version_tag: Optional[str] = Query(None, description="版本标签；缺省取 production"),
-    days: int = Query(7, ge=1, le=90, description="回溯天数"),
+    days: int = Query(1, ge=1, le=90, description="回溯天数；未指定 business_day 时使用，默认 1 天≈96 点"),
+    business_day: Optional[str] = Query(
+        None,
+        description="业务日 YYYY-MM-DD；指定后只返回该自然日的点（优先于 days 窗口）",
+    ),
 ) -> Dict[str, Any]:
-    """返回 pred/actual 时序点，供精度运营曲线图使用。"""
-    from datetime import datetime, timedelta, timezone
+    """返回 pred/actual 时序点，供精度运营曲线图使用。
+
+    默认按单日展示（约 96 个 15 分钟点）。可传 business_day 翻看历史日；
+    available_days 列出该版本已有预测的业务日，供前端翻页。
+    时间窗锚定该版本预测水位（forecast_timestamp），不用墙钟 now()。
+    """
+    from datetime import datetime, timedelta
+
+    # 直接当 Python 函数调用时，Query() 默认值会漏进来；只接受真正的 str/int。
+    if not isinstance(workflow_id, str):
+        workflow_id = None
+    if not isinstance(version_tag, str):
+        version_tag = None
+    if not isinstance(business_day, str):
+        business_day = None
+    if isinstance(business_day, str):
+        business_day = business_day.strip() or None
+    if not isinstance(days, int):
+        try:
+            days = int(days)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            days = 1
+    if not isinstance(slot, str):
+        slot = "load_forecast"
+
+    day_start: Optional[datetime] = None
+    if business_day:
+        try:
+            day_start = datetime.strptime(business_day[:10], "%Y-%m-%d")
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"business_day 格式须为 YYYY-MM-DD，收到: {business_day!r}",
+            ) from exc
 
     try:
         comps = _get_components()
@@ -767,19 +888,137 @@ def get_prediction_series(
             wf_id = wf_id or slot_obj.production_model.workflow_id
             v_tag = v_tag or slot_obj.production_model.version_tag
 
-        end = datetime.now(timezone.utc).replace(tzinfo=None)
-        start = end - timedelta(days=days)
         points: List[Dict[str, Any]] = []
+        window_end: Optional[datetime] = None
+        window_start: Optional[datetime] = None
+        resolved_version = v_tag
+        fallback_used = False
+        available_days: List[str] = []
+        resolved_business_day: Optional[str] = business_day
 
         try:
             from services.precision_ops._db_helper import _get_lf_repo, _is_db_enabled
+            from sqlalchemy import func
+            from services.db.models.load_forecast import PredictionResult
+
             if _is_db_enabled():
                 repo = _get_lf_repo()
                 if repo is not None:
-                    rows = repo.query_predictions(slot, wf_id, start, end)
+                    with repo._adapter.get_sync_session() as session:
+                        # 水位排除 failed（墙钟脏点会把业务日 2025 预测裁空）
+                        def _max_ts(version: Optional[str], statuses: Optional[tuple] = None):
+                            q = session.query(func.max(PredictionResult.forecast_timestamp)).filter(
+                                PredictionResult.slot == slot,
+                                PredictionResult.workflow_id == wf_id,
+                            )
+                            if version:
+                                q = q.filter(PredictionResult.version_tag == version)
+                            if statuses:
+                                q = q.filter(PredictionResult.status.in_(list(statuses)))
+                            return q.scalar()
+
+                        pred_end = _max_ts(v_tag, ("evaluated", "predicted", "pending"))
+                        if pred_end is None:
+                            pred_end = _max_ts(v_tag, None)
+                        if pred_end is None:
+                            pred_end = _max_ts(None, ("evaluated", "predicted", "pending"))
+                            if pred_end is not None:
+                                fallback_used = True
+                        if pred_end is None:
+                            pred_end = _max_ts(None, None)
+                            if pred_end is not None:
+                                fallback_used = True
+                        if pred_end is None:
+                            return {
+                                "slot": slot,
+                                "workflow_id": wf_id,
+                                "version_tag": v_tag,
+                                "days": days,
+                                "business_day": business_day,
+                                "available_days": [],
+                                "point_count": 0,
+                                "points": [],
+                                "window_anchor": "empty",
+                            }
+                        window_end = pred_end
+                        if getattr(window_end, "tzinfo", None) is not None:
+                            window_end = window_end.replace(tzinfo=None)
+
+                        # 先解析版本（可能 fallback），再算 available_days / 单日窗
+                        version_for_days = None if fallback_used else v_tag
+                        day_rows = (
+                            session.query(PredictionResult.forecast_timestamp)
+                            .filter(
+                                PredictionResult.slot == slot,
+                                PredictionResult.workflow_id == wf_id,
+                                PredictionResult.status != "failed",
+                            )
+                        )
+                        if version_for_days:
+                            day_rows = day_rows.filter(
+                                PredictionResult.version_tag == version_for_days
+                            )
+                        day_ts_list = [r[0] for r in day_rows.all() if r[0] is not None]
+                        day_set = set()
+                        for ts in day_ts_list:
+                            ts_naive = ts.replace(tzinfo=None) if getattr(ts, "tzinfo", None) else ts
+                            day_set.add(ts_naive.strftime("%Y-%m-%d"))
+                        available_days = sorted(day_set)
+
+                        if day_start is not None:
+                            window_start = day_start
+                            window_end = day_start + timedelta(days=1) - timedelta(seconds=1)
+                            resolved_business_day = day_start.strftime("%Y-%m-%d")
+                        else:
+                            # 默认单日：取水位所在业务日（不是 days 天跨度）
+                            if days <= 1 and available_days:
+                                resolved_business_day = available_days[-1]
+                                window_start = datetime.strptime(resolved_business_day, "%Y-%m-%d")
+                                window_end = window_start + timedelta(days=1) - timedelta(seconds=1)
+                            else:
+                                window_start = window_end - timedelta(days=days)
+                                resolved_business_day = (
+                                    window_end.strftime("%Y-%m-%d") if window_end else None
+                                )
+
+                        q = session.query(PredictionResult).filter(
+                            PredictionResult.slot == slot,
+                            PredictionResult.workflow_id == wf_id,
+                            PredictionResult.forecast_timestamp >= window_start,
+                            PredictionResult.forecast_timestamp <= window_end,
+                            PredictionResult.status != "failed",
+                        )
+                        if not fallback_used:
+                            q = q.filter(PredictionResult.version_tag == v_tag)
+                        rows = q.order_by(PredictionResult.forecast_timestamp.asc()).all()
+
+                        if not rows:
+                            fallback_used = True
+                            all_rows = (
+                                session.query(PredictionResult)
+                                .filter(
+                                    PredictionResult.slot == slot,
+                                    PredictionResult.workflow_id == wf_id,
+                                    PredictionResult.forecast_timestamp >= window_start,
+                                    PredictionResult.forecast_timestamp <= window_end,
+                                    PredictionResult.status != "failed",
+                                )
+                                .order_by(PredictionResult.forecast_timestamp.asc())
+                                .all()
+                            )
+                            counts: Dict[str, int] = {}
+                            for r in all_rows:
+                                counts[r.version_tag] = counts.get(r.version_tag, 0) + 1
+                            if counts:
+                                resolved_version = max(counts.items(), key=lambda kv: kv[1])[0]
+                                rows = [r for r in all_rows if r.version_tag == resolved_version]
+                            else:
+                                rows = []
+                        else:
+                            resolved_version = rows[0].version_tag if rows else v_tag
+
+                        session.expunge_all()
                     for row in rows:
-                        if getattr(row, "version_tag", None) and str(row.version_tag) != str(v_tag):
-                            continue
                         points.append({
                             "timestamp": row.forecast_timestamp.isoformat() if row.forecast_timestamp else None,
                             "predicted": float(row.predicted_value) if row.predicted_value is not None else None,
@@ -790,14 +1029,20 @@ def get_prediction_series(
         except Exception as db_exc:
             logger.warning("prediction-series DB 查询失败 slot=%s: %s", slot, db_exc)
 
-        points.sort(key=lambda p: p.get("timestamp") or "")
         return {
             "slot": slot,
             "workflow_id": wf_id,
-            "version_tag": v_tag,
+            "version_tag": resolved_version,
+            "requested_version_tag": v_tag,
+            "version_fallback": fallback_used and resolved_version != v_tag,
             "days": days,
+            "business_day": resolved_business_day,
+            "available_days": available_days,
             "point_count": len(points),
             "points": points,
+            "window_start": window_start.isoformat() if window_start else None,
+            "window_end": window_end.isoformat() if window_end else None,
+            "window_anchor": "business_day" if (business_day or days <= 1) else "prediction_watermark",
         }
     except HTTPException:
         raise

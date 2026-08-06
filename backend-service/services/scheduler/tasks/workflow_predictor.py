@@ -51,6 +51,7 @@ def run_prediction(
     slot: str = "default",
     operator_param_overrides: Optional[Dict[str, Any]] = None,
     online_mode: bool = False,
+    experiment_patch: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Execute one workflow and return its prediction values.
 
@@ -59,6 +60,10 @@ def run_prediction(
     constructed forecast horizon, ``train_test_split_ts`` separates it from
     historical labels, and score-only leaves are skipped because truth is not
     available until the later accuracy-backfill task.
+
+    ``experiment_patch``：来自部署 ModelVersion 的 AutoResearch 实验补丁
+    （structure / parameter / node_param / challenger_override），在执行前
+    真实打进工作流 JSON，避免影子/预上线只靠 version_tag 区分。
     """
     from services.operator_execution import GlobalConfigInjector, OperatorRouter
 
@@ -66,6 +71,18 @@ def run_prediction(
     wf_data = load_workflow_json(workflow_id)
     if wf_data is None:
         return _failure_result(start_time, f"Workflow not found: {workflow_id}", 0)
+
+    if experiment_patch:
+        try:
+            from services.deployment.experiment_patch import apply_experiment_patch_to_workflow_dict
+
+            wf_data = apply_experiment_patch_to_workflow_dict(wf_data, experiment_patch)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "run_prediction: apply experiment_patch failed wf=%s: %s",
+                workflow_id,
+                exc,
+            )
 
     nodes_raw = wf_data.get("nodes", [])
     edges_raw = wf_data.get("edges", [])

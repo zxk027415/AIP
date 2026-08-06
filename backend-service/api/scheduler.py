@@ -21,12 +21,19 @@ Endpoints（任务级，新增，Task 6.2 / Requirements 2.1, 2.2, 2.4）:
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+
+# @AI_GENERATED: 本模块原先没有模块级 logger，但多处 except 块里直接调用了
+# logger.exception/logger.warning，导致「异常处理器自己抛 NameError」，
+# 把真实错误完全盖住（data-evidence 端点 500 时只能看到 NameError）。
+logger = logging.getLogger(__name__)
+# @AI_GENERATED: end
 
 # @AI_GENERATED
 from services.deployment.scheduler_models import ScheduledTask
@@ -516,7 +523,14 @@ async def get_task_data_evidence(
     task_id: str,
     sample_limit: int = 48,
 ) -> Dict[str, Any]:
-    """Return the persisted platform data evidence for lf_data_pull without running it."""
+    """Return the persisted platform data evidence for lf_data_pull without running it.
+
+    注意：本路由是 ``/tasks/{task_id}/data-evidence``，会抢先匹配
+    ``pv_mock_data_feed``；因此光伏喂数证据在这里分流，避免误报 404。
+    """
+    if task_id == "pv_mock_data_feed":
+        return await get_pv_mock_feed_data_evidence(sample_limit=sample_limit)
+
     if task_id != _DATA_PULL_TASK_ID:
         raise HTTPException(
             status_code=404,
@@ -844,12 +858,50 @@ async def manual_pv_mock_data_feed(payload: PvManualMockFeedRequest) -> Dict[str
     except Exception:
         pass
 
+    # @AI_GENERATED: status 必须反映「是否真的写入了新数据」，不能只反映「HTTP 调用是否成功」。
+    # 源业务日若已存在于 training_samples（例如换源前旧数据已批量灌库），
+    # INSERT IGNORE 会全部跳过，但游标仍会前进——此前 status 恒为 "fed"，
+    # 前端弹出的是绿色成功提示，用户会误以为喂入了新数据。
+    # 游标继续前进是有意为之（避免下次重复扫描同一天），只是这里如实区分“真喂入”与“空转”。
+    truly_fed = result.inserted_row_count > 0
     return {
         "task_id": "pv_mock_data_feed",
-        "status": "fed",
-        "message": f"光伏业务日 {result.business_date} 已成功写入 training_samples。",
+        "status": "fed" if truly_fed else "fed_no_new_data",
+        "message": (
+            f"光伏业务日 {result.business_date} 已成功写入 training_samples"
+            f"（新增 {result.inserted_row_count} 行）。"
+            if truly_fed
+            else (
+                f"光伏业务日 {result.business_date} 的观测已全部存在于 training_samples，"
+                "本次未写入任何新数据。喂数进度已推进到该业务日（避免下次重复扫描），"
+                "但库内容未变化——如果这不是预期结果，请确认当前喂数源是否为期望的数据集。"
+            )
+        ),
         "preview": preview.as_dict(),
         "feed_result": result.as_dict(),
+    }
+    # @AI_GENERATED: end
+
+
+@router.post("/tasks/pv_mock_data_feed/reset-cursor")
+async def reset_pv_mock_feed_cursor() -> Dict[str, Any]:
+    """重置光伏模拟喂数进度，使手动「推进下一天」可从源数据首日重新开始。
+
+    注意：不会删除 training_samples 已有行；重喂时重复行会被 IGNORE 跳过。
+    若还要重新跑预测，请同时重置预测进度。
+    """
+    if _pv_mock_feeder is None:
+        raise HTTPException(status_code=503, detail="PV mock feeder 尚未注入（需要重启后端）")
+    payload = _pv_mock_feeder.reset_feed_cursor(reason="manual_reset")
+    return {
+        "task_id": "pv_mock_data_feed",
+        "message": (
+            f"喂数进度已重置"
+            f"{('，此前已至 ' + payload['previous_business_date']) if payload.get('previous_business_date') else ''}"
+            f"。下一可喂业务日："
+            f"{(payload.get('preview') or {}).get('next_business_date') or '无'}。"
+        ),
+        **payload,
     }
 # @AI_GENERATED: end
 
@@ -862,15 +914,20 @@ async def get_pv_mock_feed_data_evidence(
     """返回 pv_mock_data_feed 最近写入 training_samples 的数据样本，供前端核对。
 
     从 training_samples 表读取：
-      - total_rows       — 总行数
-      - latest_time      — 最新观测时间
-      - earliest_time    — 最早观测时间
-      - device_count     — 设备数
-      - date_count       — 自然日数
-      - samples          — 最新 sample_limit 行（按 time desc）
+      - total_rows        — 总行数
+      - latest_time       — 最新观测时间（业务时间最大值，非最近喂入）
+      - earliest_time     — 最早观测时间
+      - device_count      — 设备数
+      - date_count        — 已覆盖自然日数（DISTINCT DATE(time)，不是首末跨度）
+      - date_span_days    — 首末跨度天数
+      - latest_ingested_at— 最近一次入库时间
+      - samples           — 最近入库的 sample_limit 行（按 ingested_at desc）
+
+    另返回 ``source``（当前喂数源指纹）与 ``last_feed``（最近一次喂数记录），
+    让前端能看出「现在喂的是哪份数据、上次喂了哪一天」。
     """
     from services.db.models.pv_fault import TrainingSample
-    from sqlalchemy import select, func
+    from sqlalchemy import select, func, text as sa_text
 
     if _pv_mock_feeder is None:
         raise HTTPException(status_code=503, detail="PV mock feeder 尚未注入")
@@ -891,7 +948,19 @@ async def get_pv_mock_feed_data_evidence(
             device_count = session.execute(
                 select(func.count(func.distinct(TrainingSample.device_id)))
             ).scalar() or 0
+            # @AI_GENERATED: 已覆盖自然日必须用 DISTINCT DATE(time)。
+            # 原实现用首末日期差 +1，本数据集跨 22 个月但只有几十个自然日，
+            # 会把「已覆盖 37 天」显示成「671 天」。
+            distinct_days = session.execute(
+                select(func.count(func.distinct(func.date(TrainingSample.time))))
+            ).scalar() or 0
+            latest_ingested_at = session.execute(
+                select(func.max(TrainingSample.ingested_at))
+            ).scalar()
 
+            # 按 ingested_at 倒序才是「最近喂进来的行」。原按 time 倒序，
+            # 永远返回全库业务时间最大的那批（本例恒为 2022-03-07），
+            # 无论刚喂了哪一天都看不出变化。
             rows = session.execute(
                 select(
                     TrainingSample.id,
@@ -902,10 +971,17 @@ async def get_pv_mock_feed_data_evidence(
                     TrainingSample.value,
                     TrainingSample.i_cal,
                     TrainingSample.label,
+                    TrainingSample.ingested_at,
                 )
-                .order_by(TrainingSample.time.desc(), TrainingSample.id.desc())
+                # MySQL 不支持 NULLS LAST 语法；DESC 时 NULL 本就排在最后，无需显式声明。
+                .order_by(
+                    TrainingSample.ingested_at.desc(),
+                    TrainingSample.time.desc(),
+                    TrainingSample.id.desc(),
+                )
                 .limit(sample_limit)
             ).mappings().all()
+            # @AI_GENERATED: end
 
         samples = []
         for row in rows:
@@ -918,29 +994,141 @@ async def get_pv_mock_feed_data_evidence(
                 "value": float(row["value"]) if row["value"] is not None else None,
                 "i_cal": float(row["i_cal"]) if row["i_cal"] is not None else None,
                 "label": int(row["label"]) if row["label"] is not None else None,
+                # @AI_GENERATED: 入库时间让前端能区分「刚喂的」和「历史的」
+                "ingested_at": row["ingested_at"].isoformat() if row["ingested_at"] else None,
+                # @AI_GENERATED: end
             })
 
-        # 计算已覆盖的自然日数
-        if earliest and latest_time:
-            from datetime import timedelta
-            date_count = (latest_time.date() - earliest.date()).days + 1
-        else:
-            date_count = 0
+        # 首末跨度（与「已覆盖自然日数」是两个不同口径，分开返回避免误读）
+        date_span_days = (
+            (latest_time.date() - earliest.date()).days + 1
+            if earliest and latest_time
+            else 0
+        )
 
         # 同时返回 feeder 的最新喂数状态
         preview = _pv_mock_feeder.get_manual_feed_preview()
+
+        # @AI_GENERATED: 当前喂数源指纹 —— 换了数据集时前端要能立刻看出来
+        source: Optional[Dict[str, Any]] = None
+        try:
+            source = _pv_mock_feeder.get_source_fingerprint()
+        except Exception as exc:
+            logger.warning("pv_mock_data_feed data-evidence: 数据源指纹不可用: %s", exc)
+
+        # 最近一次喂数记录。用游标表而非进程内 last_feed_result，
+        # 后者在后端重启后会丢，界面就看不到「上次喂了哪一天」。
+        last_feed: Optional[Dict[str, Any]] = None
+        try:
+            from services.db.datasources.pv_fault_mock import _CURSOR_TABLE, _SCHEMA
+
+            with adapter.get_sync_session() as session:
+                row = session.execute(sa_text(
+                    f"SELECT business_date, row_count, fed_at "
+                    f"FROM `{_SCHEMA}`.`{_CURSOR_TABLE}` "
+                    f"ORDER BY fed_at DESC, business_date DESC LIMIT 1"
+                )).fetchone()
+            if row is not None:
+                business_date = (
+                    row[0].isoformat() if hasattr(row[0], "isoformat") else str(row[0])
+                )
+                fed_at = row[2]
+                # 游标只记「喂过这一天」和源行数，不记实际插入数。
+                # 源数据若已在库中，INSERT IGNORE 会全部跳过，但游标照样前进——
+                # 界面上会显示成「喂成功了 N 行」，实际一行没进。这里补真实入库数。
+                inserted = None
+                # 优先用 feeder 进程内的精确结果（重启后为 None，故需下面的兜底）
+                try:
+                    mem = _pv_mock_feeder.last_feed_result
+                    if (
+                        mem is not None
+                        and mem.business_date is not None
+                        and mem.business_date.isoformat() == business_date
+                    ):
+                        inserted = int(mem.inserted_row_count)
+                except Exception as exc:
+                    logger.warning("pv_mock_data_feed data-evidence: 读 last_feed_result 失败: %s", exc)
+                if inserted is None:
+                    # 兜底：按入库时刻落在 fed_at 之前的一个窗口内来统计。
+                    # 注意 _feed_date_locked 是「先 INSERT（写 ingested_at）后写 fed_at」，
+                    # 所以 ingested_at <= fed_at；用 >= fed_at 判定会恒为 0。
+                    try:
+                        with adapter.get_sync_session() as session:
+                            inserted = session.execute(
+                                sa_text(
+                                    "SELECT COUNT(*) FROM training_samples "
+                                    "WHERE DATE(time) = :d AND ingested_at IS NOT NULL "
+                                    "AND ingested_at <= :fed "
+                                    "AND ingested_at >= :fed - INTERVAL 10 MINUTE"
+                                ),
+                                {"d": business_date, "fed": fed_at},
+                            ).scalar()
+                    except Exception as exc:
+                        logger.warning("pv_mock_data_feed data-evidence: 实际入库数统计失败: %s", exc)
+                last_feed = {
+                    "business_date": business_date,
+                    "row_count": int(row[1]) if row[1] is not None else None,
+                    "fed_at": fed_at.isoformat() if hasattr(fed_at, "isoformat") else str(fed_at),
+                    "inserted_row_count": int(inserted) if inserted is not None else None,
+                }
+        except Exception as exc:
+            logger.warning("pv_mock_data_feed data-evidence: 喂数游标不可读: %s", exc)
+
+        # 最近一次真实入库批次 —— 直接回答「我最近拉到了什么」。
+        # 与游标无关，因此不会被「跳过但游标前进」骗到。
+        #
+        # 用时间窗而非 ingested_at 精确相等来聚合：一次喂数按 500 行分批 INSERT，
+        # 跨多个秒级时间戳，按相等聚合只能统计到最后一秒那部分（实测 3200 行只报 1684）。
+        # 代价是「连续两次喂数间隔小于窗口」时会被合并，故同时返回窗口首末时刻，让口径可见。
+        last_ingest_batch: Optional[Dict[str, Any]] = None
+        try:
+            if latest_ingested_at is not None:
+                with adapter.get_sync_session() as session:
+                    b = session.execute(
+                        sa_text(
+                            "SELECT COUNT(*) c, MIN(time) tmin, MAX(time) tmax, "
+                            "COUNT(DISTINCT device_id) dev, COUNT(DISTINCT branch_id) br, "
+                            "COUNT(DISTINCT DATE(time)) days, "
+                            "MIN(ingested_at) imin, MAX(ingested_at) imax "
+                            "FROM training_samples "
+                            "WHERE ingested_at IS NOT NULL "
+                            "AND ingested_at <= :ing "
+                            "AND ingested_at >= :ing - INTERVAL 120 SECOND"
+                        ),
+                        {"ing": latest_ingested_at},
+                    ).fetchone()
+                if b is not None:
+                    last_ingest_batch = {
+                        "ingested_at": latest_ingested_at.isoformat(),
+                        "row_count": int(b[0] or 0),
+                        "observed_time_min": b[1].isoformat() if b[1] else None,
+                        "observed_time_max": b[2].isoformat() if b[2] else None,
+                        "device_count": int(b[3] or 0),
+                        "branch_count": int(b[4] or 0),
+                        "day_count": int(b[5] or 0),
+                        "ingested_at_min": b[6].isoformat() if b[6] else None,
+                        "ingested_at_max": b[7].isoformat() if b[7] else None,
+                    }
+        except Exception as exc:
+            logger.warning("pv_mock_data_feed data-evidence: 最近入库批次统计失败: %s", exc)
+        # @AI_GENERATED: end
 
         return {
             "task_id": "pv_mock_data_feed",
             "evidence": {
                 "total_rows": int(total),
                 "device_count": int(device_count),
-                "date_count": date_count,
+                "date_count": int(distinct_days),
+                "date_span_days": date_span_days,
                 "earliest_time": earliest.isoformat() if earliest else None,
                 "latest_time": latest_time.isoformat() if latest_time else None,
+                "latest_ingested_at": latest_ingested_at.isoformat() if latest_ingested_at else None,
                 "samples": samples,
             },
             "feed_preview": preview.as_dict(),
+            "source": source,
+            "last_feed": last_feed,
+            "last_ingest_batch": last_ingest_batch,
         }
     except Exception as exc:
         logger.exception("pv_mock_data_feed data-evidence 查询失败")

@@ -7,7 +7,7 @@ services/db/datasources/pv_fault_mock.py — 光伏故障诊断 Mock 喂数据�
   - 每次 cron 触发只喂一个自然日的数据（以 time 列的 date 为边界）
   - 跨日必须人工确认（requires_advance_confirmation）才能推进
   - 写入时 label = NULL，模拟真实场景下数据库新收到的原始光伏观测
-  - 源数据来自 datasets/dataset_combined.parquet（可通过环境变量覆盖）
+  - 源数据默认 datasets/pv_mock_feed_source.parquet（约 35 天，可用 PV_MOCK_PARQUET_PATH 覆盖）
 
 与负荷预测 feeder 的主要差异：
   - 数据源是 Parquet（多设备多列），而非 CSV（单设备单列）
@@ -23,6 +23,7 @@ services/db/datasources/pv_fault_mock.py — 光伏故障诊断 Mock 喂数据�
 from __future__ import annotations
 
 import logging
+import json
 import os
 import tempfile
 import threading
@@ -40,11 +41,123 @@ from services.db.exceptions import DataSourceError, IngestionError
 logger = logging.getLogger(__name__)
 
 _BACKEND_ROOT = Path(__file__).resolve().parents[3]
-_DEFAULT_PARQUET_PATH = "datasets/dataset_combined.parquet"
+_DEFAULT_PARQUET_PATH = "datasets/pv_mock_feed_source.parquet"
 
 # training_samples 表结构（与 PVFaultRepository.ingest_parquet 一致）
 _SCHEMA = "aip_algo_platform"
 _CURSOR_TABLE = "pv_mock_feed_cursor"
+
+# 进程内缓存：避免每次 feed-status / 指纹都扫百万行 parquet（会拖死单进程 uvicorn）
+_FINGERPRINT_CACHE: Dict[str, Any] = {"key": None, "value": None}
+_META_CACHE: Dict[str, Any] = {"key": None, "value": None}
+
+
+def _meta_path_for(parquet_path: Path) -> Path:
+    return parquet_path.with_suffix(parquet_path.suffix + ".meta.json")
+
+
+def _file_cache_key(path: Path) -> Tuple[str, int, int]:
+    st = path.stat()
+    return (str(path.resolve()), int(st.st_mtime_ns), int(st.st_size))
+
+
+def load_pv_mock_source_meta(parquet_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """读取 build 脚本旁路写出的 meta；没有则返回 None。"""
+    raw = parquet_path or os.environ.get("PV_MOCK_PARQUET_PATH", _DEFAULT_PARQUET_PATH)
+    resolved = _resolve_path(raw)
+    meta_file = _meta_path_for(resolved)
+    if not meta_file.exists():
+        return None
+    key = _file_cache_key(meta_file) + _file_cache_key(resolved)
+    if _META_CACHE["key"] == key and isinstance(_META_CACHE["value"], dict):
+        return _META_CACHE["value"]
+    try:
+        payload = json.loads(meta_file.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    _META_CACHE["key"] = key
+    _META_CACHE["value"] = payload
+    return payload
+
+
+def write_pv_mock_source_meta(
+    parquet_path: Path,
+    *,
+    unique_dates: List[str],
+    row_count: int,
+    built_from: str = "",
+) -> Path:
+    """写出喂数源旁路 meta，供指纹/预览快速读取。"""
+    dates = sorted({str(d)[:10] for d in unique_dates if d})
+    payload = {
+        "source_path": _project_relative_parquet_path(parquet_path),
+        "built_from": built_from,
+        "row_count": int(row_count),
+        "date_min": dates[0] if dates else None,
+        "date_max": dates[-1] if dates else None,
+        "unique_days": len(dates),
+        "unique_dates": dates,
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    out = _meta_path_for(parquet_path)
+    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    _META_CACHE["key"] = None
+    _META_CACHE["value"] = None
+    _FINGERPRINT_CACHE["key"] = None
+    _FINGERPRINT_CACHE["value"] = None
+    return out
+
+
+def compute_pv_source_fingerprint(parquet_path: Optional[str] = None) -> Dict[str, Any]:
+    """计算当前 mock 数据源指纹（相对路径 + 日期范围 + 行数）。
+
+    优先读旁路 meta + 文件 size/mtime，避免每次全表扫描 time 列。
+    """
+    import hashlib
+
+    raw = parquet_path or os.environ.get("PV_MOCK_PARQUET_PATH", _DEFAULT_PARQUET_PATH)
+    resolved = _resolve_path(raw)
+    if not resolved.exists():
+        raise DataSourceError(f"PV mock 数据文件不存在: {resolved}")
+
+    cache_key = _file_cache_key(resolved)
+    if _FINGERPRINT_CACHE["key"] == cache_key and isinstance(_FINGERPRINT_CACHE["value"], dict):
+        return dict(_FINGERPRINT_CACHE["value"])
+
+    source_path = _project_relative_parquet_path(resolved)
+    meta = load_pv_mock_source_meta(str(resolved))
+    if meta and meta.get("date_min") and meta.get("date_max") and meta.get("row_count") is not None:
+        date_min = str(meta["date_min"])
+        date_max = str(meta["date_max"])
+        row_count = int(meta["row_count"])
+    else:
+        # 回退：只读 time 列（慢，仅 meta 缺失时）
+        df = pd.read_parquet(resolved, columns=["time"])
+        times = pd.to_datetime(df["time"])
+        if getattr(times.dt, "tz", None) is not None:
+            times = times.dt.tz_convert("UTC").dt.tz_localize(None)
+        if times.empty:
+            raise DataSourceError(f"PV mock parquet 无 time 数据: {resolved}")
+        date_min = times.min().date().isoformat()
+        date_max = times.max().date().isoformat()
+        row_count = int(len(times))
+
+    st = resolved.stat()
+    digest = hashlib.sha256(
+        f"{source_path}|{date_min}|{date_max}|{row_count}|{int(st.st_size)}".encode("utf-8")
+    ).hexdigest()[:16]
+    payload = {
+        "source_path": source_path,
+        "date_min": date_min,
+        "date_max": date_max,
+        "row_count": row_count,
+        "fingerprint": digest,
+    }
+    _FINGERPRINT_CACHE["key"] = cache_key
+    _FINGERPRINT_CACHE["value"] = dict(payload)
+    return payload
 
 
 def _project_relative_parquet_path(path: Path) -> str:
@@ -59,39 +172,20 @@ def _project_relative_parquet_path(path: Path) -> str:
             return path.name
 
 
-def compute_pv_source_fingerprint(parquet_path: Optional[str] = None) -> Dict[str, Any]:
-    """计算当前 mock 数据源指纹（相对路径 + 日期范围 + 行数）。
-
-    换文件或同路径覆盖成另一套日历时，指纹会变化，供预测游标自动重置。
-    """
-    import hashlib
-
-    raw = parquet_path or os.environ.get("PV_MOCK_PARQUET_PATH", _DEFAULT_PARQUET_PATH)
-    resolved = _resolve_path(raw)
-    if not resolved.exists():
-        raise DataSourceError(f"PV mock 数据文件不存在: {resolved}")
-
-    df = pd.read_parquet(resolved, columns=["time"])
-    times = pd.to_datetime(df["time"])
-    if getattr(times.dt, "tz", None) is not None:
-        times = times.dt.tz_convert("UTC").dt.tz_localize(None)
-    if times.empty:
-        raise DataSourceError(f"PV mock parquet 无 time 数据: {resolved}")
-
-    date_min = times.min().date().isoformat()
-    date_max = times.max().date().isoformat()
-    row_count = int(len(times))
-    source_path = _project_relative_parquet_path(resolved)
-    digest = hashlib.sha256(
-        f"{source_path}|{date_min}|{date_max}|{row_count}".encode("utf-8")
-    ).hexdigest()[:16]
-    return {
-        "source_path": source_path,
-        "date_min": date_min,
-        "date_max": date_max,
-        "row_count": row_count,
-        "fingerprint": digest,
-    }
+def _coerce_date(value: Any) -> Optional[date]:
+    """把 MySQL/驱动返回的 date/datetime/str 统一成 date，避免跨日比较 TypeError。"""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        text_value = value.strip()
+        if not text_value:
+            return None
+        return date.fromisoformat(text_value[:10])
+    return None
 
 
 def _resolve_path(path: str) -> Path:
@@ -190,10 +284,11 @@ class PvFaultMockFeeder:
     # ------------------------------------------------------------------
 
     def _load_df(self) -> pd.DataFrame:
-        """懒加载 Parquet，转换时间列，按 time 排序。"""
+        """懒加载 Parquet（仅真正喂数时调用；预览尽量走 meta + 按日过滤）。"""
         if self._df is None:
             if not self._parquet_path.exists():
                 raise DataSourceError(f"PV mock 数据文件不存在: {self._parquet_path}")
+            logger.info("pv_mock_feed: loading full parquet into memory path=%s", self._parquet_path)
             df = pd.read_parquet(self._parquet_path)
             required = {"time", "site_id", "device_id", "branch_id", "value", "i_cal"}
             missing = required - set(df.columns)
@@ -207,6 +302,18 @@ class PvFaultMockFeeder:
             self._df = df
             self._df_dates = sorted(df["_date"].unique().tolist())
         return self._df
+
+    def _unique_dates(self) -> List[date]:
+        """优先读 meta 中的日期列表，避免预览时全表加载。"""
+        if self._df_dates is not None:
+            return list(self._df_dates)
+        meta = load_pv_mock_source_meta(str(self._parquet_path))
+        if meta and isinstance(meta.get("unique_dates"), list) and meta["unique_dates"]:
+            dates = [_coerce_date(d) for d in meta["unique_dates"]]
+            self._df_dates = [d for d in dates if d is not None]
+            return list(self._df_dates)
+        self._load_df()
+        return list(self._df_dates or [])
 
     def _ensure_cursor_table(self) -> None:
         """创建 pv_mock_feed_cursor 游标表（如不存在）。"""
@@ -229,28 +336,56 @@ class PvFaultMockFeeder:
             result = session.execute(
                 text(f"SELECT MAX(business_date) FROM `{_SCHEMA}`.`{_CURSOR_TABLE}`")
             ).scalar()
-        return result  # 已是 date 类型或 None
+        return _coerce_date(result)
 
     def _mark_date_fed(self, business_date: date, row_count: int) -> None:
         """记录当日已喂完（幂等 upsert）。"""
+        normalized = _coerce_date(business_date)
+        if normalized is None:
+            raise IngestionError(f"无效的 business_date: {business_date!r}")
         with self._adapter.get_sync_session() as session:
             session.execute(text(f"""
                 INSERT INTO `{_SCHEMA}`.`{_CURSOR_TABLE}` (business_date, fed_at, row_count)
                 VALUES (:d, :now, :cnt)
                 ON DUPLICATE KEY UPDATE fed_at = :now, row_count = :cnt
-            """), {"d": business_date, "now": datetime.utcnow(), "cnt": row_count})
+            """), {"d": normalized, "now": datetime.utcnow(), "cnt": row_count})
 
     def _rows_for_date(self, business_date: date) -> pd.DataFrame:
-        df = self._load_df()
-        return df[df["_date"] == business_date].copy()
+        """按自然日取行：内存已缓存则切片，否则用 parquet filter 只读一天。"""
+        target = _coerce_date(business_date)
+        if target is None:
+            return pd.DataFrame()
+        if self._df is not None:
+            return self._df[self._df["_date"] == target].copy()
+
+        start = pd.Timestamp(target)
+        end = start + pd.Timedelta(days=1)
+        try:
+            df = pd.read_parquet(
+                self._parquet_path,
+                filters=[("time", ">=", start), ("time", "<", end)],
+            )
+        except Exception:
+            # 某些引擎不支持 filters 时回退全表（慢路径）
+            return self._load_df()[self._load_df()["_date"] == target].copy()
+
+        if df.empty:
+            return df
+        df["time"] = pd.to_datetime(df["time"])
+        if getattr(df["time"].dt, "tz", None) is not None:
+            df["time"] = df["time"].dt.tz_convert("UTC").dt.tz_localize(None)
+        df["_date"] = df["time"].dt.date
+        return df[df["_date"] == target].copy()
 
     def _next_unfed_date(self) -> Optional[date]:
         """返回下一个还没喂过的自然日。"""
-        df = self._load_df()
         last = self._last_fed_date()
-        for d in self._df_dates:  # type: ignore[union-attr]
-            if last is None or d > last:
-                return d
+        for d in self._unique_dates():
+            day = _coerce_date(d)
+            if day is None:
+                continue
+            if last is None or day > last:
+                return day
         return None  # exhausted
 
     # ------------------------------------------------------------------
@@ -271,7 +406,6 @@ class PvFaultMockFeeder:
         return compute_pv_source_fingerprint(str(self._parquet_path))
 
     def _build_preview(self) -> PvMockFeedPreview:
-        self._load_df()
         last_date = self._last_fed_date()
         next_date = self._next_unfed_date()
         try:
@@ -292,7 +426,7 @@ class PvFaultMockFeeder:
             )
 
         next_rows = self._rows_for_date(next_date)
-        next_device_count = int(next_rows["device_id"].nunique())
+        next_device_count = int(next_rows["device_id"].nunique()) if not next_rows.empty else 0
 
         if last_date is None:
             state = "initial_feed"
@@ -422,6 +556,32 @@ class PvFaultMockFeeder:
             device_count,
         )
         return feed_result
+
+    def reset_feed_cursor(self, reason: str = "manual_reset") -> Dict[str, Any]:
+        """清空喂数游标，下次可从 parquet 首日重新推进（已写入行仍受 INSERT IGNORE 保护）。"""
+        with self._feed_lock:
+            self._ensure_cursor_table()
+            previous = self._last_fed_date()
+            with self._adapter.get_sync_session() as session:
+                result = session.execute(
+                    text(f"DELETE FROM `{_SCHEMA}`.`{_CURSOR_TABLE}`")
+                )
+                deleted = int(result.rowcount or 0)
+            preview = self._build_preview()
+            logger.info(
+                "pv_mock_feed: cursor reset reason=%s deleted_rows=%d previous=%s next=%s",
+                reason,
+                deleted,
+                previous.isoformat() if previous else None,
+                preview.next_business_date.isoformat() if preview.next_business_date else None,
+            )
+            return {
+                "status": "reset",
+                "reason": reason,
+                "deleted_cursor_rows": deleted,
+                "previous_business_date": previous.isoformat() if previous else None,
+                "preview": preview.as_dict(),
+            }
 
 
 # ---------------------------------------------------------------------------

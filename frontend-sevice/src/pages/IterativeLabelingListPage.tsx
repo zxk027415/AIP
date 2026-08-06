@@ -59,8 +59,15 @@ import {
 import {
   cumulativeTrainingApi,
   trainingWorkspaceApi,
-  type CumulativeRetrainRunResponse,
 } from '../services/iterativeLabelingApi';
+// @AI_GENERATED: 后端时间戳为不带时区的 UTC 裸字符串，需归一化后再转本地
+import { formatBackendDateTime } from '../utils/datetime';
+// @AI_GENERATED: end
+import PvFaultWorkspaceShell from '../components/pv-fault/PvFaultWorkspaceShell';
+// @AI_GENERATED
+import ModelCompareTab from '../components/pv-fault/ModelCompareTab';
+// @AI_GENERATED: end
+import { PV_FAULT_PRIMARY } from '../theme/pvFaultTheme';
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
@@ -121,12 +128,10 @@ const textOrDash = (value: unknown): string => {
   return normalized || '—';
 };
 
-const formatTimestamp = (value: unknown): string => {
-  const raw = String(value ?? '').trim();
-  if (!raw) return '—';
-  const date = new Date(raw);
-  return Number.isNaN(date.getTime()) ? raw : date.toLocaleString('zh-CN', { hour12: false });
-};
+// @AI_GENERATED: 同 AlgorithmDeploymentPage —— 后端时间戳是不带时区的 UTC 裸字符串，
+// 直接 new Date 会少 8 小时（UTC+8）。统一走 formatBackendDateTime。
+const formatTimestamp = (value: unknown): string => formatBackendDateTime(value);
+// @AI_GENERATED: end
 
 const retrainStatusTag = (status?: string) => {
   switch (status) {
@@ -231,11 +236,16 @@ const IterativeLabelingListPage: React.FC = () => {
     if (!requestId || latestRequest?.status !== 'queued') return;
     setRetrainRunning(true);
     try {
-      const result: CumulativeRetrainRunResponse = await cumulativeTrainingApi.runRetrainRequest(requestId, PV_FAULT_SLOT);
-      message.success(`重训完成，生产模型已切换为 ${textOrDash(result.production_model_ref)}`);
+      // @AI_GENERATED: 改后台执行。训练评估耗时远超 axios 的 120s 超时，
+      // 原同步等待会在浏览器侧中断并误报「重训失败」，而后端其实仍在跑。
+      // 本页只做看板、不轮询进度，进度请到「算法部署」页查看。
+      await cumulativeTrainingApi.runRetrainRequest(requestId, PV_FAULT_SLOT, true);
+      message.success('已在后台启动重训，进度可在「算法部署」页查看');
+      // @AI_GENERATED: end
       await loadDashboard();
     } catch (error: unknown) {
-      message.error(`重训失败：${error instanceof Error ? error.message : String(error)}`);
+      const detail = (error as any)?.response?.data?.detail;
+      message.error(`启动重训失败：${detail ?? (error instanceof Error ? error.message : String(error))}`);
     } finally {
       setRetrainRunning(false);
     }
@@ -322,13 +332,13 @@ const IterativeLabelingListPage: React.FC = () => {
   // ---------------------------------------------------------------------------
 
   return (
-    <div style={{ padding: '20px 24px', maxWidth: 1400, margin: '0 auto' }}>
+    <PvFaultWorkspaceShell className="pv-page-shell">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div className="pv-page-header">
         <Space size={12}>
-          <ThunderboltOutlined style={{ fontSize: 22, color: '#1677ff' }} />
-          <Title level={3} style={{ margin: 0 }}>人工标注工作台</Title>
-          <Tag color="blue">{PV_FAULT_SLOT}</Tag>
+          <ThunderboltOutlined className="pv-accent-icon" style={{ fontSize: 22, color: PV_FAULT_PRIMARY }} />
+          <Title level={3} className="pv-page-header-title">人工标注工作台</Title>
+          <Tag color="orange">{PV_FAULT_SLOT}</Tag>
         </Space>
         <Space>
           <Button icon={<DatabaseOutlined />} onClick={() => navigate('/datasets?tab=private')}>
@@ -343,23 +353,23 @@ const IterativeLabelingListPage: React.FC = () => {
       {/* KPI Strip */}
       <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
         <Col xs={12} sm={6}>
-          <Card size="small" style={{ textAlign: 'center' }}>
-            <Statistic title="待处理会话" value={reviewStats.inProgress} suffix="个" valueStyle={{ fontSize: 20, color: reviewStats.inProgress > 0 ? '#1677ff' : undefined }} />
+          <Card size="small" className="pv-kpi-card">
+            <Statistic title="待处理会话" value={reviewStats.inProgress} suffix="个" valueStyle={{ fontSize: 22, fontWeight: 600, color: reviewStats.inProgress > 0 ? PV_FAULT_PRIMARY : undefined }} />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
-          <Card size="small" style={{ textAlign: 'center' }}>
-            <Statistic title="已完成会话" value={reviewStats.completed} suffix="个" valueStyle={{ fontSize: 20 }} />
+          <Card size="small" className="pv-kpi-card">
+            <Statistic title="已完成会话" value={reviewStats.completed} suffix="个" valueStyle={{ fontSize: 22, fontWeight: 600 }} />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
-          <Card size="small" style={{ textAlign: 'center' }}>
-            <Statistic title="已标注单元" value={reviewStats.reviewedUnits} suffix="个" valueStyle={{ fontSize: 20 }} />
+          <Card size="small" className="pv-kpi-card">
+            <Statistic title="已标注单元" value={reviewStats.reviewedUnits} suffix="个" valueStyle={{ fontSize: 22, fontWeight: 600 }} />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
-          <Card size="small" style={{ textAlign: 'center' }}>
-            <Statistic title="标注总进度" value={reviewStats.totalUnits > 0 ? Math.round((reviewStats.reviewedUnits / reviewStats.totalUnits) * 100) : 0} suffix="%" valueStyle={{ fontSize: 20 }} />
+          <Card size="small" className="pv-kpi-card">
+            <Statistic title="标注总进度" value={reviewStats.totalUnits > 0 ? Math.round((reviewStats.reviewedUnits / reviewStats.totalUnits) * 100) : 0} suffix="%" valueStyle={{ fontSize: 22, fontWeight: 600, color: PV_FAULT_PRIMARY }} />
           </Card>
         </Col>
       </Row>
@@ -368,6 +378,7 @@ const IterativeLabelingListPage: React.FC = () => {
       <Card bordered={false} bodyStyle={{ padding: '8px 0 0' }}>
         <Tabs activeKey={activeTab} onChange={setActiveTab} style={{ padding: '0 16px' }}>
           <TabPane tab={<Space size={4}><EditOutlined />人工打标队列</Space>} key="review" />
+          <TabPane tab={<Space size={4}><ExperimentOutlined />模型对比</Space>} key="model_compare" />
         </Tabs>
 
         <div style={{ padding: '16px' }}>
@@ -391,7 +402,7 @@ const IterativeLabelingListPage: React.FC = () => {
                   <Button size="small" onClick={() => void loadCandidates(1)} loading={candidatesLoading}>查询</Button>
                 </Space>
                 <Space>
-                  <Badge count={candidatesTotal} overflowCount={9999} style={{ backgroundColor: '#1677ff' }}>
+                  <Badge count={candidatesTotal} overflowCount={9999} style={{ backgroundColor: PV_FAULT_PRIMARY }}>
                     <Text type="secondary" style={{ fontSize: 12 }}>总记录</Text>
                   </Badge>
                   <Tooltip title="从未标注样本创建聚类 run，然后人工命名后确认入训练集">
@@ -583,9 +594,15 @@ const IterativeLabelingListPage: React.FC = () => {
               )}
             </div>
           )}
+
+          {/* @AI_GENERATED: TSC 模型对比 Tab */}
+          {activeTab === 'model_compare' && (
+            <ModelCompareTab slot={PV_FAULT_SLOT} />
+          )}
+          {/* @AI_GENERATED: end */}
         </div>
       </Card>
-    </div>
+    </PvFaultWorkspaceShell>
   );
 };
 

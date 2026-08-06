@@ -6,8 +6,16 @@
 --------
 L1 元测试     tests/operators/test_operator_meta.py（期望列表 / 自动发现）
 L2 契约烟测   tests/operators/test_operators_smoke.py（SMOKE_CASES）
+              tests/operators/test_legacy_operators_smoke.py
+              tests/operators/test_feature_operators_smoke.py
+              tests/operators/test_eval_operators_smoke.py
+              tests/operators/test_p4_gamma_operators_smoke.py
 L3 性质测试   tests/operators/test_operator_properties.py
               tests/operators/test_batch67_coverage.py（L3 契约性质）
+              tests/operators/test_legacy_batch_coverage.py
+              tests/operators/test_feature_batch_coverage.py
+              tests/operators/test_eval_batch_coverage.py
+              tests/operators/test_p4_gamma_batch_coverage.py
 L4 往返/重放  tests/operators/test_model_roundtrip.py
               tests/operators/test_stateless_replay.py
               tests/operators/test_batch67_coverage.py（L4 确定性重放）
@@ -20,6 +28,10 @@ L6 真实数据   tests/test_e2e_accuracy_comparison.py
               tests/test_e2e_remaining_realdata.py
               tests/test_e2e_p3_w2_realdata.py
               tests/test_e2e_p3_w3_realdata.py
+              tests/test_e2e_legacy_realdata.py
+              tests/test_e2e_feature_realdata.py
+              tests/test_e2e_eval_realdata.py
+              tests/test_e2e_p4_gamma_realdata.py
 
 规则：只有同时出现在 L1∩L2∩L3∩L4∩L5∩L6 的算子，才允许写入
 services.operator_verification.VERIFIED_OPERATOR_IDS。
@@ -29,6 +41,71 @@ services.operator_verification.VERIFIED_OPERATOR_IDS。
 from __future__ import annotations
 
 from typing import Dict, FrozenSet, List
+
+# ── P4α：Legacy L1 波 + 新算子 ks_test ─────────────────────────────────────
+P4_ALPHA_LEGACY: FrozenSet[str] = frozenset({
+    "load_csv", "handle_missing", "detect_outliers", "row_filter",
+    "label_encode", "merge_label", "time_window_split",
+    "create_lag_features", "extract_time_features", "rolling_statistics", "diff_features",
+})
+P4_ALPHA_NEW: FrozenSet[str] = frozenset({"ks_test"})
+P4_ALPHA: FrozenSet[str] = P4_ALPHA_LEGACY | P4_ALPHA_NEW
+
+# ── P4-β：特征工程波（L2 文档 Wave L2 剩余 9 个）──────────────────────────
+P4_BETA_FE: FrozenSet[str] = frozenset({
+    "shift_features",
+    "pct_change_features",
+    "peak_valley_features",
+    "workday_features",
+    "holiday_features",
+    "extract_statistical_features",
+    "ts_comparison_features",
+    "sliding_window",
+    "feature_select",
+})
+
+P4_BETA: FrozenSet[str] = P4_BETA_FE | frozenset({
+    "confusion_matrix",
+    "mse_rmse_mae",
+    "smape_score",
+    "precision_recall_f1",
+    "stratified_cv_eval",
+    "random_forest_classifier",
+    "smote_oversample",
+    "tsfresh_extract",
+})
+
+P4_BETA_EVAL: FrozenSet[str] = frozenset({
+    "confusion_matrix",
+    "mse_rmse_mae",
+    "smape_score",
+    "precision_recall_f1",
+    "stratified_cv_eval",
+    "random_forest_classifier",
+    "smote_oversample",
+    "tsfresh_extract",
+})
+
+P4_GAMMA: FrozenSet[str] = frozenset({
+    "train_test_split_ts",
+    "resample_timeseries",
+    "multi_step_forecast",
+    "ridge_forecast",
+    "xgboost_forecast",
+    "lightgbm_forecast",
+    "catboost_forecast",
+    "ensemble_forecast",
+    "save_model_artifact",
+    "load_model_artifact",
+    "batch_predict_classifier",
+    "load_database",
+    "load_api",
+    "auto_tune_xgboost",
+    "auto_tune_lightgbm",
+    "auto_tune_catboost",
+})
+
+P4_REMAINING: FrozenSet[str] = P4_GAMMA
 
 # ── L1：P0/P1/P2/P3 期望注册（与 test_operator_meta 对齐）──────────────────
 LAYER1_META: FrozenSet[str] = frozenset(
@@ -75,11 +152,14 @@ LAYER1_META: FrozenSet[str] = frozenset(
         "adasyn_oversample", "stratified_sample", "class_imbalance_check",
         "balanced_accuracy", "pinball_loss",
     }
+    | P4_ALPHA
+    | P4_BETA
+    | P4_GAMMA
 )
 
-# ── L2：烟测（SMOKE_CASES + prophet 独立烟测；缺 hdf5/mongodb）────────────
+# ── L2：烟测（SMOKE_CASES + legacy_smoke + prophet；缺 hdf5/mongodb）──────
 LAYER2_SMOKE: FrozenSet[str] = frozenset(
-    (LAYER1_META - {"load_hdf5", "load_mongodb"}) | {"prophet"}
+    (LAYER1_META - {"load_hdf5", "load_mongodb"}) | {"prophet"} | P4_ALPHA | P4_BETA | P4_GAMMA
 )
 
 # ── L3：性质测试（hypothesis + batch67 契约性质）──────────────────────────
@@ -127,6 +207,9 @@ LAYER3_PROPERTY: FrozenSet[str] = frozenset(
         "balanced_accuracy", "pinball_loss",
     }
     | _SOFT_BATCH67
+    | P4_ALPHA
+    | P4_BETA
+    | P4_GAMMA
 )
 
 # ── L4：模型往返 / 异常往返 / 无状态重放 / batch67 重放 ───────────────────
@@ -153,6 +236,9 @@ LAYER4_ROUNDTRIP: FrozenSet[str] = frozenset(
         "balanced_accuracy", "pinball_loss",
     }
     | _SOFT_BATCH67
+    | P4_ALPHA
+    | P4_BETA
+    | P4_GAMMA
 )
 
 # ── L5：合成工作流端到端命中（test_end_to_end.py）──────────────────────────
@@ -180,9 +266,12 @@ LAYER5_SYNTHETIC_E2E: FrozenSet[str] = frozenset(
         "balanced_accuracy", "pinball_loss",
     }
     | _SOFT_BATCH67
+    | P4_ALPHA
+    | P4_BETA
+    | P4_GAMMA
 )
 
-# ── L6：真实业务数据 e2e（三个 accuracy/realdata 文件并集，仅填批相关）────
+# ── L6：真实业务数据 e2e（accuracy/realdata + legacy 文件并集）────────────
 LAYER6_REALDATA_E2E: FrozenSet[str] = frozenset(
     {
         # accuracy_comparison + new_operators_realdata + p3_w1
@@ -222,6 +311,9 @@ LAYER6_REALDATA_E2E: FrozenSet[str] = frozenset(
         "adasyn_oversample", "stratified_sample", "class_imbalance_check",
         "balanced_accuracy", "pinball_loss",
     }
+    | P4_ALPHA
+    | P4_BETA
+    | P4_GAMMA
 )
 
 

@@ -487,9 +487,9 @@ export interface DBHealth {
  * 部署槽位 API — 管理生产/影子模型、切换、回滚、切换日志与自动切换配置。
  */
 export const deploymentApi = {
-  /** 列出所有槽位及其 production/shadow 模型 */
+  /** 列出所有槽位及其 production/shadow 模型（短超时，避免后端卡死时前端转圈两分钟） */
   listSlots: (): Promise<{ slots: Record<string, DeploymentSlotView> }> =>
-    api.get('/deployment/slots'),
+    api.get('/deployment/slots', { timeout: 12000 }),
 
   /** 获取某槽位的版本历史（含 production/shadow/retired，每条附 role 字段） */
   listVersions: (slot: string): Promise<{ slot: string; versions: VersionHistoryItem[] }> =>
@@ -583,6 +583,15 @@ export const schedulerTaskApi = {
   /** 光伏手动喂数据：advance=false 时不会越过已完成的业务日。 */
   manualPvMockDataFeed: (advance = false): Promise<ManualPvMockFeedResponse> =>
     api.post('/scheduler/tasks/pv_mock_data_feed/manual-feed', { advance }),
+
+  /** 重置光伏模拟喂数游标（从源数据首日重新推进）。 */
+  resetPvMockFeedCursor: (): Promise<{
+    task_id: string;
+    status: string;
+    message: string;
+    previous_business_date?: string | null;
+    preview?: PvMockFeedPreview;
+  }> => api.post('/scheduler/tasks/pv_mock_data_feed/reset-cursor', {}),
 
   /** 读取 pv_mock_data_feed 已写入 training_samples 的数据摘要和样本。 */
   getPvMockFeedDataEvidence: (sampleLimit = 50): Promise<PvMockFeedDataEvidenceResponse> =>
@@ -699,7 +708,11 @@ export interface PvMockFeedResult {
 /** ManualPvMockFeedResponse — 光伏手动喂数据接口返回体。 */
 export interface ManualPvMockFeedResponse {
   task_id: string;
-  status: 'fed' | 'confirmation_required' | 'exhausted';
+  /**
+   * status — fed（真正写入了新数据）| fed_no_new_data（该业务日已全部存在，本次全部跳过，
+   * 游标仍推进但库内容未变）| confirmation_required（需确认）| exhausted（数据耗尽）。
+   */
+  status: 'fed' | 'fed_no_new_data' | 'confirmation_required' | 'exhausted';
   message: string;
   preview: PvMockFeedPreview;
   feed_result: PvMockFeedResult | null;
@@ -715,16 +728,55 @@ export interface PvMockFeedSampleRow {
   value: number | null;
   i_cal: number | null;
   label: number | null;
+  /** 入库时间 — 样本按此倒序，用来区分「刚喂的」和「历史的」 */
+  ingested_at?: string | null;
 }
 
 /** PvMockFeedDataEvidence — pv_mock_data_feed 写入 training_samples 的数据摘要。 */
 export interface PvMockFeedDataEvidence {
   total_rows: number;
   device_count: number;
+  /** 已覆盖自然日数 — DISTINCT DATE(time)，不是首末跨度 */
   date_count: number;
+  /** 首末跨度天数 — 与 date_count 是两个口径 */
+  date_span_days?: number;
   earliest_time: string | null;
   latest_time: string | null;
+  /** 最近一次入库时间 — 判断「刚喂的数据到了没」看这个 */
+  latest_ingested_at?: string | null;
   samples: PvMockFeedSampleRow[];
+}
+
+/** PvMockFeedLastRecord — 最近一次喂数记录（来自喂数游标表，重启不丢）。 */
+export interface PvMockFeedLastRecord {
+  /** 业务日 — 喂进去的是哪一天的观测 */
+  business_date: string;
+  /** 源行数 — 该业务日在源文件里的行数（不等于实际入库数） */
+  row_count: number | null;
+  /** 喂入时刻（UTC 裸字符串） */
+  fed_at: string;
+  /**
+   * 实际入库行数 — 源数据已在库时 INSERT IGNORE 会全部跳过，此值为 0。
+   * 游标不记这个，所以只看 row_count 会误以为喂成功了。
+   */
+  inserted_row_count?: number | null;
+}
+
+/** PvMockFeedIngestBatch — 最近一次真实入库批次（按 ingested_at 最大值聚合）。 */
+export interface PvMockFeedIngestBatch {
+  /** 入库时刻（UTC 裸字符串） */
+  ingested_at: string;
+  /** 本批行数 */
+  row_count: number;
+  /** 本批覆盖的观测时间范围（业务时间，非 UTC 机器时间） */
+  observed_time_min: string | null;
+  observed_time_max: string | null;
+  device_count: number;
+  branch_count: number;
+  day_count: number;
+  /** 本批入库时刻的首末（按 120 秒窗口聚合；连续快速喂数可能被合并） */
+  ingested_at_min?: string | null;
+  ingested_at_max?: string | null;
 }
 
 /** PvMockFeedDataEvidenceResponse — 光伏数据证据接口返回体。 */
@@ -732,6 +784,12 @@ export interface PvMockFeedDataEvidenceResponse {
   task_id: string;
   evidence: PvMockFeedDataEvidence;
   feed_preview: PvMockFeedPreview;
+  /** 当前喂数源指纹 — 换数据集时立刻可见 */
+  source?: PvSourceFingerprint | null;
+  /** 最近一次喂数记录 */
+  last_feed?: PvMockFeedLastRecord | null;
+  /** 最近一次真实入库批次 — 回答「我最近拉到了什么」 */
+  last_ingest_batch?: PvMockFeedIngestBatch | null;
 }
 
 /** PvSourceFingerprint — mock 数据源指纹。 */

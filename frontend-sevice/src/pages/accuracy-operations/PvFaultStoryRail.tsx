@@ -26,6 +26,7 @@ import {
   cumulativeTrainingApi,
   trainingWorkspaceApi,
 } from '../../services/iterativeLabelingApi';
+import type { PvFaultOpsBundle } from '../../hooks/usePvFaultAccuracyOpsBundle';
 
 const { Text } = Typography;
 
@@ -81,9 +82,11 @@ interface SlotOverviewPayload {
 interface PvFaultStoryRailProps {
   /** slot — 当前光伏运营槽位，正式主线为 pv_fault。 */
   slot: string;
-  /** refreshing — 父页面统一刷新中。 */
-  refreshing?: boolean;
-  /** onRefresh — 父页面刷新回调（调度/总览等）。 */
+  /** opsBundle — 父页面统一拉取的共享数据；传入后不再自行请求。 */
+  opsBundle?: PvFaultOpsBundle | null;
+  /** bundleLoading — 共享数据加载中。 */
+  bundleLoading?: boolean;
+  /** onRefresh — 父页面刷新回调。 */
   onRefresh?: () => void;
 }
 
@@ -338,13 +341,28 @@ function buildStages({
   return [feedStage, predictionStage, batchStage, reviewStage, cumulativeStage, modelStage];
 }
 
-const PvFaultStoryRail: React.FC<PvFaultStoryRailProps> = ({ slot, refreshing, onRefresh }) => {
+const PvFaultStoryRail: React.FC<PvFaultStoryRailProps> = ({
+  slot,
+  opsBundle,
+  bundleLoading,
+  onRefresh,
+}) => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const usingBundle = opsBundle !== undefined;
+  const [loading, setLoading] = useState(!usingBundle);
   const [overview, setOverview] = useState<SlotOverviewPayload | null>(null);
   const [feedPreview, setFeedPreview] = useState<PvMockFeedPreview | null>(null);
   const [feedError, setFeedError] = useState<string | null>(null);
   const [predictionTask, setPredictionTask] = useState<ScheduledTaskSummary | null>(null);
+
+  useEffect(() => {
+    if (!usingBundle) return;
+    setOverview((opsBundle?.overview as SlotOverviewPayload | null) ?? null);
+    setFeedPreview(opsBundle?.feedPreview ?? null);
+    setFeedError(opsBundle?.feedError ?? null);
+    setPredictionTask(findTask(opsBundle?.tasks ?? [], 'pv_prediction'));
+    setLoading(Boolean(bundleLoading && !opsBundle));
+  }, [usingBundle, opsBundle, bundleLoading]);
 
   const loadRail = useCallback(async () => {
     setLoading(true);
@@ -391,16 +409,17 @@ const PvFaultStoryRail: React.FC<PvFaultStoryRailProps> = ({ slot, refreshing, o
   }, [slot]);
 
   useEffect(() => {
+    if (usingBundle) return;
     void loadRail();
-  }, [loadRail]);
-
-  useEffect(() => {
-    if (refreshing) void loadRail();
-  }, [refreshing, loadRail]);
+  }, [loadRail, usingBundle]);
 
   const stages = buildStages({ feedPreview, feedError, predictionTask, overview });
 
   const handleRefresh = () => {
+    if (usingBundle) {
+      onRefresh?.();
+      return;
+    }
     void loadRail();
     onRefresh?.();
   };
@@ -441,7 +460,7 @@ const PvFaultStoryRail: React.FC<PvFaultStoryRailProps> = ({ slot, refreshing, o
               type="text"
               size="small"
               icon={<ReloadOutlined />}
-              loading={loading || refreshing}
+              loading={loading || Boolean(bundleLoading)}
               onClick={handleRefresh}
               aria-label="刷新光伏进度"
             />

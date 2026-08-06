@@ -28,7 +28,7 @@ if [ -f "$ROOT/.aip.local.env" ]; then
   source "$ROOT/.aip.local.env"
 fi
 
-CONDA_ENV="${AIP_CONDA_ENV:-aip_web}"
+CONDA_ENV="${AIP_CONDA_ENV:-cp_web}"
 
 cmd="${1:-}"
 # 检测 -mac 标志

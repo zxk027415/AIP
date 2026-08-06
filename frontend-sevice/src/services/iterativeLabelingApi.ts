@@ -562,10 +562,20 @@ export const cumulativeTrainingApi = {
   runRetrainRequest: (
     requestId: string,
     slot = 'pv_fault',
+    background = false,
   ): Promise<CumulativeRetrainRunResponse> =>
     api.post(`/iterative-labeling/cumulative-training/retrain-requests/${requestId}/run`, {}, {
-      params: { slot },
+      params: { slot, ...(background ? { background: true } : {}) },
     }),
+
+  // @AI_GENERATED: 一步启动手动重训并立即返回，进度改由 getState 轮询。
+  // 旧的 createManualRetrainRequest + runRetrainRequest 两步同步调用会各自超过
+  // axios 的 120s 超时（快照冻结实测 660s），导致请求创建后无人执行、永久 queued。
+  startManualRetrain: (slot = 'pv_fault', splitMode?: string): Promise<Record<string, unknown>> =>
+    api.post('/iterative-labeling/cumulative-training/retrain-requests/manual-run', {}, {
+      params: { slot, ...(splitMode ? { split_mode: splitMode } : {}) },
+    }),
+  // @AI_GENERATED: end
 };
 
 export const pointLabelApi = {
@@ -737,10 +747,19 @@ export const tscExperimentApi = {
    * 启动 TSC 多模型对比实验（异步）
    * POST /api/iterative-labeling/tsc/compare
    */
+  /**
+   * 启动 TSC 多模型对比实验（异步）
+   * POST /api/iterative-labeling/tsc/compare
+   *
+   * evaluation:
+   *   'strict'（默认）严格口径多次划分，返回 mean ± std，可用于对外汇报
+   *   'legacy'        旧的单次按设备划分，仅供快速探索，不可对外引用
+   *                   （实测单次划分 std 可达 0.075、极差 0.20）
+   */
   startTscCompare: (
     body: {
       modelNames?: string[];
-      windowConfigs?: Array<{ window_length: number; stride: number }>;
+      windowConfigs?: Array<{ window_length: number; stride: number; min_std?: number }>;
       nRepeats?: number;
       testRatio?: number;
       randomState?: number;
@@ -748,19 +767,29 @@ export const tscExperimentApi = {
       datasetPath?: string;
       preprocessMethod?: string;
       faultOversample?: boolean;
+      evaluation?: 'strict' | 'legacy';
+      splitMode?: 'strict' | 'time' | 'device';
+      nTestDays?: number;
+      heldDeviceRatio?: number;
+      baselineModel?: string;
     } = {},
     slot = 'pv_fault',
-  ): Promise<{ job_id: string; status: string }> =>
+  ): Promise<{ job_id: string; status: string; evaluation?: string; warning?: string | null }> =>
     api.post('/iterative-labeling/tsc/compare', {
       model_names: body.modelNames,
       window_configs: body.windowConfigs,
-      n_repeats: body.nRepeats ?? 5,
+      n_repeats: body.nRepeats ?? 10,
       test_ratio: body.testRatio ?? 0.2,
       random_state: body.randomState ?? 90,
       tier_filter: body.tierFilter,
       dataset_path: body.datasetPath,
       preprocess_method: body.preprocessMethod ?? 'per_sample_zscore',
       fault_oversample: body.faultOversample ?? true,
+      evaluation: body.evaluation ?? 'strict',
+      split_mode: body.splitMode ?? 'strict',
+      n_test_days: body.nTestDays ?? 3,
+      held_device_ratio: body.heldDeviceRatio ?? 0.3,
+      baseline_model: body.baselineModel ?? 'rocket_rf',
     }, { params: { slot }, timeout: 10 * 1000 }),
 
   /**

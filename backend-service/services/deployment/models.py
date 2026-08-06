@@ -32,7 +32,7 @@ Pydantic v2 在类字段包含 Optional[ModelVersion] 等前向引用时需要�
 调用 ``model_rebuild()`` 才能实例化。项目中其他 Pydantic 模块
 （如 services/workflow_agent/event_bus.py）也遵循同样约定。
 """
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import AliasChoices, BaseModel, Field
 
@@ -117,6 +117,9 @@ class ModelVersion(BaseModel):
     prelaunch_meta: Optional[PrelaunchMeta] = None
     source_run_id: Optional[str] = None
     source_candidate_id: Optional[str] = None
+    # @AI_GENERATED: AutoResearch 实验补丁（日滚预测前真实 apply，不只靠 version_tag）
+    experiment_patch: Optional[Dict[str, Any]] = None
+    # @AI_GENERATED: end
 
 
 # ---------------------------------------------------------------------------

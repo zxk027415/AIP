@@ -6,8 +6,8 @@
 
 ### 创建环境
 ```bash
-conda create -n aip_web python=3.10 -y
-conda activate aip_web
+conda create -n cp_web python=3.10 -y
+conda activate cp_web
 ```
 
 ### 安装依赖
@@ -112,7 +112,7 @@ CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 
 ### Conda 环境 (environment.yml)
 ```yaml
-name: aip_web
+name: cp_web
 dependencies:
   - python=3.10
   - pip

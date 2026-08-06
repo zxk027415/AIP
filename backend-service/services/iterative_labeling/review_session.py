@@ -161,7 +161,10 @@ class ReviewSessionService:
         prediction_batch_id: str,
         prediction_units: List[Dict[str, Any]],
         llm_suggestions: Optional[Dict[str, Dict[str, Any]]] = None,
-        prediction_context: Optional[Dict[str, Any]] = None
+        prediction_context: Optional[Dict[str, Any]] = None,
+        sampling_strategy: str = "uncertainty",
+        *,
+        disagreement_first: bool = False,
     ) -> Dict[str, Any]:
         """
         创建审核会话（基于预测批次）
@@ -277,9 +280,10 @@ class ReviewSessionService:
             }
             units.append(unit)
         
-        # 默认低置信度优先，把审核精力压到模型最不确定的单元。
-        units = self._sort_units_by_uncertainty(units)
-        
+        # 按采样策略排序（默认 uncertainty = 低置信度优先）
+        strategy = (sampling_strategy or "uncertainty").strip().lower()
+        units = self._sort_units(units, strategy, disagreement_first=disagreement_first)
+
         # 初始化会话状态
         session_state = {
             'review_id': review_id,
@@ -290,7 +294,8 @@ class ReviewSessionService:
             'reviewed_count': 0,
             'units': units,
             'verdicts': [],
-            'sampling_strategy': 'uncertainty',
+            'sampling_strategy': strategy,
+            'disagreement_first': bool(disagreement_first),
             'freeform_labels': [],
             # 编辑器驱动回流所需上下文（原始预测 CSV 路径 + 算子配置 + label_map）
             'prediction_context': prediction_context or {}
@@ -478,14 +483,23 @@ class ReviewSessionService:
         }
     
     @staticmethod
-    def _sort_units_by_uncertainty(units: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return sorted(
+    def _sort_units(
+        units: List[Dict[str, Any]],
+        strategy: str = "uncertainty",
+        *,
+        disagreement_first: bool = False,
+    ) -> List[Dict[str, Any]]:
+        from services.iterative_labeling.sampling_strategy import SamplingStrategy
+
+        return SamplingStrategy().sort_units(
             units,
-            key=lambda u: (
-                float((u.get("classifier_prediction") or {}).get("confidence") or 0.0),
-                str(u.get("unit_key") or ""),
-            ),
+            strategy=strategy,
+            disagreement_first=disagreement_first,
         )
+
+    @staticmethod
+    def _sort_units_by_uncertainty(units: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return ReviewSessionService._sort_units(units, "uncertainty")
 
     def _ensure_review_queue_defaults(
         self,
@@ -493,17 +507,22 @@ class ReviewSessionService:
         *,
         persist: bool = False,
     ) -> Dict[str, Any]:
-        """Backfill sampling_strategy / freeform_labels and low-confidence ordering."""
+        """Backfill sampling_strategy / freeform_labels；保留已存策略，缺省时 uncertainty。"""
         changed = False
-        if session_state.get("sampling_strategy") != "uncertainty":
+        strategy = str(session_state.get("sampling_strategy") or "").strip().lower()
+        if not strategy:
             session_state["sampling_strategy"] = "uncertainty"
+            strategy = "uncertainty"
             changed = True
         if "freeform_labels" not in session_state:
             session_state["freeform_labels"] = []
             changed = True
+        disagreement_first = bool(session_state.get("disagreement_first"))
         units = session_state.get("units")
         if isinstance(units, list) and units:
-            ordered = self._sort_units_by_uncertainty(units)
+            ordered = self._sort_units(
+                units, strategy, disagreement_first=disagreement_first
+            )
             if [u.get("unit_key") for u in ordered] != [u.get("unit_key") for u in units]:
                 session_state["units"] = ordered
                 changed = True

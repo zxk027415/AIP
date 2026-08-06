@@ -3,12 +3,12 @@
   "evaluation_window_days": 7,
   "metrics": {
     "workflow-20260511-optimal-505": {
-      "rolling_mape": 5.6616,
+      "rolling_mape": 10.213976004611894,
       "rolling_mae": 1539.02,
-      "valid_cycle_count": 0,
-      "total_cycle_count": 0,
-      "last_evaluated_at": "2026-07-09T09:37:35.115308+00:00",
-      "status": "insufficient_data"
+      "valid_cycle_count": 9,
+      "total_cycle_count": 9,
+      "last_evaluated_at": "2026-07-28T11:32:10.339341",
+      "status": "active"
     },
     "workflow-20260511-optimal-505#shadow-run43-mape4109": {
       "rolling_mape": 4.1093,
@@ -27,41 +27,258 @@
       "status": "insufficient_data"
     },
     "workflow-20260511-optimal-505@optimal-505-production": {
-      "rolling_mape": 5.6616,
-      "rolling_mae": 0.0,
-      "valid_cycle_count": 3,
-      "total_cycle_count": 3,
+      "rolling_mape": 9.413959842202113,
+      "rolling_mae": 94.5036877523554,
+      "valid_cycle_count": 624,
+      "total_cycle_count": 624,
       "coverage_rate": 1.0,
-      "window_days": 7,
+      "window_days": 30,
       "status": "active",
-      "last_evaluated_at": "2026-07-23T09:32:24.009067+00:00",
-      "activated_for_ops_at": "2026-07-23T09:32:24.009067+00:00",
-      "activation_mode": "ops_demo_no_future_leak"
+      "last_evaluated_at": "2026-07-28T03:32:10.093489+00:00",
+      "activated_for_ops_at": "2026-07-27T09:38:50.148789+00:00",
+      "activation_mode": "ops_demo_no_future_leak",
+      "rolling_wmape": 8.08415617809269,
+      "experiment_injected": true,
+      "rolling_mape_pooled": 1.827577,
+      "rolling_mape_method": "daily_median",
+      "daily_mape_series": [
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251004000000",
+          "business_day": "2025-10-04",
+          "daily_mape": 1.169958,
+          "daily_wmape": 1.18572,
+          "point_count": 192,
+          "evaluated_point_count": 192
+        },
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251005000000",
+          "business_day": "2025-10-05",
+          "daily_mape": 2.030453,
+          "daily_wmape": 2.027703,
+          "point_count": 97,
+          "evaluated_point_count": 97
+        },
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251006000000",
+          "business_day": "2025-10-06",
+          "daily_mape": 0.532379,
+          "daily_wmape": 0.533808,
+          "point_count": 192,
+          "evaluated_point_count": 192
+        },
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251007000000",
+          "business_day": "2025-10-07",
+          "daily_mape": 0.830736,
+          "daily_wmape": 0.829684,
+          "point_count": 192,
+          "evaluated_point_count": 192
+        },
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251009000000",
+          "business_day": "2025-10-09",
+          "daily_mape": 9.636943,
+          "daily_wmape": 9.640652,
+          "point_count": 70,
+          "evaluated_point_count": 70
+        }
+      ]
     },
     "workflow-20260511-optimal-505@shadow-run43-mape4109": {
-      "rolling_mape": 4.1093,
-      "rolling_mae": 0.0,
-      "valid_cycle_count": 3,
-      "total_cycle_count": 3,
+      "rolling_mape": 10.765774272859458,
+      "rolling_mae": 83.58500000000004,
+      "valid_cycle_count": 623,
+      "total_cycle_count": 623,
       "coverage_rate": 1.0,
-      "window_days": 7,
+      "window_days": 30,
       "status": "active",
-      "last_evaluated_at": "2026-07-23T09:32:24.080844+00:00",
-      "activated_for_ops_at": "2026-07-23T09:32:24.080844+00:00",
-      "activation_mode": "ops_demo_no_future_leak"
+      "last_evaluated_at": "2026-07-28T03:32:10.150195+00:00",
+      "activated_for_ops_at": "2026-07-27T09:38:50.236615+00:00",
+      "activation_mode": "ops_demo_no_future_leak",
+      "rolling_wmape": 9.360383901625577,
+      "experiment_injected": true,
+      "rolling_mape_pooled": 1.616759,
+      "rolling_mape_method": "daily_median",
+      "daily_mape_series": [
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:0ccc3fc578a0f989:20251004000000",
+          "business_day": "2025-10-04",
+          "daily_mape": 1.169958,
+          "daily_wmape": 1.18572,
+          "point_count": 192,
+          "evaluated_point_count": 192
+        },
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:0ccc3fc578a0f989:20251005000000",
+          "business_day": "2025-10-05",
+          "daily_mape": 1.009937,
+          "daily_wmape": 1.007053,
+          "point_count": 192,
+          "evaluated_point_count": 192
+        },
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:0ccc3fc578a0f989:20251006000000",
+          "business_day": "2025-10-06",
+          "daily_mape": 0.532379,
+          "daily_wmape": 0.533808,
+          "point_count": 192,
+          "evaluated_point_count": 192
+        },
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:0ccc3fc578a0f989:20251007000000",
+          "business_day": "2025-10-07",
+          "daily_mape": 0.830736,
+          "daily_wmape": 0.829684,
+          "point_count": 192,
+          "evaluated_point_count": 192
+        },
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:0ccc3fc578a0f989:20251009000000",
+          "business_day": "2025-10-09",
+          "daily_mape": 9.636943,
+          "daily_wmape": 9.640652,
+          "point_count": 70,
+          "evaluated_point_count": 70
+        }
+      ]
     },
     "workflow-20260511-optimal-505@shadow-run7-generic-mape4109": {
-      "rolling_mape": 4.1093,
-      "rolling_mae": 0.0,
-      "valid_cycle_count": 3,
-      "total_cycle_count": 3,
+      "rolling_mape": 10.213976004611894,
+      "rolling_mae": 87.67552560646907,
+      "valid_cycle_count": 562,
+      "total_cycle_count": 562,
       "coverage_rate": 1.0,
-      "window_days": 7,
+      "window_days": 30,
       "status": "active",
-      "last_evaluated_at": "2026-07-23T09:32:24.119869+00:00",
-      "activated_for_ops_at": "2026-07-23T09:32:24.119869+00:00",
-      "activation_mode": "ops_demo_no_future_leak"
+      "last_evaluated_at": "2026-07-28T03:32:10.196194+00:00",
+      "activated_for_ops_at": "2026-07-27T09:38:50.188303+00:00",
+      "activation_mode": "ops_demo_no_future_leak",
+      "rolling_wmape": 8.818043165902314,
+      "experiment_injected": true,
+      "rolling_mape_pooled": 1.69527,
+      "rolling_mape_method": "daily_median",
+      "daily_mape_series": [
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:14d9064f69a5766d:20251004000000",
+          "business_day": "2025-10-04",
+          "daily_mape": 1.169958,
+          "daily_wmape": 1.18572,
+          "point_count": 192,
+          "evaluated_point_count": 192
+        },
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:14d9064f69a5766d:20251005000000",
+          "business_day": "2025-10-05",
+          "daily_mape": 1.009937,
+          "daily_wmape": 1.007053,
+          "point_count": 96,
+          "evaluated_point_count": 96
+        },
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:14d9064f69a5766d:20251006000000",
+          "business_day": "2025-10-06",
+          "daily_mape": 0.532379,
+          "daily_wmape": 0.533808,
+          "point_count": 192,
+          "evaluated_point_count": 192
+        },
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:14d9064f69a5766d:20251007000000",
+          "business_day": "2025-10-07",
+          "daily_mape": 0.830736,
+          "daily_wmape": 0.829684,
+          "point_count": 192,
+          "evaluated_point_count": 192
+        },
+        {
+          "prediction_cycle_id": "workflow-20260511-optimal-505:14d9064f69a5766d:20251009000000",
+          "business_day": "2025-10-09",
+          "daily_mape": 9.636943,
+          "daily_wmape": 9.640652,
+          "point_count": 70,
+          "evaluated_point_count": 70
+        }
+      ]
+    },
+    "workflow-load-forecast-backtest-v2@demo-prelaunch-no-verification-passed": {
+      "rolling_mape": 13.93780017445606,
+      "rolling_wmape": 11.875209473398577,
+      "rolling_mae": 43.776547619047655,
+      "valid_cycle_count": 416,
+      "total_cycle_count": 416,
+      "coverage_rate": 1.0,
+      "window_days": 30,
+      "last_evaluated_at": "2026-07-28T03:32:10.242529+00:00",
+      "status": "active",
+      "experiment_injected": true,
+      "rolling_mape_pooled": 0.845152,
+      "rolling_mape_method": "daily_median",
+      "daily_mape_series": [
+        {
+          "prediction_cycle_id": "workflow-load-forecast-backtest-v2:2bef6fe33d75ef82:20251004000000",
+          "business_day": "2025-10-04",
+          "daily_mape": 1.169958,
+          "daily_wmape": 1.18572,
+          "point_count": 96,
+          "evaluated_point_count": 96
+        },
+        {
+          "prediction_cycle_id": "workflow-load-forecast-backtest-v2:2bef6fe33d75ef82:20251005000000",
+          "business_day": "2025-10-05",
+          "daily_mape": 1.009937,
+          "daily_wmape": 1.007053,
+          "point_count": 192,
+          "evaluated_point_count": 192
+        },
+        {
+          "prediction_cycle_id": "workflow-load-forecast-backtest-v2:2bef6fe33d75ef82:20251006000000",
+          "business_day": "2025-10-06",
+          "daily_mape": 0.532379,
+          "daily_wmape": 0.533808,
+          "point_count": 192,
+          "evaluated_point_count": 192
+        },
+        {
+          "prediction_cycle_id": "workflow-load-forecast-backtest-v2:2bef6fe33d75ef82:20251007000000",
+          "business_day": "2025-10-07",
+          "daily_mape": 0.830736,
+          "daily_wmape": 0.829684,
+          "point_count": 192,
+          "evaluated_point_count": 192
+        }
+      ]
+    },
+    "workflow-load-forecast-backtest-v2": {
+      "rolling_mape": 10.073550723602288,
+      "valid_cycle_count": 9,
+      "total_cycle_count": 9,
+      "last_evaluated_at": "2026-07-28T11:32:10.376878",
+      "status": "active"
+    },
+    "workflow-load-forecast-backtest-v2@e2e-prelaunch-369ed87351eb": {
+      "rolling_mape": 10.073550723602288,
+      "rolling_wmape": 9.019913302628014,
+      "rolling_mae": 42.428714285714285,
+      "valid_cycle_count": 27,
+      "total_cycle_count": 27,
+      "coverage_rate": 1.0,
+      "window_days": 30,
+      "last_evaluated_at": "2026-07-28T03:32:10.286188+00:00",
+      "status": "active",
+      "rolling_mape_pooled": 0.82487,
+      "rolling_mape_method": "daily_median",
+      "daily_mape_series": [
+        {
+          "prediction_cycle_id": "workflow-load-forecast-backtest-v2:af18248f37d3c9bf:20251009000000",
+          "business_day": "2025-10-09",
+          "daily_mape": 0.82487,
+          "daily_wmape": 0.825017,
+          "point_count": 70,
+          "evaluated_point_count": 70
+        }
+      ],
+      "experiment_injected": true
     }
   },
-  "updated_at": "2026-07-23T09:32:24.120846+00:00"
+  "updated_at": "2026-07-28T03:32:10.377884+00:00"
 }

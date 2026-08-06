@@ -21,7 +21,12 @@ import {
   type DataPullEvidence, type ManualMockDataFeedResponse, type MockDataFeedPreview,
   type ScheduledTaskCreate, type ScheduledTaskDetail, type ScheduledTaskSummary,
   type PvMockFeedDataEvidence, type PvMockFeedPreview, type ManualPvMockFeedResponse,
+  type PvSourceFingerprint, type PvMockFeedLastRecord, type PvMockFeedIngestBatch,
 } from '../../services/deploymentApi';
+// @AI_GENERATED: 后端部分时间戳是 UTC 裸字符串（fed_at / ingested_at），
+// 需归一化后再转本地；调度自身字段（上次执行时间等）存的是本地时间，不能一起转。
+import { formatBackendDateTime } from '../../utils/datetime';
+// @AI_GENERATED: end
 import { getSchedulerStatus, type FailureRecord } from '../../services/schedulerApi';
 
 const { Text } = Typography;
@@ -71,12 +76,17 @@ function formatMockFeedPreview(preview: MockDataFeedPreview): string {
 }
 
 function formatPvMockFeedPreview(preview: PvMockFeedPreview): string {
-  if (preview.exhausted) return 'Parquet 模拟数据已全部投喂。';
+  if (preview.exhausted) {
+    const fp = preview.source_fingerprint;
+    const range = fp?.date_min && fp?.date_max ? `${fp.date_min} ~ ${fp.date_max}` : '当前 parquet';
+    const days = fp?.row_count != null ? `，约 ${fp.row_count} 行` : '';
+    return `模拟源日历已全部投喂完（最近业务日 ${preview.current_business_date ?? '—'}；源范围 ${range}${days}）。这不是按钮坏了，而是源里没有更晚的自然日。可点「重置喂数进度」从首日重演，或更换更长的 parquet。`;
+  }
   const next = preview.next_business_date ?? '—';
   const devices = preview.next_device_count;
   const rows = preview.next_source_row_count;
   if (preview.state === 'initial_feed') return `尚未投喂；首次将公开 ${next}（${devices} 台设备 × ${rows} 行）。`;
-  return `当前业务日 ${preview.current_business_date ?? '—'} 已投喂；下一业务日为 ${next}（${devices} 台设备 × ${rows} 行）。`;
+  return `当前业务日 ${preview.current_business_date ?? '—'} 已投喂；下一业务日为 ${next}（${devices} 台设备 × ${rows} 行）。点「推进下一天」确认后写入。`;
 }
 // @AI_GENERATED: end
 
@@ -101,6 +111,12 @@ interface TaskDetailState {
   pvDataEvidence: PvMockFeedDataEvidence | null;
   pvDataEvidenceLoading: boolean;
   pvDataEvidenceError: string | null;
+  /** 当前喂数源指纹 — 让详情页能看出「现在喂的是哪份数据集」 */
+  pvFeedSource: PvSourceFingerprint | null;
+  /** 最近一次喂数记录 — 上次喂了哪个业务日 */
+  pvLastFeed: PvMockFeedLastRecord | null;
+  /** 最近一次真实入库批次 — 「我最近拉到了什么」 */
+  pvLastIngest: PvMockFeedIngestBatch | null;
   // @AI_GENERATED: end
 }
 
@@ -114,6 +130,7 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
   const [mockFeedPreview, setMockFeedPreview] = useState<MockDataFeedPreview | null>(null);
   // @AI_GENERATED: pv mock feed preview
   const [pvMockFeedPreview, setPvMockFeedPreview] = useState<PvMockFeedPreview | null>(null);
+  const [pvMockFeedPreviewError, setPvMockFeedPreviewError] = useState<string | null>(null);
   // @AI_GENERATED: end
   const [loading, setLoading] = useState(false);
   const [rowActionLoading, setRowActionLoading] = useState<Record<string, boolean>>({});
@@ -134,6 +151,9 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
     pvDataEvidence: null,
     pvDataEvidenceLoading: false,
     pvDataEvidenceError: null,
+    pvFeedSource: null,
+    pvLastFeed: null,
+    pvLastIngest: null,
   });
 
   const loadTasks = useCallback(async () => {
@@ -171,11 +191,18 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
         try {
           const pvStatus = await schedulerTaskApi.getPvMockFeedStatus();
           setPvMockFeedPreview(pvStatus.preview);
-        } catch {
+          setPvMockFeedPreviewError(null);
+        } catch (err: any) {
           setPvMockFeedPreview(null);
+          setPvMockFeedPreviewError(
+            err?.response?.data?.detail
+            || err?.message
+            || '无法读取光伏喂数状态',
+          );
         }
       } else {
         setPvMockFeedPreview(null);
+        setPvMockFeedPreviewError(null);
       }
       // @AI_GENERATED: end
     } catch (err: any) {
@@ -183,6 +210,8 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
       setTasks([]);
       setTaskFailures({});
       setMockFeedPreview(null);
+      setPvMockFeedPreview(null);
+      setPvMockFeedPreviewError(null);
     } finally {
       setLoading(false);
     }
@@ -267,10 +296,10 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
       setPvMockFeedPreview(response.preview);
       if (response.status === 'confirmation_required') {
         Modal.confirm({
-          title: '跨日确认',
-          content: `当前业务日 ${response.preview.current_business_date ?? '—'} 已投喂完毕。是否推进到下一业务日 ${response.preview.next_business_date ?? '—'}（${response.preview.next_device_count} 台设备 × ${response.preview.next_source_row_count} 行）？`,
-          okText: '确认推进',
-          cancelText: '停留当前日',
+          title: '推进到下一业务日',
+          content: `当前业务日 ${response.preview.current_business_date ?? '—'} 已投喂完毕。确认后将写入下一业务日 ${response.preview.next_business_date ?? '—'}（约 ${response.preview.next_device_count} 台设备 × ${response.preview.next_source_row_count} 行）。取消则不写入。`,
+          okText: '确认推进下一天',
+          cancelText: '暂不推进',
           onOk: () => requestPvMockDataFeed(task, true),
         });
         return;
@@ -280,15 +309,47 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
         return;
       }
       const result = response.feed_result;
-      messageApi.success(
-        `光伏业务日 ${result?.business_date ?? '—'} 已写入：${result?.inserted_row_count ?? 0} 行新增（${result?.device_count ?? 0} 台设备），${result?.skipped_row_count ?? 0} 行重复跳过`
-      );
+      // @AI_GENERATED: 按真实入库数区分提示语气，不能不管插了多少行都报绿色成功。
+      // status === 'fed_no_new_data' 时该业务日已全部存在于库中，本次一行没插，
+      // 用 warning 而非 success，避免用户误以为喂进了新数据。
+      if (response.status === 'fed_no_new_data') {
+        messageApi.warning(
+          `业务日 ${result?.business_date ?? '—'} 未写入任何新数据（该日观测已存在于库中，`
+          + `源 ${result?.source_row_count ?? 0} 行全部跳过）。喂数进度已推进，但库内容未变化。`,
+        );
+      } else {
+        messageApi.success(
+          `光伏业务日 ${result?.business_date ?? '—'} 已写入：${result?.inserted_row_count ?? 0} 行新增（${result?.device_count ?? 0} 台设备），${result?.skipped_row_count ?? 0} 行重复跳过`,
+        );
+      }
+      // @AI_GENERATED: end
       await loadTasks();
     } catch (err: any) {
-      messageApi.error(`光伏喂数据失败：${err?.message ?? String(err)}`);
+      messageApi.error(
+        err?.response?.data?.detail
+        || err?.response?.data?.message
+        || err?.message
+        || '光伏喂数据失败',
+      );
     } finally {
       setRowActionLoading((s) => ({ ...s, [task.task_id]: false }));
     }
+  };
+
+  /** 行内按钮：若已需跨日确认，先弹窗再 advance=true，避免连点无感。 */
+  const handlePvMockFeedClick = (task: ScheduledTaskSummary) => {
+    const preview = pvMockFeedPreview;
+    if (preview?.requires_advance_confirmation && !preview.exhausted) {
+      Modal.confirm({
+        title: '推进到下一业务日',
+        content: `当前业务日 ${preview.current_business_date ?? '—'} 已投喂完毕。确认后将写入下一业务日 ${preview.next_business_date ?? '—'}（约 ${preview.next_device_count} 台设备 × ${preview.next_source_row_count} 行）。`,
+        okText: '确认推进下一天',
+        cancelText: '暂不推进',
+        onOk: () => requestPvMockDataFeed(task, true),
+      });
+      return;
+    }
+    void requestPvMockDataFeed(task, false);
   };
   // @AI_GENERATED: end
 
@@ -307,6 +368,9 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
       pvDataEvidence: null,
       pvDataEvidenceLoading: needsPvEvidence,
       pvDataEvidenceError: null,
+      pvFeedSource: null,
+      pvLastFeed: null,
+      pvLastIngest: null,
     });
     try {
       const data = await schedulerTaskApi.getScheduledTask(task.task_id);
@@ -335,6 +399,9 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
           setDetail((previous) => ({
             ...previous,
             pvDataEvidence: pvResp.evidence,
+            pvFeedSource: pvResp.source ?? null,
+            pvLastFeed: pvResp.last_feed ?? null,
+            pvLastIngest: pvResp.last_ingest_batch ?? null,
             pvDataEvidenceLoading: false,
           }));
         } catch (err: any) {
@@ -355,6 +422,14 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
         dataPullEvidence: null,
         dataPullEvidenceLoading: false,
         dataPullEvidenceError: null,
+        // @AI_GENERATED: 这个错误分支原先漏了全部 pv 字段（前端 build 不做类型检查所以没暴露）
+        pvDataEvidence: null,
+        pvDataEvidenceLoading: false,
+        pvDataEvidenceError: null,
+        pvFeedSource: null,
+        pvLastFeed: null,
+        pvLastIngest: null,
+        // @AI_GENERATED: end
       });
     }
   };
@@ -470,7 +545,35 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
               {row.task_id === MOCK_DATA_FEED_TASK_ID ? (
                 <Button size="small" type="primary" icon={<DatabaseOutlined />} loading={busy} onClick={() => requestMockDataFeed(row)}>喂数据</Button>
               ) : row.task_id === PV_MOCK_DATA_FEED_TASK_ID ? (
-                <Button size="small" type="primary" icon={<DatabaseOutlined />} loading={busy} onClick={() => requestPvMockDataFeed(row)}>喂数据</Button>
+                <Space size={4}>
+                  <Button
+                    size="small"
+                    type="primary"
+                    icon={<DatabaseOutlined />}
+                    loading={busy}
+                    disabled={!!pvMockFeedPreview?.exhausted}
+                    onClick={() => handlePvMockFeedClick(row)}
+                  >
+                    {pvMockFeedPreview?.exhausted
+                      ? '已喂完'
+                      : pvMockFeedPreview?.state === 'initial_feed'
+                        ? '喂入首日'
+                        : '推进下一天'}
+                  </Button>
+                  {pvMockFeedPreview?.exhausted ? (
+                    <Tag color="default">
+                      已喂完 · 源 {pvMockFeedPreview.source_fingerprint?.date_min ?? '?'}
+                      ~{pvMockFeedPreview.source_fingerprint?.date_max ?? pvMockFeedPreview.current_business_date ?? '—'}
+                    </Tag>
+                  ) : pvMockFeedPreview?.current_business_date ? (
+                    <Tag style={{ marginInlineEnd: 0 }}>
+                      已至 {pvMockFeedPreview.current_business_date}
+                      {pvMockFeedPreview.source_fingerprint?.date_max
+                        ? ` / 源止 ${pvMockFeedPreview.source_fingerprint.date_max}`
+                        : ''}
+                    </Tag>
+                  ) : null}
+                </Space>
               ) : (
                 <Popconfirm title="立即触发一次（后台异步，不改 status）？" onConfirm={() => handleTriggerNow(row)} okText="触发" cancelText="取消">
                   <Button size="small" icon={<ThunderboltOutlined />} loading={busy}>触发</Button>
@@ -520,28 +623,83 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
             description={formatMockFeedPreview(mockFeedPreview)}
           />
         )}
-        {/* @AI_GENERATED: pv mock feed status banner */}
-        {isPvSlot && pvMockFeedPreview && (
+        {/* @AI_GENERATED: pv mock feed status banner — 只要在光伏槽位就展示，预览失败也可见 */}
+        {isPvSlot && (
           <Alert
-            type={pvMockFeedPreview.exhausted ? 'info' : pvMockFeedPreview.requires_advance_confirmation ? 'warning' : 'success'}
+            type={
+              pvMockFeedPreviewError
+                ? 'error'
+                : !pvMockFeedPreview
+                  ? 'info'
+                  : pvMockFeedPreview.exhausted
+                    ? 'info'
+                    : pvMockFeedPreview.requires_advance_confirmation
+                      ? 'warning'
+                      : 'success'
+            }
             showIcon
-            message="光伏模拟数据投喂闸门"
+            message="光伏模拟数据投喂闸门（可手动推进下一天）"
             description={(
               <Space direction="vertical" size={6} style={{ width: '100%' }}>
-                <span>{formatPvMockFeedPreview(pvMockFeedPreview)}</span>
-                <Button
-                  size="small"
-                  onClick={async () => {
-                    try {
-                      const resp = await schedulerTaskApi.resetPvPredictionCursor();
-                      messageApi.success(resp.message || '预测进度已重置');
-                    } catch (err: any) {
-                      messageApi.error(err?.response?.data?.detail || err?.message || '重置预测进度失败');
-                    }
-                  }}
-                >
-                  重置预测进度
-                </Button>
+                <span>
+                  {pvMockFeedPreviewError
+                    ? `状态读取失败：${pvMockFeedPreviewError}（仍可尝试点「推进下一天」）`
+                    : pvMockFeedPreview
+                      ? formatPvMockFeedPreview(pvMockFeedPreview)
+                      : '正在读取当前业务日…'}
+                </span>
+                <Space wrap>
+                  <Button
+                    size="small"
+                    type="primary"
+                    loading={!!rowActionLoading[PV_MOCK_DATA_FEED_TASK_ID]}
+                    disabled={!!pvMockFeedPreview?.exhausted}
+                    onClick={() => {
+                      const task = tasks.find((item) => item.task_id === PV_MOCK_DATA_FEED_TASK_ID)
+                        ?? visibleTasks.find((item) => item.task_id === PV_MOCK_DATA_FEED_TASK_ID);
+                      if (!task) {
+                        messageApi.warning('未找到光伏喂数据任务 pv_mock_data_feed');
+                        return;
+                      }
+                      handlePvMockFeedClick(task);
+                    }}
+                  >
+                    {pvMockFeedPreview?.exhausted
+                      ? '模拟源已喂完'
+                      : pvMockFeedPreview?.state === 'initial_feed'
+                        ? '喂入首日'
+                        : '推进到下一业务日'}
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={async () => {
+                      try {
+                        const resp = await schedulerTaskApi.resetPvMockFeedCursor();
+                        if (resp.preview) setPvMockFeedPreview(resp.preview);
+                        setPvMockFeedPreviewError(null);
+                        messageApi.success(resp.message || '喂数进度已重置');
+                        await loadTasks();
+                      } catch (err: any) {
+                        messageApi.error(err?.response?.data?.detail || err?.message || '重置喂数进度失败');
+                      }
+                    }}
+                  >
+                    重置喂数进度
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={async () => {
+                      try {
+                        const resp = await schedulerTaskApi.resetPvPredictionCursor();
+                        messageApi.success(resp.message || '预测进度已重置');
+                      } catch (err: any) {
+                        messageApi.error(err?.response?.data?.detail || err?.message || '重置预测进度失败');
+                      }
+                    }}
+                  >
+                    重置预测进度
+                  </Button>
+                </Space>
               </Space>
             )}
           />
@@ -610,6 +768,9 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
           pvDataEvidence: null,
           pvDataEvidenceLoading: false,
           pvDataEvidenceError: null,
+          pvFeedSource: null,
+          pvLastFeed: null,
+          pvLastIngest: null,
         })}
       />
     </>
@@ -626,10 +787,14 @@ const TaskDetailModal: React.FC<{
   pvDataEvidence: PvMockFeedDataEvidence | null;
   pvDataEvidenceLoading: boolean;
   pvDataEvidenceError: string | null;
+  pvFeedSource: PvSourceFingerprint | null;
+  pvLastFeed: PvMockFeedLastRecord | null;
+  pvLastIngest: PvMockFeedIngestBatch | null;
   onClose: () => void;
 }> = ({
   open, loading, data, dataPullEvidence, dataPullEvidenceLoading, dataPullEvidenceError,
-  pvDataEvidence, pvDataEvidenceLoading, pvDataEvidenceError, onClose,
+  pvDataEvidence, pvDataEvidenceLoading, pvDataEvidenceError, pvFeedSource, pvLastFeed,
+  pvLastIngest, onClose,
 }) => (
   <Modal open={open} title="调度任务详情" onCancel={onClose} footer={<Button onClick={onClose}>关闭</Button>} width={880} destroyOnClose>
     {loading || !data ? (
@@ -659,7 +824,14 @@ const TaskDetailModal: React.FC<{
         )}
         {/* @AI_GENERATED: pv mock feed data evidence section */}
         {data.task_id === PV_MOCK_DATA_FEED_TASK_ID && (
-          <PvDataEvidenceSection evidence={pvDataEvidence} loading={pvDataEvidenceLoading} error={pvDataEvidenceError} />
+          <PvDataEvidenceSection
+            evidence={pvDataEvidence}
+            loading={pvDataEvidenceLoading}
+            error={pvDataEvidenceError}
+            source={pvFeedSource}
+            lastFeed={pvLastFeed}
+            lastIngest={pvLastIngest}
+          />
         )}
         {/* @AI_GENERATED: end */}
       </>
@@ -716,8 +888,86 @@ const PvDataEvidenceSection: React.FC<{
   evidence: PvMockFeedDataEvidence | null;
   loading: boolean;
   error: string | null;
-}> = ({ evidence, loading, error }) => (
+  source: PvSourceFingerprint | null;
+  lastFeed: PvMockFeedLastRecord | null;
+  lastIngest: PvMockFeedIngestBatch | null;
+}> = ({ evidence, loading, error, source, lastFeed, lastIngest }) => (
   <>
+    {/* 当前喂数源单独一段：换数据集后必须能立刻看出来喂的是哪份数据 */}
+    <Divider orientation="left" plain>当前喂数源</Divider>
+    {source && !source.error ? (
+      <Descriptions column={2} size="small" bordered>
+        <Descriptions.Item label="数据文件" span={2}>
+          <Text code style={{ fontSize: 11 }}>{source.source_path ?? '—'}</Text>
+        </Descriptions.Item>
+        <Descriptions.Item label="源覆盖日期">
+          {source.date_min ?? '—'} ~ {source.date_max ?? '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="源行数">
+          {source.row_count != null ? source.row_count.toLocaleString('zh-CN') : '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="上次喂入业务日">
+          {lastFeed?.business_date ?? '尚未喂过'}
+          {lastFeed?.row_count != null ? `（源 ${lastFeed.row_count.toLocaleString('zh-CN')} 行）` : ''}
+        </Descriptions.Item>
+        {/* fed_at 是 UTC 裸字符串，必须归一化后再转本地，否则比真实时间早 8 小时 */}
+        <Descriptions.Item label="上次喂入时刻">{formatBackendDateTime(lastFeed?.fed_at)}</Descriptions.Item>
+        <Descriptions.Item label="上次实际入库" span={2}>
+          {lastFeed?.inserted_row_count == null ? (
+            <Text type="secondary">—</Text>
+          ) : lastFeed.inserted_row_count > 0 ? (
+            <Text type="success">{lastFeed.inserted_row_count.toLocaleString('zh-CN')} 行</Text>
+          ) : (
+            <Text type="danger">0 行（源数据已在库中，本次全部跳过）</Text>
+          )}
+        </Descriptions.Item>
+      </Descriptions>
+    ) : (
+      <Alert
+        type="warning"
+        showIcon
+        message="数据源指纹不可用"
+        description={source?.error ?? '后端未返回喂数源信息'}
+      />
+    )}
+
+    {/* 「喂过这一天」≠「插进去了数据」：游标只记业务日与源行数，
+        源数据若已在库，INSERT IGNORE 会全部跳过而游标照样前进。这里显式提示。 */}
+    {lastFeed?.inserted_row_count === 0 && (
+      <Alert
+        style={{ marginTop: 8 }}
+        type="warning"
+        showIcon
+        message={`上次喂入的业务日 ${lastFeed.business_date} 没有新增任何数据`}
+        description="该业务日的观测已存在于 training_samples，INSERT IGNORE 全部跳过。喂数游标仍会前进，因此「上次喂入业务日」会变、但库里内容不变。若要喂入真正的新数据，请确认当前喂数源是否为期望的数据集。"
+      />
+    )}
+
+    {/* 最近一次真实入库批次 —— 直接回答「我最近拉到了什么」 */}
+    <Divider orientation="left" plain>最近拉到的数据</Divider>
+    {lastIngest ? (
+      <Descriptions column={3} size="small" bordered>
+        <Descriptions.Item label="入库时刻">{formatBackendDateTime(lastIngest.ingested_at)}</Descriptions.Item>
+        <Descriptions.Item label="本批行数">{lastIngest.row_count.toLocaleString('zh-CN')}</Descriptions.Item>
+        <Descriptions.Item label="覆盖自然日">{lastIngest.day_count} 天</Descriptions.Item>
+        <Descriptions.Item label="观测时间范围" span={2}>
+          {/* 观测时间是业务时间，不做时区转换 */}
+          {formatDateTime(lastIngest.observed_time_min)} ~ {formatDateTime(lastIngest.observed_time_max)}
+        </Descriptions.Item>
+        <Descriptions.Item label="设备 / 支路">
+          {lastIngest.device_count} / {lastIngest.branch_count}
+        </Descriptions.Item>
+        <Descriptions.Item label="入库时刻区间" span={3}>
+          {formatBackendDateTime(lastIngest.ingested_at_min)} ~ {formatBackendDateTime(lastIngest.ingested_at_max)}
+          <Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>
+            按 120 秒窗口聚合；若连续快速喂了多天，这里会合并显示
+          </Text>
+        </Descriptions.Item>
+      </Descriptions>
+    ) : (
+      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="尚无入库批次" />
+    )}
+
     <Divider orientation="left" plain>已写入 training_samples 的光伏观测数据</Divider>
     {loading ? (
       <Text type="secondary">正在查询 training_samples 落库记录…</Text>
@@ -730,18 +980,27 @@ const PvDataEvidenceSection: React.FC<{
         <Descriptions column={3} size="small" bordered>
           <Descriptions.Item label="总行数">{evidence.total_rows.toLocaleString('zh-CN')}</Descriptions.Item>
           <Descriptions.Item label="设备数">{evidence.device_count}</Descriptions.Item>
-          <Descriptions.Item label="已覆盖自然日">{evidence.date_count} 天</Descriptions.Item>
+          {/* 已覆盖自然日 = DISTINCT DATE(time)，与首末跨度分开展示，避免把跨度误读成覆盖量 */}
+          <Descriptions.Item label="已覆盖自然日">
+            {evidence.date_count} 天
+            {evidence.date_span_days != null && evidence.date_span_days !== evidence.date_count
+              ? <Text type="secondary" style={{ fontSize: 11 }}>（首末跨度 {evidence.date_span_days} 天）</Text>
+              : null}
+          </Descriptions.Item>
           <Descriptions.Item label="最早观测时间">{formatDateTime(evidence.earliest_time)}</Descriptions.Item>
-          <Descriptions.Item label="最新观测时间" span={2}>{formatDateTime(evidence.latest_time)}</Descriptions.Item>
+          <Descriptions.Item label="最新观测时间">{formatDateTime(evidence.latest_time)}</Descriptions.Item>
+          {/* latest_ingested_at 是 UTC 裸字符串，与业务时间口径不同 */}
+          <Descriptions.Item label="最近入库时间">{formatBackendDateTime(evidence.latest_ingested_at)}</Descriptions.Item>
         </Descriptions>
         <Table
           size="small"
           rowKey={(row) => `${row.id}`}
           pagination={false}
-          scroll={{ y: 280 }}
+          scroll={{ y: 280, x: 940 }}
           dataSource={evidence.samples}
           locale={{ emptyText: '无样本' }}
           columns={[
+            { title: '入库时间', dataIndex: 'ingested_at', width: 170, render: (v: string | null) => formatBackendDateTime(v) },
             { title: '观测时间', dataIndex: 'time', width: 170, render: (v: string) => formatDateTime(v) },
             { title: '站点', dataIndex: 'site_id', width: 90, ellipsis: true },
             { title: '设备', dataIndex: 'device_id', width: 160, ellipsis: true },
@@ -755,7 +1014,9 @@ const PvDataEvidenceSection: React.FC<{
           ]}
         />
         <Text type="secondary" style={{ fontSize: 12 }}>
-          标签为 NULL 表示尚未标注（正常），预测任务将消费这些行。展示最新 50 行，按时间倒序。
+          展示最近入库的 50 行（按入库时间倒序），因此这里始终反映最近一次喂数的结果；
+          若按观测时间倒序，看到的会恒是全库业务时间最大的那批历史数据。
+          标签为 NULL 表示尚未标注（正常），预测任务将消费这些行。
         </Text>
       </Space>
     )}

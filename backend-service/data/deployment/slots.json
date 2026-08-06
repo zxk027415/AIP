@@ -30,43 +30,119 @@
       "version_tag": "optimal-505-production",
       "status": "production",
       "deployed_at": "2026-07-09T09:37:35.115308+00:00",
-      "accuracy_score": 5.6616,
+      "accuracy_score": 10.213976004611894,
       "baseline_mape": 5.6616,
       "baseline_wmape": null,
       "consecutive_better_days": 0,
       "prelaunch_meta": null,
       "source_run_id": null,
-      "source_candidate_id": null
+      "source_candidate_id": null,
+      "experiment_patch": null
     },
     "shadow_models": [
-      {
-        "workflow_id": "workflow-20260511-optimal-505",
-        "version_tag": "shadow-run43-mape4109",
-        "status": "shadow",
-        "deployed_at": "2026-07-09T09:37:35.115308+00:00",
-        "accuracy_score": 4.1093,
-        "baseline_mape": 4.1093,
-        "baseline_wmape": null,
-        "consecutive_better_days": 0,
-        "prelaunch_meta": null,
-        "source_run_id": "AutoResearch第43轮",
-        "source_candidate_id": "cand-3647f99d2f77"
-      },
       {
         "workflow_id": "workflow-20260511-optimal-505",
         "version_tag": "shadow-run7-generic-mape4109",
         "status": "shadow",
         "deployed_at": "2026-07-09T09:37:35.115308+00:00",
-        "accuracy_score": 4.1093,
+        "accuracy_score": 10.213976004611894,
         "baseline_mape": 4.1093,
         "baseline_wmape": null,
         "consecutive_better_days": 0,
         "prelaunch_meta": null,
         "source_run_id": "AutoResearch第7轮(通用算子版)",
-        "source_candidate_id": "cand-439b04179c12"
+        "source_candidate_id": "cand-adbf250a5149",
+        "experiment_patch": {
+          "challenger_override": {
+            "train_days": 21
+          },
+          "effective_parameter_patch": {
+            "xgb_subsample_low": 0.5,
+            "xgb_subsample_high": 0.7
+          },
+          "effective_structure_patch": {
+            "node_switches": [
+              {
+                "node_id": "tpl-create_lag_features-9",
+                "functionId": "create_lag_features",
+                "enabled": true
+              }
+            ],
+            "node_config_patches": []
+          },
+          "node_param_patches": []
+        }
+      },
+      {
+        "workflow_id": "workflow-20260511-optimal-505",
+        "version_tag": "shadow-run43-mape4109",
+        "status": "shadow",
+        "deployed_at": "2026-07-09T09:37:35.115308+00:00",
+        "accuracy_score": 10.213976004611894,
+        "baseline_mape": 4.1093,
+        "baseline_wmape": null,
+        "consecutive_better_days": 0,
+        "prelaunch_meta": null,
+        "source_run_id": "AutoResearch第43轮",
+        "source_candidate_id": "cand-26e9774cb26b",
+        "experiment_patch": {
+          "challenger_override": {
+            "train_days": 75
+          },
+          "effective_parameter_patch": {},
+          "effective_structure_patch": {
+            "node_switches": [],
+            "node_config_patches": []
+          },
+          "node_param_patches": []
+        }
       }
     ],
-    "prelaunch_models": [],
+    "prelaunch_models": [
+      {
+        "workflow_id": "workflow-load-forecast-backtest-v2",
+        "version_tag": "e2e-prelaunch-369ed87351eb",
+        "status": "prelaunch",
+        "deployed_at": "2026-07-27T14:52:51.199374",
+        "accuracy_score": null,
+        "baseline_mape": null,
+        "baseline_wmape": null,
+        "consecutive_better_days": 0,
+        "prelaunch_meta": {
+          "candidate_id": "cand-369ed87351eb",
+          "started_at": "2026-07-27T14:52:51.199374",
+          "observation_days": 7,
+          "graduate_tolerance_pct": 5.0,
+          "evaluated_cycles": 18,
+          "baseline_mape_at_entry": 1.1761948915398364,
+          "current_rolling_mape": 10.073550723602288,
+          "production_rolling_mape": 10.213976004611894,
+          "source_run_id": "ares-a933ad5c217a",
+          "note": "e2e full storyline with real AR patch"
+        },
+        "source_run_id": "ares-a933ad5c217a",
+        "source_candidate_id": "cand-369ed87351eb",
+        "experiment_patch": {
+          "challenger_override": {
+            "ensemble_mode": "all_adaptive",
+            "train_days": 75
+          },
+          "effective_parameter_patch": {
+            "ensemble_mode": "all_adaptive"
+          },
+          "effective_structure_patch": {},
+          "node_param_patches": [
+            {
+              "node_id": "tpl-ensemble_forecast-20",
+              "functionId": "ensemble_forecast",
+              "param_patch": {
+                "weight_mode": "auto_rmse"
+              }
+            }
+          ]
+        }
+      }
+    ],
     "max_shadow_slots": 5,
     "max_prelaunch_slots": 2,
     "auto_switch_enabled": false,
@@ -74,7 +150,7 @@
     "cooldown_hours": 24,
     "threshold_mape": null,
     "training_window_days": 365,
-    "updated_at": "2026-07-15T11:00:00+00:00"
+    "updated_at": "2026-07-28T11:32:10.391007"
   },
   "load_forecast_e2e_demo": {
     "slot": "load_forecast_e2e_demo",

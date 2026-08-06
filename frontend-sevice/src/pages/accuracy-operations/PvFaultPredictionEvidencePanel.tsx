@@ -32,6 +32,7 @@ import { trainingWorkspaceApi } from '../../services/iterativeLabelingApi';
 import PvFaultClassificationMetrics, {
   type PvClassificationMetrics,
 } from '../../components/pv-fault/PvFaultClassificationMetrics';
+import type { PvFaultOpsBundle } from '../../hooks/usePvFaultAccuracyOpsBundle';
 
 const { Text, Paragraph } = Typography;
 
@@ -72,7 +73,8 @@ interface SlotOverviewPayload {
 
 interface PvFaultPredictionEvidencePanelProps {
   slot: string;
-  refreshing?: boolean;
+  opsBundle?: PvFaultOpsBundle | null;
+  bundleLoading?: boolean;
 }
 
 function parseDateTime(value: string | null | undefined, assumeUtc = false): Date | null {
@@ -114,10 +116,12 @@ function statusText(result: string | null | undefined): string {
 
 const PvFaultPredictionEvidencePanel: React.FC<PvFaultPredictionEvidencePanelProps> = ({
   slot,
-  refreshing,
+  opsBundle,
+  bundleLoading,
 }) => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const usingBundle = opsBundle !== undefined;
+  const [loading, setLoading] = useState(!usingBundle);
   const [overview, setOverview] = useState<SlotOverviewPayload | null>(null);
   const [predictionTask, setPredictionTask] = useState<ScheduledTaskSummary | null>(null);
   const [cursorStatus, setCursorStatus] = useState<PvPredictionCursorStatusResponse | null>(null);
@@ -136,6 +140,27 @@ const PvFaultPredictionEvidencePanel: React.FC<PvFaultPredictionEvidencePanelPro
   }) | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  const applyOverviewPayload = useCallback((
+    payload: SlotOverviewPayload | null,
+    tasks: ScheduledTaskSummary[],
+    cursorResp: PvPredictionCursorStatusResponse | null,
+  ) => {
+    setOverview(payload);
+    setPredictionTask(tasks.find((task) => task.task_id === 'pv_prediction') ?? null);
+    setCursorStatus(cursorResp);
+    const latestRunBatch = cursorResp?.last_run?.status === 'success'
+      ? cursorResp.last_run.batch_id
+      : null;
+    const preferred = latestRunBatch
+      ?? payload?.latest_prediction_detail?.batch_id
+      ?? payload?.prediction_batches?.[0]?.batch_id
+      ?? null;
+    setSelectedBatchId((current) => latestRunBatch ?? current ?? preferred);
+    if (payload?.latest_prediction_detail) {
+      setBatchDetail(payload.latest_prediction_detail);
+    }
+  }, []);
+
   const loadOverview = useCallback(async () => {
     setLoading(true);
     try {
@@ -144,23 +169,11 @@ const PvFaultPredictionEvidencePanel: React.FC<PvFaultPredictionEvidencePanelPro
         schedulerTaskApi.listScheduledTasks().catch(() => ({ tasks: [] as ScheduledTaskSummary[] })),
         schedulerTaskApi.getPvPredictionCursorStatus().catch(() => null),
       ]);
-      const payload = overviewResp as SlotOverviewPayload;
-      setOverview(payload);
-      setPredictionTask(
-        (tasksResp.tasks ?? []).find((task) => task.task_id === 'pv_prediction') ?? null,
+      applyOverviewPayload(
+        overviewResp as SlotOverviewPayload,
+        tasksResp.tasks ?? [],
+        cursorResp,
       );
-      setCursorStatus(cursorResp);
-      const latestRunBatch = cursorResp?.last_run?.status === 'success'
-        ? cursorResp.last_run.batch_id
-        : null;
-      const preferred = latestRunBatch
-        ?? payload.latest_prediction_detail?.batch_id
-        ?? payload.prediction_batches?.[0]?.batch_id
-        ?? null;
-      setSelectedBatchId((current) => latestRunBatch ?? current ?? preferred);
-      if (payload.latest_prediction_detail) {
-        setBatchDetail(payload.latest_prediction_detail);
-      }
     } catch {
       setOverview(null);
       setPredictionTask(null);
@@ -168,7 +181,7 @@ const PvFaultPredictionEvidencePanel: React.FC<PvFaultPredictionEvidencePanelPro
     } finally {
       setLoading(false);
     }
-  }, [slot]);
+  }, [slot, applyOverviewPayload]);
 
   const loadBatchDetail = useCallback(async (batchId: string) => {
     setDetailLoading(true);
@@ -184,12 +197,19 @@ const PvFaultPredictionEvidencePanel: React.FC<PvFaultPredictionEvidencePanelPro
   }, [slot]);
 
   useEffect(() => {
-    void loadOverview();
-  }, [loadOverview]);
+    if (!usingBundle) return;
+    applyOverviewPayload(
+      (opsBundle?.overview as SlotOverviewPayload | null) ?? null,
+      opsBundle?.tasks ?? [],
+      opsBundle?.cursorStatus ?? null,
+    );
+    setLoading(Boolean(bundleLoading && !opsBundle));
+  }, [usingBundle, opsBundle, bundleLoading, applyOverviewPayload]);
 
   useEffect(() => {
-    if (refreshing) void loadOverview();
-  }, [refreshing, loadOverview]);
+    if (usingBundle) return;
+    void loadOverview();
+  }, [loadOverview, usingBundle]);
 
   useEffect(() => {
     if (!selectedBatchId) return;
@@ -220,8 +240,13 @@ const PvFaultPredictionEvidencePanel: React.FC<PvFaultPredictionEvidencePanelPro
 
   const scheduleGapAlert = useMemo(() => {
     const lastRun = cursorStatus?.last_run;
-    if (lastRun?.status === 'skipped' && lastRun.message) {
-      return lastRun.message;
+    if (lastRun?.status === 'skipped') {
+      const reason = String(lastRun.reason || '');
+      // 旧文案把「无标签库存量」说成异常并怂恿重置，容易误导；统一用中性说明。
+      if (reason === 'skipped_caught_up' || reason === 'skipped_stale_timeline') {
+        return '本次无新增待预测数据：预测进度已覆盖到当前数据时间线。库中「无标签」样本不是待审核队列；审核请看下方已保存的预测结果。仅在更换历史数据源或需要整段重跑时，才重置预测进度。';
+      }
+      if (lastRun.message) return lastRun.message;
     }
     if (!predictionTask?.last_execution_time) return null;
     const latestBatchId = overview?.latest_prediction_detail?.batch_id
@@ -238,7 +263,7 @@ const PvFaultPredictionEvidencePanel: React.FC<PvFaultPredictionEvidencePanelPro
     const batchAt = parseDateTime(latestCreated, true)?.getTime() ?? NaN;
     if (Number.isNaN(runAt)) return null;
     if (predictionTask.last_execution === 'success' && (Number.isNaN(batchAt) || runAt - batchAt > 60_000)) {
-      return `预测任务已于 ${formatDateTime(predictionTask.last_execution_time)} 执行，但最新保存结果仍为 ${formatDateTime(latestCreated, true)}。常见原因：本次无新增待预测数据，或数据源时间线与预测游标不一致。`;
+      return `预测任务已于 ${formatDateTime(predictionTask.last_execution_time)} 执行，但未写出更新的结果批次（最新保存：${formatDateTime(latestCreated, true)}）。通常表示本次无新增待预测数据（进度已追上），不等于有大量样本在等审核。`;
     }
     return null;
   }, [predictionTask, overview, batches, cursorStatus]);
@@ -339,7 +364,7 @@ const PvFaultPredictionEvidencePanel: React.FC<PvFaultPredictionEvidencePanelPro
             <Button
               size="small"
               icon={<ReloadOutlined />}
-              loading={loading || refreshing}
+              loading={loading || Boolean(bundleLoading)}
               onClick={() => void loadOverview()}
             >
               刷新
@@ -354,7 +379,7 @@ const PvFaultPredictionEvidencePanel: React.FC<PvFaultPredictionEvidencePanelPro
           showIcon
           style={{ marginBottom: 12 }}
           message="如何确认预测成功"
-          description="先看最近预测任务是否完成，再核对下方是否出现更新的保存时间。任务已执行但无新结果，通常表示本次无新增待预测数据。"
+          description="先看最近预测任务是否完成，再核对下方是否出现更新的保存时间。任务完成但无新结果，多半是进度已追上、没有比游标更晚的新观测；「无标签样本」不是待审核队列，审核请看下方已保存结果。"
         />
 
         {cursorStatus && (
@@ -374,7 +399,12 @@ const PvFaultPredictionEvidencePanel: React.FC<PvFaultPredictionEvidencePanelPro
                   {!cursorStatus.fingerprint_aligned ? '；下次预测将自动按新数据源重置进度' : ''}
                 </Text>
                 {cursorStatus.last_run?.message && (
-                  <Text style={{ fontSize: 12 }}>最近运行说明：{cursorStatus.last_run.message}</Text>
+                  <Text style={{ fontSize: 12 }}>
+                    最近运行说明：
+                    {['skipped_caught_up', 'skipped_stale_timeline'].includes(String(cursorStatus.last_run?.reason || ''))
+                      ? '本次无新增待预测数据（进度已追上）。无标签样本 ≠ 待审核。'
+                      : cursorStatus.last_run.message}
+                  </Text>
                 )}
                 <Button size="small" loading={resettingCursor} onClick={() => void handleResetCursor()}>
                   重置预测进度
@@ -417,10 +447,10 @@ const PvFaultPredictionEvidencePanel: React.FC<PvFaultPredictionEvidencePanelPro
 
         {scheduleGapAlert && (
           <Alert
-            type="warning"
+            type="info"
             showIcon
             style={{ marginBottom: 12 }}
-            message="预测已执行，但未产生新结果"
+            message="本次未产生新的预测结果"
             description={scheduleGapAlert}
           />
         )}

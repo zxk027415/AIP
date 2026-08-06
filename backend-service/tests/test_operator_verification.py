@@ -106,4 +106,56 @@ def test_soft_batch67_with_l2_l6_is_fully_covered():
     passed = six_layer_passed()
     missing = sorted(soft - passed)
     assert not missing, f"软目标尚未六重全过({len(missing)}): {missing}"
+
+
+def test_p4_wave_l1_and_ks_fully_covered():
+    """P4α：Legacy L1 波 11 个 + ks_test 必须六重全过。"""
+    from services.operator_test_coverage import P4_ALPHA, six_layer_passed
+
+    passed = six_layer_passed()
+    missing = sorted(P4_ALPHA - passed)
+    assert not missing, f"P4α 尚未六重全过: {missing}"
+
+
+def test_p4_beta_feature_engineering_fully_covered():
+    """P4-β：特征工程 9 个算子必须六重全过。"""
+    from services.operator_test_coverage import P4_BETA_FE, six_layer_passed
+
+    passed = six_layer_passed()
+    missing = sorted(P4_BETA_FE - passed)
+    assert not missing, f"P4-β 特征工程尚未六重全过: {missing}"
+
+
+def test_p4_beta_eval_sampling_fully_covered():
+    """P4-β：评估/采样 8 个算子必须六重全过。"""
+    from services.operator_test_coverage import P4_BETA_EVAL, six_layer_passed
+
+    passed = six_layer_passed()
+    missing = sorted(P4_BETA_EVAL - passed)
+    assert not missing, f"P4-β 评估/采样尚未六重全过: {missing}"
+
+
+def test_p4_gamma_remaining_fully_covered():
+    """P4-γ：剩余 16 个算子必须六重全过（不含 hdf5/mongodb）。"""
+    from services.operator_test_coverage import P4_GAMMA, six_layer_passed
+
+    passed = six_layer_passed()
+    missing = sorted(P4_GAMMA - passed)
+    assert not missing, f"P4-γ 尚未六重全过: {missing}"
+
+
+def test_all_backend_operators_verified_except_env_deps():
+    """除 load_hdf5/load_mongodb 外，全部 backend 算子应已六重验证。"""
+    import os
+
+    from services.operator_execution.router import OperatorRouter
+    from services.operator_test_coverage import six_layer_passed
+
+    r = OperatorRouter()
+    r.auto_discover(os.path.join(os.path.dirname(__file__), "..", "services", "operator_backends"))
+    skip = {"load_hdf5", "load_mongodb"}
+    all_ops = set(r.list_operators()) - skip
+    passed = six_layer_passed()
+    missing = sorted(all_ops - passed)
+    assert not missing, f"仍有未六重验证 backend({len(missing)}): {missing}"
 # @AI_GENERATED: end

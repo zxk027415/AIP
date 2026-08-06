@@ -1,0 +1,446 @@
+/* @AI_GENERATED: pv-fault black-orange-white workspace theme */
+.pv-fault-workspace {
+  --pv-ink: #111111;
+  --pv-muted: #6b7280;
+  --pv-canvas: #faf8f6;
+  --pv-surface: #ffffff;
+  --pv-surface-muted: #f7f7f7;
+  --pv-line: #e8e8e8;
+  --pv-primary: #ff6a00;
+  --pv-primary-soft: #fff4eb;
+  --pv-primary-glow: rgba(255, 106, 0, 0.08);
+  --pv-primary-border: rgba(255, 106, 0, 0.35);
+  --pv-ok: #374151;
+  --pv-ok-bg: #f3f4f6;
+  --pv-shadow: 0 4px 14px rgba(17, 17, 17, 0.06);
+  --pv-shadow-hover: 0 10px 28px rgba(255, 106, 0, 0.1);
+  color: var(--pv-ink);
+}
+
+/* ── 页面底：暖色渐变 + 轻光晕，避免一片平白 ── */
+.pv-fault-workspace.pv-page-shell,
+.pv-fault-workspace.accuracy-operations-page--pv {
+  background:
+    radial-gradient(ellipse 70% 45% at 100% 0%, rgba(255, 106, 0, 0.07), transparent 55%),
+    radial-gradient(ellipse 50% 35% at 0% 100%, rgba(17, 17, 17, 0.04), transparent 50%),
+    linear-gradient(180deg, #ffffff 0%, var(--pv-canvas) 100%);
+}
+
+.pv-fault-workspace .algorithm-deployment-workspace--pv {
+  background: transparent;
+}
+
+/* ── 区块标题条 ── */
+.pv-fault-workspace .pv-section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 4px 12px 4px 10px;
+  color: var(--pv-ink);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  border-left: 3px solid var(--pv-primary);
+  border-radius: 0 6px 6px 0;
+  background: linear-gradient(90deg, var(--pv-primary-soft) 0%, transparent 100%);
+}
+
+/* ── Cards ── */
+.pv-fault-workspace .ant-card {
+  border: 1px solid var(--pv-line);
+  border-radius: 12px;
+  background: var(--pv-surface);
+  box-shadow: var(--pv-shadow);
+}
+
+.pv-fault-workspace .ant-card:not(.pv-kpi-card):hover {
+  box-shadow: var(--pv-shadow);
+}
+
+.pv-fault-workspace .ant-card-head {
+  min-height: 48px;
+  border-bottom-color: var(--pv-line);
+  background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+}
+
+.pv-fault-workspace .ant-card-head-title {
+  color: var(--pv-ink);
+  font-weight: 650;
+}
+
+/* KPI 卡片：顶栏强调 + 悬停微抬升 */
+.pv-fault-workspace .pv-kpi-card {
+  overflow: hidden;
+  text-align: center;
+  border-top: 3px solid var(--pv-primary);
+}
+
+.pv-fault-workspace .pv-kpi-card .ant-card-body {
+  padding: 16px 12px;
+}
+
+.pv-fault-workspace .pv-kpi-card:hover {
+  transform: translateY(-2px);
+}
+
+.pv-fault-workspace .pv-kpi-card .ant-statistic-title {
+  color: var(--pv-muted);
+  font-size: 12px;
+}
+
+/* ── 精度运营页头 ── */
+.pv-fault-workspace.accuracy-operations-page--pv .accuracy-page-header {
+  margin-bottom: 16px;
+  padding: 18px 22px;
+  border: 1px solid var(--pv-line);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ffffff 0%, #fff8f3 55%, #ffffff 100%);
+  box-shadow: var(--pv-shadow);
+}
+
+.pv-fault-workspace.accuracy-operations-page--pv .accuracy-page-actions {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--pv-line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* ── Buttons ── */
+.pv-fault-workspace .ant-btn-primary:not(:disabled) {
+  background: var(--pv-primary);
+  border-color: var(--pv-primary);
+}
+
+.pv-fault-workspace .ant-btn-primary:not(:disabled):hover {
+  background: #e85d00;
+  border-color: #e85d00;
+}
+
+.pv-fault-workspace .ant-btn:not(.ant-btn-link):not(.ant-btn-primary) {
+  border-radius: 7px;
+  font-weight: 500;
+}
+
+.pv-fault-workspace .ant-btn:focus-visible,
+.pv-fault-workspace .ant-select-focused .ant-select-selector {
+  outline: 2px solid var(--pv-primary-border);
+  outline-offset: 2px;
+}
+
+/* ── Tabs ── */
+.pv-fault-workspace .ant-tabs-nav::before {
+  border-bottom-color: var(--pv-line);
+}
+
+.pv-fault-workspace .ant-tabs-ink-bar {
+  background: var(--pv-primary);
+  height: 3px;
+}
+
+.pv-fault-workspace .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--pv-primary);
+  font-weight: 600;
+}
+
+/* ── Alerts：去掉默认绿，统一暖色/中性 ── */
+.pv-fault-workspace .ant-alert-info {
+  background: var(--pv-primary-soft);
+  border-color: rgba(255, 106, 0, 0.25);
+}
+
+.pv-fault-workspace .ant-alert-info .ant-alert-icon {
+  color: var(--pv-primary);
+}
+
+.pv-fault-workspace .ant-alert-success {
+  background: var(--pv-ok-bg);
+  border-color: #d1d5db;
+}
+
+.pv-fault-workspace .ant-alert-success .ant-alert-icon {
+  color: var(--pv-ok);
+}
+
+.pv-fault-workspace .ant-alert-warning {
+  background: #fffbeb;
+  border-color: rgba(217, 119, 6, 0.35);
+}
+
+/* ── Tags：success/green → 炭灰或暖橙，不再用绿 ── */
+.pv-fault-workspace .ant-tag-blue,
+.pv-fault-workspace .ant-tag-processing {
+  color: #b45309;
+  background: var(--pv-primary-soft);
+  border-color: rgba(255, 106, 0, 0.25);
+}
+
+.pv-fault-workspace .ant-tag-success,
+.pv-fault-workspace .ant-tag-green {
+  color: #92400e;
+  background: var(--pv-primary-soft);
+  border-color: rgba(255, 106, 0, 0.28);
+}
+
+.pv-fault-workspace .ant-tag-gold {
+  color: #78350f;
+  background: #fef3c7;
+  border-color: rgba(217, 119, 6, 0.3);
+}
+
+/* ── Tables ── */
+.pv-fault-workspace .ant-table-thead > tr > th {
+  color: var(--pv-muted);
+  background: #f5f5f5;
+  font-weight: 600;
+  border-bottom: 2px solid var(--pv-line);
+}
+
+.pv-fault-workspace .ant-table-tbody > tr:nth-child(even) > td {
+  background: #fcfcfc;
+}
+
+.pv-fault-workspace .ant-table-tbody > tr:hover > td {
+  background: #fff8f3 !important;
+}
+
+.pv-fault-workspace .ant-pagination-item-active {
+  border-color: var(--pv-primary);
+  background: var(--pv-primary-soft);
+}
+
+.pv-fault-workspace .ant-pagination-item-active a {
+  color: var(--pv-primary);
+}
+
+/* ── Progress / Badge：success 不再发绿 ── */
+.pv-fault-workspace .ant-progress-bg {
+  background: var(--pv-primary) !important;
+}
+
+.pv-fault-workspace .ant-progress-status-success .ant-progress-bg {
+  background: linear-gradient(90deg, var(--pv-primary), #ffb366) !important;
+}
+
+.pv-fault-workspace .ant-badge-status-success {
+  background-color: var(--pv-primary);
+}
+
+.pv-fault-workspace .ant-statistic-content-value[style*='52c41a'],
+.pv-fault-workspace .pv-stat-ok .ant-statistic-content-value {
+  color: var(--pv-ok) !important;
+}
+
+/* ── Story rail ── */
+.pv-fault-workspace .load-forecast-story-rail {
+  border-color: var(--pv-line);
+  background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+  box-shadow: var(--pv-shadow);
+}
+
+.pv-fault-workspace .story-rail-stages {
+  counter-reset: pv-stage;
+  position: relative;
+}
+
+.pv-fault-workspace .story-stage {
+  position: relative;
+  border-color: var(--pv-line);
+  background: var(--pv-surface);
+  box-shadow: 0 1px 4px rgba(17, 17, 17, 0.04);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.pv-fault-workspace .story-stage::after {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: var(--pv-muted);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.45;
+  counter-increment: pv-stage;
+  content: counter(pv-stage, decimal-leading-zero);
+}
+
+.pv-fault-workspace .story-stage[data-tone='healthy']::before {
+  background: var(--pv-ok);
+}
+
+.pv-fault-workspace .story-stage[data-tone='healthy'] {
+  border-color: rgba(55, 65, 81, 0.18);
+}
+
+.pv-fault-workspace .story-stage[data-tone='healthy'] .story-stage-tag {
+  color: var(--pv-ok);
+  background: var(--pv-ok-bg);
+}
+
+.pv-fault-workspace .story-stage[data-tone='pending'] {
+  border-color: var(--pv-primary-border);
+  box-shadow: 0 0 0 1px var(--pv-primary-border), 0 4px 12px var(--pv-primary-glow);
+}
+
+.pv-fault-workspace .story-stage[data-tone='pending']::before {
+  background: var(--pv-primary);
+}
+
+.pv-fault-workspace .story-stage[data-tone='warning']::before {
+  background: #d97706;
+}
+
+.pv-fault-workspace .story-stage[data-tone='warning'] .story-stage-tag {
+  color: #92400e;
+  background: #fffbeb;
+}
+
+.pv-fault-workspace .story-stage[data-tone='critical']::before {
+  background: #dc2626;
+}
+
+.pv-fault-workspace .story-stage-icon {
+  color: var(--pv-primary);
+  background: var(--pv-primary-soft);
+}
+
+.pv-fault-workspace .story-stage[data-tone='pending'] .story-stage-tag {
+  color: #b45309;
+  background: var(--pv-primary-soft);
+}
+
+.pv-fault-workspace .story-stage[data-tone='pending'] .story-stage-icon {
+  color: #ffffff;
+  background: var(--pv-primary);
+}
+
+/* ── 质量指标网格：最后一项（Macro F1）高亮 ── */
+.pv-fault-workspace .pv-quality-metric {
+  padding: 14px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--pv-surface-muted);
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+.pv-fault-workspace .pv-quality-metric:hover {
+  background: #ffffff;
+  border-color: var(--pv-line);
+}
+
+.pv-fault-workspace .pv-quality-metric.pv-quality-metric--highlight {
+  border-color: var(--pv-primary-border);
+  background: var(--pv-primary-soft);
+}
+
+.pv-fault-workspace .pv-quality-metric.pv-quality-metric--highlight .pv-metric-value {
+  color: var(--pv-primary);
+}
+
+/* ── Confusion matrix ── */
+.pv-fault-workspace .pv-confusion-matrix thead th,
+.pv-fault-workspace .pv-confusion-matrix tbody th {
+  background: #f5f5f5;
+}
+
+.pv-fault-workspace .pv-confusion-matrix td[data-diagonal='true'] {
+  background: var(--pv-primary-soft);
+  font-weight: 650;
+}
+
+.pv-fault-workspace .pv-confusion-matrix td[data-nonzero='true']:not([data-diagonal='true']) {
+  background: #fffbeb;
+}
+
+/* ── Classification metrics ── */
+.pv-fault-workspace .pv-metric-number {
+  border-color: var(--pv-line);
+  background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+}
+
+.pv-fault-workspace .pv-metric-number .ant-statistic-content {
+  color: var(--pv-ink);
+}
+
+/* ── Page header ── */
+.pv-fault-workspace .pv-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  border: 1px solid var(--pv-line);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ffffff 0%, #fff8f3 100%);
+  box-shadow: var(--pv-shadow);
+}
+
+.pv-fault-workspace .pv-page-header-title.ant-typography {
+  margin: 0;
+  color: var(--pv-ink);
+}
+
+.pv-fault-workspace .pv-page-shell {
+  min-height: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 28px 24px 36px;
+}
+
+.pv-fault-workspace .pv-overview-section .ant-card + .ant-card {
+  margin-top: 0;
+}
+
+/* ── MainLayout PV 侧栏 ── */
+.main-layout--pv-fault .pv-fault-sider.ant-layout-sider {
+  background: #111111 !important;
+}
+
+.main-layout--pv-fault .pv-fault-sider-brand {
+  color: #ffffff;
+  background: #111111;
+  border-bottom-color: #1f1f1f;
+}
+
+.main-layout--pv-fault .pv-fault-nav.ant-menu-dark {
+  background: #111111;
+}
+
+.main-layout--pv-fault .pv-fault-nav.ant-menu-dark .ant-menu-item-selected {
+  background-color: var(--pv-primary) !important;
+  color: #ffffff;
+}
+
+.main-layout--pv-fault .pv-fault-nav.ant-menu-dark .ant-menu-item-selected::after {
+  display: none;
+}
+
+.main-layout--pv-fault .pv-fault-nav.ant-menu-dark .ant-menu-item:hover:not(.ant-menu-item-selected) {
+  background-color: rgba(255, 106, 0, 0.12) !important;
+}
+
+.main-layout--pv-fault .seventh-gen-nav.ant-menu-light .ant-menu-item-selected {
+  border-left: 3px solid var(--pv-primary);
+  background-color: var(--pv-primary-soft) !important;
+  color: var(--pv-ink);
+}
+
+@media (max-width: 768px) {
+  .pv-fault-workspace .pv-page-shell {
+    padding: 20px 14px 28px;
+  }
+
+  .pv-fault-workspace.accuracy-operations-page--pv .accuracy-page-header {
+    padding: 14px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pv-fault-workspace .ant-card,
+  .pv-fault-workspace .pv-kpi-card,
+  .pv-fault-workspace .story-stage {
+    transition: none;
+  }
+}
+/* @AI_GENERATED: end */

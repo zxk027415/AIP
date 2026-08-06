@@ -251,6 +251,14 @@ class RCAOrchestrator:
             alert.cooldown_until,
         )
 
+        alert.status = "open"
+        alert.updated_at = now_iso()
+        self._store.update_alert(slot, alert)
+        logger.info(
+            "[RCAOrchestrator] RCA 成功，告警保持 open 待仲裁 alert_id=%s",
+            alert.alert_id,
+        )
+
         return rca
 
     # ------------------------------------------------------------------

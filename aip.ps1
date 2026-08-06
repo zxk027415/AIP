@@ -23,6 +23,20 @@ if ($env:AIP_CONDA_ENV) {
     $CONDA_ENV = "cp_web"
 }
 
+# @AI_GENERATED: 光伏 mock 喂数源。
+# 默认用「训练集未见过」的盲测源（设备 3Fh2D94S 16 支路 / 2021-11-18~11-24 / 无标签），
+# 由 backend-service/scripts/build_pv_unseen_feed_source.py 产出。
+# 原来的 pv_mock_feed_source.parquet 与累计训练集 100% 重叠，喂它只能演练链路、
+# 无法评估模型效果（预测的都是训练已见过的样本）。
+# 切回原喂数源：$env:AIP_PV_MOCK_PARQUET='datasets/pv_mock_feed_source.parquet'
+# 路径相对 backend-service/ 解析。
+if ($env:AIP_PV_MOCK_PARQUET) {
+    $PV_MOCK_PARQUET = $env:AIP_PV_MOCK_PARQUET
+} else {
+    $PV_MOCK_PARQUET = "datasets/pv_mock_feed_unseen.parquet"
+}
+# @AI_GENERATED: end
+
 function Start-Dev {
     if ($env:AIP_DEV_BACKEND_PORT) {
         $port = $env:AIP_DEV_BACKEND_PORT
@@ -37,15 +51,19 @@ function Start-Dev {
 
     Write-Host "AIP dev mode starting..."
     Write-Host "  Backend: :$port (reload)  Frontend: :$fport"
+    Write-Host "  PV mock feed: $PV_MOCK_PARQUET"
 
     # @AI_GENERATED: 用 conda run 代替 conda activate，确保子进程能正确使用 conda 环境
-    # 环境变量通过 PowerShell 在同一窗口设置后再调 conda run
+    # 注意：Windows + conda run 会把带 * 的 --reload-exclude 通配符展开成文件列表，导致 uvicorn 启动失败。
+    # 因此只用目录名排除（不要写 datasets/* / *.parquet）。
     $beCmd = "cd '$BACKEND_DIR'; " +
              "`$env:AUTORESEARCH_DB_DUAL_WRITE='1'; " +
              "`$env:AUTORESEARCH_DB_READ='1'; " +
              "`$env:AUTORESEARCH_JOB_QUEUE_BACKEND='mysql'; " +
              "`$env:AIP_SKIP_ALEMBIC_MIGRATION='1'; " +
-             "conda run --no-capture-output -n $CONDA_ENV uvicorn main:app --host 0.0.0.0 --reload --port $port"
+             "`$env:PV_MOCK_PARQUET_PATH='$PV_MOCK_PARQUET'; " +
+             "conda run --no-capture-output -n $CONDA_ENV uvicorn main:app --host 0.0.0.0 --reload --port $port " +
+             "--reload-exclude datasets --reload-exclude data --reload-exclude __pycache__ --reload-exclude .pytest_cache"
     Start-Process powershell -ArgumentList "-NoExit", "-Command", $beCmd
     # @AI_GENERATED: end
 
@@ -73,6 +91,7 @@ function Start-Experiment {
 
     Write-Host "AIP experiment mode starting..."
     Write-Host "  Backend: :$port  Frontend: :$fport  Worker: --loop"
+    Write-Host "  PV mock feed: $PV_MOCK_PARQUET"
 
     # @AI_GENERATED: conda run 代替 conda activate
     $beCmd = "cd '$BACKEND_DIR'; " +
@@ -81,6 +100,7 @@ function Start-Experiment {
              "`$env:AUTORESEARCH_DB_READ='1'; " +
              "`$env:AUTORESEARCH_JOB_QUEUE_BACKEND='mysql'; " +
              "`$env:AIP_SKIP_ALEMBIC_MIGRATION='1'; " +
+             "`$env:PV_MOCK_PARQUET_PATH='$PV_MOCK_PARQUET'; " +
              "conda run --no-capture-output -n $CONDA_ENV uvicorn main:app --host 0.0.0.0 --port $port"
     Start-Process powershell -ArgumentList "-NoExit", "-Command", $beCmd
 
@@ -137,6 +157,10 @@ function Show-Usage {
     Write-Host "  stop             Stop all AIP services"
     Write-Host "  status           Show process status"
     Write-Host "  help             Show this help"
+    Write-Host ""
+    Write-Host "Env overrides:"
+    Write-Host "  AIP_PV_MOCK_PARQUET   PV mock feed source (default: datasets/pv_mock_feed_unseen.parquet)"
+    Write-Host "                        switch back: datasets/pv_mock_feed_source.parquet"
 }
 
 switch ($Command) {

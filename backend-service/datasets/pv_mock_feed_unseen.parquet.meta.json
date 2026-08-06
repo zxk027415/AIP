@@ -1,0 +1,18 @@
+{
+  "source_path": "backend-service/datasets/pv_mock_feed_unseen.parquet",
+  "built_from": "predict_small(unseen_by_training)",
+  "row_count": 22848,
+  "date_min": "2021-11-18",
+  "date_max": "2021-11-24",
+  "unique_days": 7,
+  "unique_dates": [
+    "2021-11-18",
+    "2021-11-19",
+    "2021-11-20",
+    "2021-11-21",
+    "2021-11-22",
+    "2021-11-23",
+    "2021-11-24"
+  ],
+  "updated_at": "2026-08-04T02:27:42.582341"
+}

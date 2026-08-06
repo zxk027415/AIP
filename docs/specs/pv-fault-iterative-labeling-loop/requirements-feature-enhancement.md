@@ -1,4 +1,6 @@
 <!-- @AI_GENERATED -->
+> **⚠️ 已被取代（2026-07-30）**：见 [`docs/specs/pv-fault-label-segment-redesign/`](../pv-fault-label-segment-redesign/)。`day_and_night` solar_mode / split parity 相关需求已作废。
+
 # 扩展需求文档：光伏故障诊断窗口切分策略与标签扩充策略增强
 
 > **本文档是对 `requirements.md`（光伏故障人机协同迭代标注闭环）的扩展补充。**

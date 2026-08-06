@@ -14,12 +14,15 @@
   },
   "mock_feed_source": {
     "path": "backend-service/datasets/pv_mock_feed_source.parquet",
-    "rows": 303321,
+    "rows": 1056806,
     "label_note": "label 列已全部置空，mock feeder 可直接读取",
+    "built_from": "all_labeled_combined",
     "time_min": "2020-05-06 00:00:00",
-    "time_max": "2020-05-12 23:55:00",
-    "unique_days": 7,
-    "env_override": "设置 PV_MOCK_PARQUET_PATH=datasets/pv_mock_feed_source.parquet 切换喂数源"
+    "time_max": "2022-03-07 23:55:00",
+    "unique_days": 35,
+    "max_days_limit": null,
+    "default_feeder_path": "datasets/pv_mock_feed_source.parquet",
+    "env_override": "PV_MOCK_PARQUET_PATH=datasets/pv_mock_feed_source.parquet"
   },
   "register_cumulative_training": "在数据集管理页登记: backend-service/datasets/pv_cumulative_labeled_merged.parquet"
 }

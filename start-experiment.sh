@@ -27,7 +27,7 @@ tell application "Terminal"
     echo '=== 后端启动：实验模式，无 reload ===' &&
     cd '$BACKEND_DIR' &&
     source \"\$(conda info --base)/etc/profile.d/conda.sh\" &&
-    conda activate aip_web &&
+    conda activate cp_web &&
     source '$GLM_ENV_SCRIPT' &&
     AUTORESEARCH_STORAGE_PROFILE=experiment uvicorn main:app --port 8080
   "
@@ -54,7 +54,7 @@ tell application "Terminal"
     echo '=== AutoResearch Worker 启动 ===' &&
     cd '$BACKEND_DIR' &&
     source \"\$(conda info --base)/etc/profile.d/conda.sh\" &&
-    conda activate aip_web &&
+    conda activate cp_web &&
     source '$GLM_ENV_SCRIPT' &&
     AUTORESEARCH_STORAGE_PROFILE=experiment python worker_autoresearch.py --loop
   "

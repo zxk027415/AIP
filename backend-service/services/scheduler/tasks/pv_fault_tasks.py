@@ -376,14 +376,49 @@ def _resolve_model_artifact(model_ref: str) -> Tuple[str, Path, str, str]:
     raise FileNotFoundError(f"PV fault model not found for model_ref={requested}")
 
 
-def _load_feature_list(model_file: Path) -> List[str]:
-    """Load the feature contract saved beside the trained classifier."""
+# @AI_GENERATED: 预测必须同时读回特征契约与样本策略
+# （原 _load_feature_list 只读 feature_list，已被本函数取代并删除）
+def _load_model_contract(model_file: Path) -> Tuple[List[str], Optional[Dict[str, Any]]]:
+    """读回模型 pkl 里的 ``feature_list`` 与 ``sample_strategy``。
+
+    ``sample_strategy`` 决定预测侧如何把测量数据切成样本。原实现只读
+    ``feature_list``，切分交给工作流模板里写死的 ``solar_mode=day_and_night``
+    （按功率值判定），与逐点标签路径按自然日/时钟的切法不一致：模型在整天聚合上
+    训练、预测时却喂半天聚合，夜间窗的统计特征会整体塌向 0，结果不可信。
+
+    Returns:
+        (feature_list, sample_strategy)；后者可能为 None（老模型/legacy 路径）。
+    """
     with model_file.open("rb") as handle:
         payload = pickle.load(handle)
     feature_list = payload.get("feature_list") if isinstance(payload, dict) else None
     if not isinstance(feature_list, list) or not feature_list:
         raise ValueError("模型 pkl 缺少非空 feature_list，拒绝执行不一致的预测")
-    return [str(feature) for feature in feature_list]
+    strategy = payload.get("sample_strategy") if isinstance(payload, dict) else None
+    if strategy is not None and not isinstance(strategy, dict):
+        logger.warning(
+            "pv_prediction_task: 模型 %s 的 sample_strategy 类型异常(%s)，按缺失处理",
+            model_file.name,
+            type(strategy).__name__,
+        )
+        strategy = None
+    return [str(feature) for feature in feature_list], strategy
+
+
+#: 逐点标签建模路径。这些路径下预测必须按模型持久化策略切样本。
+_POINT_LABEL_MODELING_PATHS = frozenset({"point_label_by_day", "point_label_by_day_night"})
+
+
+def _production_modeling_path() -> str:
+    """读取当前生产建模路径（legacy_day / point_label_by_day / point_label_by_day_night）。"""
+    try:
+        paths = CumulativeTrainingService(slot=_SLOT).get_modeling_paths()
+        return str(paths.get("production_path") or "legacy_day").strip() or "legacy_day"
+    except Exception as exc:
+        # 读不到指针时按 legacy 处理：宁可走老口径，也不要用错误的切分静默预测。
+        logger.warning("pv_prediction_task: 无法读取生产建模路径，按 legacy_day 处理: %s", exc)
+        return "legacy_day"
+# @AI_GENERATED: end
 
 
 def _workflow_config_set(config: Any, key: str, value: Any) -> None:
@@ -394,8 +429,23 @@ def _workflow_config_set(config: Any, key: str, value: Any) -> None:
         setattr(config, key, value)
 
 
-def _write_prediction_input(rows: List[Dict[str, object]], batch_id: str) -> Tuple[Path, str]:
-    """Persist raw, unlabeled observations as the review/backfill source CSV."""
+_PREDICTION_INPUT_BASE_COLUMNS = ["time", "site_id", "device_id", "branch_id", "value", "i_cal"]
+
+
+def _write_prediction_input(
+    rows: Any,
+    batch_id: str,
+    extra_columns: Optional[List[str]] = None,
+) -> Tuple[Path, str]:
+    """Persist raw, unlabeled observations as the review/backfill source CSV.
+
+    Args:
+        rows: 观测行列表或已切好样本的 DataFrame。
+        extra_columns: 需要一并写出的附加列（逐点标签路径下是 ``time_window`` /
+            ``period_role`` 及 ``period_is_*`` / ``night_*`` 派生列）。带 ``#`` 的
+            ``time_window`` 会被 ``time_window_split`` 识别为显式样本边界并原样保留，
+            从而让预测样本粒度与训练完全一致。
+    """
     input_dir = (
         _BACKEND_SERVICE_DIR
         / "data"
@@ -405,8 +455,13 @@ def _write_prediction_input(rows: List[Dict[str, object]], batch_id: str) -> Tup
     )
     input_dir.mkdir(parents=True, exist_ok=True)
     input_path = input_dir / f"{batch_id}.csv"
-    columns = ["time", "site_id", "device_id", "branch_id", "value", "i_cal"]
-    frame = pd.DataFrame(rows)
+    frame = rows if isinstance(rows, pd.DataFrame) else pd.DataFrame(rows)
+    columns = list(_PREDICTION_INPUT_BASE_COLUMNS)
+    # @AI_GENERATED: 附加列只写实际存在的，避免整列 NaN 污染下游特征
+    for column in extra_columns or []:
+        if column in frame.columns and column not in columns:
+            columns.append(column)
+    # @AI_GENERATED: end
     frame = frame.reindex(columns=columns)
     if frame.empty:
         raise ValueError("未标注样本为空，不能创建预测输入")
@@ -415,21 +470,30 @@ def _write_prediction_input(rows: List[Dict[str, object]], batch_id: str) -> Tup
 
 
 def _load_label_name_to_id() -> Dict[str, int]:
-    """Load pv_fault label registry name→id map for decoded workflow strings."""
-    try:
-        from services.iterative_labeling.label_registry import LabelRegistryService
+    """Load pv_fault label registry name→id map for decoded workflow strings.
 
+    读失败必须抛出：工作流输出的是标签名，没有这张映射表 ``_parse_predicted_label``
+    会把每条预测静默解析成 ``None`` 并整批丢弃，最终表现为「预测跑完了但一条没落库」。
+    """
+    # @AI_GENERATED: 原实现 except 后返回 {}，会静默丢弃全部预测；改为抛出。
+    from services.iterative_labeling.label_registry import LabelRegistryService
+
+    try:
         registry = LabelRegistryService(slot=_SLOT).get_current()
-        mapping: Dict[str, int] = {}
-        for item in registry.get("labels", []):
-            name = str(item.get("label_name") or "").strip()
-            label_id = item.get("label_id")
-            if name and label_id is not None:
-                mapping[name] = int(label_id)
-        return mapping
     except Exception as exc:
-        logger.warning("pv_prediction_task: label registry unavailable: %s", exc)
-        return {}
+        raise RuntimeError(
+            f"pv_fault 标签注册表不可读，无法把预测标签名解析为 label_id：{exc}"
+        ) from exc
+    mapping: Dict[str, int] = {}
+    for item in registry.get("labels", []):
+        name = str(item.get("label_name") or "").strip()
+        label_id = item.get("label_id")
+        if name and label_id is not None:
+            mapping[name] = int(label_id)
+    if not mapping:
+        raise RuntimeError("pv_fault 标签注册表为空，无法解析预测标签名")
+    return mapping
+    # @AI_GENERATED: end
 
 
 def _parse_predicted_label(
@@ -528,6 +592,8 @@ def _write_prediction_batch(
     model_ref: str,
     model_path: str,
     predictions: List[Dict[str, Any]],
+    unit_features: Optional[Dict[str, Any]] = None,
+    feature_list: Optional[List[str]] = None,
 ) -> None:
     """Persist the same batch shape consumed by iterative-labeling review sessions."""
     batch_dir = (
@@ -543,6 +609,8 @@ def _write_prediction_batch(
         "dataset_version": source_dataset_path,
         "model_ref": model_ref,
         "model_path": model_path,
+        "feature_list": list(feature_list or []),
+        "unit_features": unit_features or {},
         "predictions": predictions,
         "created_at": _utc_now_iso(),
     }
@@ -623,7 +691,30 @@ def _run_pv_prediction_cycle(
                 }
             )
             return
-        feature_list = _load_feature_list(model_file)
+        # @AI_GENERATED: 逐点标签路径下必须按模型持久化策略切样本
+        feature_list, sample_strategy = _load_model_contract(model_file)
+        modeling_path = _production_modeling_path()
+        use_point_label_path = modeling_path in _POINT_LABEL_MODELING_PATHS
+        if use_point_label_path and not sample_strategy:
+            # 缺策略就没法复现训练切分。宁可跳过也不要用错误口径静默预测。
+            message = (
+                f"生产建模路径为 {modeling_path}，但模型 {resolved_ref} 的 pkl 里没有 "
+                "sample_strategy，无法复现训练切分口径，预测已跳过。"
+                "请用累计训练重训产出带策略的模型。"
+            )
+            logger.error("pv_prediction_task: %s", message)
+            _save_prediction_last_run(
+                {
+                    "status": "skipped",
+                    "reason": "sample_strategy_missing",
+                    "message": message,
+                    "model_ref": resolved_ref,
+                    "modeling_path": modeling_path,
+                    "updated_at": _utc_now_iso(),
+                }
+            )
+            return
+        # @AI_GENERATED: end
 
         try:
             source_fp = _current_source_fingerprint()
@@ -640,24 +731,40 @@ def _run_pv_prediction_cycle(
             return
 
         prediction_cursor, cursor_reset, previous_fp = _align_prediction_cursor_to_source(source_fp)
-        unlabeled_rows = pv_repo.query_unlabeled_training_samples(after_time=prediction_cursor)
+        # @AI_GENERATED: 未标注判定按建模路径取口径。
+        # 逐点标签路径的标签事实来源是 point_labels，不是 training_samples.label；
+        # 实测两者背离 309,964 行（新路径已标注、旧口径却当成未标注），
+        # 继续用旧口径会让这批数据被反复重复预测、真正的新增观测被淹没。
+        _query_unlabeled = (
+            pv_repo.query_unlabeled_by_point_labels
+            if use_point_label_path
+            else pv_repo.query_unlabeled_training_samples
+        )
+        # @AI_GENERATED: end
+        unlabeled_rows = _query_unlabeled(after_time=prediction_cursor)
         if not unlabeled_rows:
-            all_unlabeled = pv_repo.query_unlabeled_training_samples(after_time=None)
+            all_unlabeled = _query_unlabeled(after_time=None)
+            unlabeled_total = len(all_unlabeled)
             if all_unlabeled and prediction_cursor is not None:
                 max_time = max(
                     (row["time"] for row in all_unlabeled if row.get("time") is not None),
                     default=None,
                 )
-                reason = "skipped_stale_timeline"
+                # 游标已覆盖到最新业务时间：正常「已追平」，不是待审核积压，也不默认建议重置。
+                reason = "skipped_caught_up"
+                cursor_iso = prediction_cursor.isoformat()
+                max_iso = max_time.isoformat() if hasattr(max_time, "isoformat") else max_time
                 message = (
-                    f"存在 {len(all_unlabeled)} 条未标注数据，但业务时间均不晚于预测游标 "
-                    f"{prediction_cursor.isoformat()}（最新未标注时间="
-                    f"{max_time.isoformat() if hasattr(max_time, 'isoformat') else max_time}）。"
-                    "通常是数据源时间线与游标不一致；可重置预测进度后重试。"
+                    f"本次无新增待预测数据：预测进度已覆盖至 {cursor_iso}"
+                    f"（库内最新无标签观测时间={max_iso}）。"
+                    "说明：库中「无标签」样本不等于「待人工审核」；"
+                    "审核请看已保存的预测结果批次。"
+                    "仅在更换历史数据源或需要整段重跑时，才重置预测进度。"
                 )
             else:
                 reason = "skipped_no_unlabeled"
-                message = "当前没有待预测的未标注观测。"
+                message = "当前没有待预测的观测（游标之后无新数据）。"
+                unlabeled_total = 0
             _save_prediction_last_run(
                 {
                     "status": "skipped",
@@ -667,7 +774,11 @@ def _run_pv_prediction_cycle(
                     "previous_fingerprint": previous_fp,
                     "source_fingerprint": source_fp,
                     "prediction_cursor": prediction_cursor.isoformat() if prediction_cursor else None,
-                    "unlabeled_total": len(all_unlabeled),
+                    "unlabeled_total": unlabeled_total,
+                    # @AI_GENERATED: 跳过分支也留痕建模路径 —— 「未标注」是按哪个口径统计的
+                    # 直接决定 unlabeled_total 的含义，缺了这个字段无法解读。
+                    "modeling_path": modeling_path,
+                    # @AI_GENERATED: end
                     "updated_at": _utc_now_iso(),
                 }
             )
@@ -675,7 +786,54 @@ def _run_pv_prediction_cycle(
             return
 
         batch_id = f"pred-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
-        _input_path, source_dataset_path = _write_prediction_input(unlabeled_rows, batch_id)
+        # @AI_GENERATED: 逐点标签路径 —— 用模型持久化策略切出推理样本，
+        # 并把样本边界（time_window，含 '#'）与派生列写进预测输入。
+        # time_window_split 会把带 '#' 的显式窗口键原样保留、不再按 solar_mode 重切，
+        # 于是预测样本粒度与训练快照严格一致（by_day 下一天一条）。
+        split_audit: Optional[Dict[str, Any]] = None
+        if use_point_label_path:
+            from services.iterative_labeling.inference_sample import (
+                INFERENCE_DERIVED_COLUMNS,
+                InferenceSampleGenerator,
+            )
+
+            measurements = pd.DataFrame(unlabeled_rows)
+            measurements["time"] = pd.to_datetime(measurements["time"])
+            try:
+                sample_frame, split_audit = InferenceSampleGenerator().generate_inference_samples(
+                    measurements, str(model_file)
+                )
+            except ValueError as exc:
+                message = (
+                    f"待预测数据未能按策略 {sample_strategy.get('split_mode')} 切出推理样本："
+                    f"{exc}（可能是每个设备-天的有效点数不足 min_points）"
+                )
+                logger.warning("pv_prediction_task: %s", message)
+                _save_prediction_last_run(
+                    {
+                        "status": "skipped",
+                        "reason": "no_inference_sample",
+                        "message": message,
+                        "model_ref": resolved_ref,
+                        "modeling_path": modeling_path,
+                        "unlabeled_rows": len(unlabeled_rows),
+                        "updated_at": _utc_now_iso(),
+                    }
+                )
+                return
+            extra_columns = ["time_window", "period_role", *INFERENCE_DERIVED_COLUMNS]
+            _input_path, source_dataset_path = _write_prediction_input(
+                sample_frame, batch_id, extra_columns=extra_columns
+            )
+            logger.info(
+                "pv_prediction_task: 推理样本已按 split_mode=%s 切出 samples=%d rows=%d",
+                split_audit.get("split_mode"),
+                split_audit.get("sample_count"),
+                split_audit.get("row_count"),
+            )
+        else:
+            _input_path, source_dataset_path = _write_prediction_input(unlabeled_rows, batch_id)
+        # @AI_GENERATED: end
 
         from api.workflows_enhanced import _execute_pipeline_sync, load_workflow_from_file
 
@@ -698,6 +856,14 @@ def _run_pv_prediction_cycle(
                 _workflow_config_set(config, "model_id", model_id)
                 _workflow_config_set(config, "model_path", execution_model_path)
                 required_nodes[function_id] = True
+            # @AI_GENERATED: 逐点标签路径下让 time_window_split 退化为透传。
+            # 样本边界已由 InferenceSampleGenerator 预置在 time_window 列（含 '#'），
+            # 算子会原样保留；清掉按功率值判定的 solar_mode 及其附属参数，
+            # 既消除口径歧义，也让个别漏窗行退回「按自然日 resample」而不是被按值切两段。
+            elif function_id == "time_window_split" and use_point_label_path:
+                _workflow_config_set(config, "solar_mode", None)
+                _workflow_config_set(config, "attach_night_features", False)
+            # @AI_GENERATED: end
         if not all(required_nodes.values()):
             missing = [node for node, found in required_nodes.items() if not found]
             raise RuntimeError(f"预测工作流缺少必要节点: {', '.join(missing)}")
@@ -705,7 +871,20 @@ def _run_pv_prediction_cycle(
         execution_result = _execute_pipeline_sync(workflow)
         if not execution_result.get("success", False):
             raise RuntimeError(f"预测工作流执行失败: {execution_result.get('error', '未知错误')}")
-        predictions = _normalize_predictions(execution_result.get("fault_predictions"))
+        raw_predictions = execution_result.get("fault_predictions")
+        unit_features: Dict[str, Any] = {}
+        for raw in raw_predictions or []:
+            if not isinstance(raw, dict):
+                continue
+            feats = raw.get("_features")
+            if not isinstance(feats, dict) or not feats:
+                continue
+            uk = (
+                f"{_review_unit_id(raw.get('site_id'))}|{_review_unit_id(raw.get('device_id'))}|"
+                f"{_review_unit_id(raw.get('branch_id'))}|{raw.get('time_window')}"
+            )
+            unit_features[uk] = _json_safe(feats)
+        predictions = _normalize_predictions(raw_predictions)
 
         model_version = pv_repo.get_model_version(model_id)
         for prediction in predictions:
@@ -732,6 +911,8 @@ def _run_pv_prediction_cycle(
             model_ref=resolved_ref,
             model_path=model_path,
             predictions=predictions,
+            unit_features=unit_features,
+            feature_list=feature_list,
         )
         review_session = _create_prediction_review_session(
             batch_id,
@@ -760,6 +941,10 @@ def _run_pv_prediction_cycle(
                 "previous_fingerprint": previous_fp,
                 "source_fingerprint": source_fp,
                 "model_ref": resolved_ref,
+                # @AI_GENERATED: 留痕本次用的建模路径与切分口径，便于排查训练/预测错位
+                "modeling_path": modeling_path,
+                "split_audit": _json_safe(split_audit) if split_audit else None,
+                # @AI_GENERATED: end
                 "updated_at": _utc_now_iso(),
             }
         )

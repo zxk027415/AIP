@@ -1,0 +1,64 @@
+{
+  "rca_report_id": "rca-1413d78d",
+  "alert_id": "alert-0fe0bdae",
+  "trigger_type": "manual",
+  "root_cause": "数据层真值劣化（StationData 异常）",
+  "confidence": 0.93,
+  "reasoning": "告警来自数据层劣化实验（噪声污染）。系统在业务水位内改写了 platform StationData，随后执行 gap-1 日滚与精度回填。线上 MAPE 相对注入前上升 56.21%，根因应优先排查实测真值质量（缺失/噪声/尖峰），而非模型结构或超参。",
+  "supporting_evidence": [
+    "精度运营实验注入 mode=noise（噪声污染）",
+    "StationData 站点=yARGkDuq 特征=load",
+    "劣化窗口 2025-10-04T17:15:00 ~ 2025-10-09T17:15:00",
+    "触达行数 rows_touched=409（更新=409 删除=0）",
+    "注入前线上 MAPE=1.1700% → 注入后=1.8276%（+56.21%）",
+    "注入后日滚 cycle=workflow-20260511-optimal-505:404444be5e57706c:20251010000000"
+  ],
+  "undetermined": false,
+  "error_profile": null,
+  "data_quality_diagnosis": {
+    "missing_rate": 0.0,
+    "outlier_rate": 1.0,
+    "feature_drift_detected": true,
+    "feature_drift_details": [
+      {
+        "feature_name": "load",
+        "drift_magnitude": 0.5621,
+        "drift_direction": "噪声污染"
+      }
+    ],
+    "data_freshness_lag_hours": 0.0
+  },
+  "actionable_insights": [
+    {
+      "insight_type": "data_sourcing",
+      "priority": "high",
+      "description": "检查 yARGkDuq/load 在 2025-10-04T17:15:00~2025-10-09T17:15:00 的 StationData：当前注入为「噪声污染」，请核对采集链路、补数任务与 mock 喂数是否异常。",
+      "supporting_evidence": [
+        "精度运营实验注入 mode=noise（噪声污染）",
+        "StationData 站点=yARGkDuq 特征=load",
+        "劣化窗口 2025-10-04T17:15:00 ~ 2025-10-09T17:15:00"
+      ]
+    },
+    {
+      "insight_type": "observation",
+      "priority": "medium",
+      "description": "实验结束后在精度运营面板点击「恢复」，还原 StationData 并重新日滚，避免劣化真值污染后续评估。",
+      "supporting_evidence": [
+        "快照 injected_at=2026-07-27T09:58:22.875920+00:00"
+      ]
+    },
+    {
+      "insight_type": "model_retraining_signal",
+      "priority": "medium",
+      "description": "劣化幅度较大，建议在真值恢复并确认数据质量后再评估是否需要重训或回滚模型版本。",
+      "supporting_evidence": [
+        "相对注入前 MAPE +56.21%"
+      ]
+    }
+  ],
+  "candidate_strategies": [],
+  "recommended_strategy_id": null,
+  "artifacts_dir": "",
+  "status": "succeeded",
+  "created_at": "2026-07-27T10:04:09.055031+00:00"
+}

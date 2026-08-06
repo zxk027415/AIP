@@ -1,0 +1,3904 @@
+{
+  "active": true,
+  "mode": "missing",
+  "slot": "load_forecast",
+  "model_form": "production",
+  "workflow_id": "workflow-20260511-optimal-505",
+  "version_tag": "optimal-505-production",
+  "version_key": "workflow-20260511-optimal-505@optimal-505-production",
+  "baseline_mape": 5.6616,
+  "target_degradation_pct": 20.0,
+  "metrics_before": {
+    "rolling_mape": 10.627668371483583,
+    "rolling_wmape": 9.53705621752556,
+    "rolling_mape_pooled": 1.827577,
+    "rolling_mape_method": "daily_median",
+    "daily_mape_series": [
+      {
+        "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251004000000",
+        "business_day": "2025-10-04",
+        "daily_mape": 1.169958,
+        "daily_wmape": 1.18572,
+        "point_count": 192,
+        "evaluated_point_count": 192
+      },
+      {
+        "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251005000000",
+        "business_day": "2025-10-05",
+        "daily_mape": 2.030453,
+        "daily_wmape": 2.027703,
+        "point_count": 97,
+        "evaluated_point_count": 97
+      },
+      {
+        "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251006000000",
+        "business_day": "2025-10-06",
+        "daily_mape": 0.532379,
+        "daily_wmape": 0.533808,
+        "point_count": 192,
+        "evaluated_point_count": 192
+      },
+      {
+        "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251007000000",
+        "business_day": "2025-10-07",
+        "daily_mape": 0.830736,
+        "daily_wmape": 0.829684,
+        "point_count": 192,
+        "evaluated_point_count": 192
+      },
+      {
+        "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251009000000",
+        "business_day": "2025-10-09",
+        "daily_mape": 9.636943,
+        "daily_wmape": 9.640652,
+        "point_count": 70,
+        "evaluated_point_count": 70
+      }
+    ],
+    "rolling_mae": 94.5036877523554,
+    "valid_cycle_count": 935,
+    "total_cycle_count": 935,
+    "coverage_rate": 1.0,
+    "window_days": 30,
+    "last_evaluated_at": "2026-07-28T03:06:36.701818+00:00",
+    "status": "active"
+  },
+  "metrics_after": {
+    "rolling_mape": 9.413959842202113,
+    "rolling_wmape": 8.08415617809269,
+    "rolling_mape_pooled": 1.827577,
+    "rolling_mape_method": "daily_median",
+    "daily_mape_series": [
+      {
+        "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251004000000",
+        "business_day": "2025-10-04",
+        "daily_mape": 1.169958,
+        "daily_wmape": 1.18572,
+        "point_count": 192,
+        "evaluated_point_count": 192
+      },
+      {
+        "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251005000000",
+        "business_day": "2025-10-05",
+        "daily_mape": 2.030453,
+        "daily_wmape": 2.027703,
+        "point_count": 97,
+        "evaluated_point_count": 97
+      },
+      {
+        "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251006000000",
+        "business_day": "2025-10-06",
+        "daily_mape": 0.532379,
+        "daily_wmape": 0.533808,
+        "point_count": 192,
+        "evaluated_point_count": 192
+      },
+      {
+        "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251007000000",
+        "business_day": "2025-10-07",
+        "daily_mape": 0.830736,
+        "daily_wmape": 0.829684,
+        "point_count": 192,
+        "evaluated_point_count": 192
+      },
+      {
+        "prediction_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251009000000",
+        "business_day": "2025-10-09",
+        "daily_mape": 9.636943,
+        "daily_wmape": 9.640652,
+        "point_count": 70,
+        "evaluated_point_count": 70
+      }
+    ],
+    "rolling_mae": 94.5036877523554,
+    "valid_cycle_count": 624,
+    "total_cycle_count": 624,
+    "coverage_rate": 1.0,
+    "window_days": 30,
+    "last_evaluated_at": "2026-07-28T03:32:10.093489+00:00",
+    "status": "active"
+  },
+  "data_corruption": {
+    "mode": "missing",
+    "station_id": "yARGkDuq",
+    "feature_name": "load",
+    "window_start": "2025-10-04T17:15:00",
+    "window_end": "2025-10-09T17:15:00",
+    "rows_touched": 414,
+    "rows_updated": 0,
+    "rows_deleted": 414,
+    "station_rows_before": [
+      {
+        "id": 10100,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T17:15:00",
+        "feature_name": "load",
+        "value": 4161.49,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10005,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T17:30:00",
+        "feature_name": "load",
+        "value": 6312.75,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10101,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T17:30:00",
+        "feature_name": "load",
+        "value": 5205.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10103,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T18:00:00",
+        "feature_name": "load",
+        "value": 2948.03,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10008,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T18:15:00",
+        "feature_name": "load",
+        "value": 5800.45,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10104,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T18:15:00",
+        "feature_name": "load",
+        "value": 3825.05,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10009,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T18:30:00",
+        "feature_name": "load",
+        "value": 6662.2,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10105,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T18:30:00",
+        "feature_name": "load",
+        "value": 6645.26,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10010,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T18:45:00",
+        "feature_name": "load",
+        "value": 5251.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10106,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T18:45:00",
+        "feature_name": "load",
+        "value": 3622.83,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10107,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T19:00:00",
+        "feature_name": "load",
+        "value": 3270.61,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10012,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T19:15:00",
+        "feature_name": "load",
+        "value": 6751.45,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10108,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T19:15:00",
+        "feature_name": "load",
+        "value": 5143.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10109,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T19:30:00",
+        "feature_name": "load",
+        "value": 5217.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10015,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T20:00:00",
+        "feature_name": "load",
+        "value": 5154.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10111,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T20:00:00",
+        "feature_name": "load",
+        "value": 5154.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10112,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T20:15:00",
+        "feature_name": "load",
+        "value": 6102.93,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10017,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T20:30:00",
+        "feature_name": "load",
+        "value": 3886.54,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10113,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T20:30:00",
+        "feature_name": "load",
+        "value": 3200.47,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10020,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T21:15:00",
+        "feature_name": "load",
+        "value": 5128.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10021,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T21:30:00",
+        "feature_name": "load",
+        "value": 5138.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10117,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T21:30:00",
+        "feature_name": "load",
+        "value": 6197.53,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10119,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T22:00:00",
+        "feature_name": "load",
+        "value": 6017.35,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10120,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T22:15:00",
+        "feature_name": "load",
+        "value": 5171.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10025,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T22:30:00",
+        "feature_name": "load",
+        "value": 3014.86,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10121,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T22:30:00",
+        "feature_name": "load",
+        "value": 4119.35,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10026,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T22:45:00",
+        "feature_name": "load",
+        "value": 7230.86,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10122,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T22:45:00",
+        "feature_name": "load",
+        "value": 5170.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10027,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T23:00:00",
+        "feature_name": "load",
+        "value": 5884.14,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10123,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T23:00:00",
+        "feature_name": "load",
+        "value": 7087.91,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10124,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T23:15:00",
+        "feature_name": "load",
+        "value": 5399.62,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10029,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T23:30:00",
+        "feature_name": "load",
+        "value": 5524.84,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10125,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T23:30:00",
+        "feature_name": "load",
+        "value": 5134.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10030,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-04T23:45:00",
+        "feature_name": "load",
+        "value": 3817.66,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10128,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T00:15:00",
+        "feature_name": "load",
+        "value": 5162.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10129,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T00:30:00",
+        "feature_name": "load",
+        "value": 3136.06,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10225,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T00:30:00",
+        "feature_name": "load",
+        "value": 7471.22,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10131,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T01:00:00",
+        "feature_name": "load",
+        "value": 6268.94,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10133,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T01:30:00",
+        "feature_name": "load",
+        "value": 4897.53,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10229,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T01:30:00",
+        "feature_name": "load",
+        "value": 7328.08,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10134,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T01:45:00",
+        "feature_name": "load",
+        "value": 5169.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10230,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T01:45:00",
+        "feature_name": "load",
+        "value": 5171.73,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10135,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T02:00:00",
+        "feature_name": "load",
+        "value": 7124.24,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10232,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T02:15:00",
+        "feature_name": "load",
+        "value": 5205.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10233,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T02:30:00",
+        "feature_name": "load",
+        "value": 6497.72,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10234,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T02:45:00",
+        "feature_name": "load",
+        "value": 2930.15,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10139,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T03:00:00",
+        "feature_name": "load",
+        "value": 5165.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10235,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T03:00:00",
+        "feature_name": "load",
+        "value": 5165.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10140,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T03:15:00",
+        "feature_name": "load",
+        "value": 5169.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10236,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T03:15:00",
+        "feature_name": "load",
+        "value": 3112.42,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10141,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T03:30:00",
+        "feature_name": "load",
+        "value": 5184.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10142,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T03:45:00",
+        "feature_name": "load",
+        "value": 5173.93,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10238,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T03:45:00",
+        "feature_name": "load",
+        "value": 6469.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10239,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T04:00:00",
+        "feature_name": "load",
+        "value": 5098.99,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10144,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T04:15:00",
+        "feature_name": "load",
+        "value": 4106.77,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10240,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T04:15:00",
+        "feature_name": "load",
+        "value": 5208.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10145,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T04:30:00",
+        "feature_name": "load",
+        "value": 3817.15,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10242,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T04:45:00",
+        "feature_name": "load",
+        "value": 5193.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10147,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T05:00:00",
+        "feature_name": "load",
+        "value": 5228.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10243,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T05:00:00",
+        "feature_name": "load",
+        "value": 5310.7,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10244,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T05:15:00",
+        "feature_name": "load",
+        "value": 5615.44,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10150,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T05:45:00",
+        "feature_name": "load",
+        "value": 7102.83,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10247,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T06:00:00",
+        "feature_name": "load",
+        "value": 5202.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10152,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T06:15:00",
+        "feature_name": "load",
+        "value": 3463.83,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10153,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T06:30:00",
+        "feature_name": "load",
+        "value": 5073.08,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10249,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T06:30:00",
+        "feature_name": "load",
+        "value": 5201.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10154,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T06:45:00",
+        "feature_name": "load",
+        "value": 5236.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10251,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T07:00:00",
+        "feature_name": "load",
+        "value": 6244.33,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10156,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T07:15:00",
+        "feature_name": "load",
+        "value": 5185.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10252,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T07:15:00",
+        "feature_name": "load",
+        "value": 5185.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10158,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T07:45:00",
+        "feature_name": "load",
+        "value": 3737.2,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10255,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T08:00:00",
+        "feature_name": "load",
+        "value": 5088.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10256,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T08:15:00",
+        "feature_name": "load",
+        "value": 3064.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10257,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T08:30:00",
+        "feature_name": "load",
+        "value": 5116.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10162,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T08:45:00",
+        "feature_name": "load",
+        "value": 5131.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10258,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T08:45:00",
+        "feature_name": "load",
+        "value": 5131.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10163,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T09:00:00",
+        "feature_name": "load",
+        "value": 5159.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10165,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T09:30:00",
+        "feature_name": "load",
+        "value": 5176.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10261,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T09:30:00",
+        "feature_name": "load",
+        "value": 6499.31,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10167,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T10:00:00",
+        "feature_name": "load",
+        "value": 5155.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10263,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T10:00:00",
+        "feature_name": "load",
+        "value": 6168.31,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10168,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T10:15:00",
+        "feature_name": "load",
+        "value": 4198.75,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10265,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T10:30:00",
+        "feature_name": "load",
+        "value": 5118.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10170,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T10:45:00",
+        "feature_name": "load",
+        "value": 5514.34,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10266,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T10:45:00",
+        "feature_name": "load",
+        "value": 6753.24,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10171,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T11:00:00",
+        "feature_name": "load",
+        "value": 7285.71,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10172,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T11:15:00",
+        "feature_name": "load",
+        "value": 5942.43,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10268,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T11:15:00",
+        "feature_name": "load",
+        "value": 3376.99,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10173,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T11:30:00",
+        "feature_name": "load",
+        "value": 5131.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10174,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T11:45:00",
+        "feature_name": "load",
+        "value": 5141.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10270,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T11:45:00",
+        "feature_name": "load",
+        "value": 5528.14,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10176,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T12:15:00",
+        "feature_name": "load",
+        "value": 4671.5,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10272,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T12:15:00",
+        "feature_name": "load",
+        "value": 5155.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10177,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T12:30:00",
+        "feature_name": "load",
+        "value": 4262.1,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10273,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T12:30:00",
+        "feature_name": "load",
+        "value": 5107.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10178,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T12:45:00",
+        "feature_name": "load",
+        "value": 4960.5,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10274,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T12:45:00",
+        "feature_name": "load",
+        "value": 5154.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10179,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T13:00:00",
+        "feature_name": "load",
+        "value": 5117.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10275,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T13:00:00",
+        "feature_name": "load",
+        "value": 3795.99,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10180,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T13:15:00",
+        "feature_name": "load",
+        "value": 7109.51,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10181,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T13:30:00",
+        "feature_name": "load",
+        "value": 5107.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10278,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T13:45:00",
+        "feature_name": "load",
+        "value": 5132.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10183,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T14:00:00",
+        "feature_name": "load",
+        "value": 5124.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10184,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T14:15:00",
+        "feature_name": "load",
+        "value": 5095.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10280,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T14:15:00",
+        "feature_name": "load",
+        "value": 6549.08,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10281,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T14:30:00",
+        "feature_name": "load",
+        "value": 5113.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10186,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T14:45:00",
+        "feature_name": "load",
+        "value": 3377.97,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10283,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T15:00:00",
+        "feature_name": "load",
+        "value": 5155.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10188,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T15:15:00",
+        "feature_name": "load",
+        "value": 5694.86,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10284,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T15:15:00",
+        "feature_name": "load",
+        "value": 5028.56,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10189,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T15:30:00",
+        "feature_name": "load",
+        "value": 5113.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10285,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T15:30:00",
+        "feature_name": "load",
+        "value": 5113.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10287,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T16:00:00",
+        "feature_name": "load",
+        "value": 5128.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10192,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T16:15:00",
+        "feature_name": "load",
+        "value": 6253.5,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10288,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T16:15:00",
+        "feature_name": "load",
+        "value": 4803.61,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10289,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T16:30:00",
+        "feature_name": "load",
+        "value": 5140.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10194,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T16:45:00",
+        "feature_name": "load",
+        "value": 5099.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10290,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T16:45:00",
+        "feature_name": "load",
+        "value": 6634.49,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10195,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T17:00:00",
+        "feature_name": "load",
+        "value": 3512.77,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10291,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T17:00:00",
+        "feature_name": "load",
+        "value": 4253.83,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10196,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T17:15:00",
+        "feature_name": "load",
+        "value": 5186.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10197,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T17:30:00",
+        "feature_name": "load",
+        "value": 5170.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10198,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T17:45:00",
+        "feature_name": "load",
+        "value": 3965.06,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10294,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T17:45:00",
+        "feature_name": "load",
+        "value": 6409.52,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10297,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T18:30:00",
+        "feature_name": "load",
+        "value": 5162.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10202,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T18:45:00",
+        "feature_name": "load",
+        "value": 5141.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10298,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T18:45:00",
+        "feature_name": "load",
+        "value": 6235.56,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10203,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T19:00:00",
+        "feature_name": "load",
+        "value": 7144.06,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10299,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T19:00:00",
+        "feature_name": "load",
+        "value": 5148.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10204,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T19:15:00",
+        "feature_name": "load",
+        "value": 5148.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10205,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T19:30:00",
+        "feature_name": "load",
+        "value": 6549.95,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10206,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T19:45:00",
+        "feature_name": "load",
+        "value": 5139.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10302,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T19:45:00",
+        "feature_name": "load",
+        "value": 6603.24,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10208,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T20:15:00",
+        "feature_name": "load",
+        "value": 2936.47,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10209,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T20:30:00",
+        "feature_name": "load",
+        "value": 5173.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10305,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T20:30:00",
+        "feature_name": "load",
+        "value": 5173.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10306,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T20:45:00",
+        "feature_name": "load",
+        "value": 7380.13,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10211,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T21:00:00",
+        "feature_name": "load",
+        "value": 7197.03,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10212,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T21:15:00",
+        "feature_name": "load",
+        "value": 7364.66,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10308,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T21:15:00",
+        "feature_name": "load",
+        "value": 3367.32,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10213,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T21:30:00",
+        "feature_name": "load",
+        "value": 6286.47,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10214,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T21:45:00",
+        "feature_name": "load",
+        "value": 4627.74,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10215,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T22:00:00",
+        "feature_name": "load",
+        "value": 5144.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10311,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T22:00:00",
+        "feature_name": "load",
+        "value": 7114.24,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10216,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T22:15:00",
+        "feature_name": "load",
+        "value": 6200.59,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10217,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T22:30:00",
+        "feature_name": "load",
+        "value": 5115.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10313,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T22:30:00",
+        "feature_name": "load",
+        "value": 3135.37,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10314,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T22:45:00",
+        "feature_name": "load",
+        "value": 4287.5,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10219,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T23:00:00",
+        "feature_name": "load",
+        "value": 5165.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10220,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T23:15:00",
+        "feature_name": "load",
+        "value": 4295.86,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10316,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T23:15:00",
+        "feature_name": "load",
+        "value": 4730.46,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10221,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T23:30:00",
+        "feature_name": "load",
+        "value": 3445.07,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10222,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-05T23:45:00",
+        "feature_name": "load",
+        "value": 5181.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10319,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T00:00:00",
+        "feature_name": "load",
+        "value": 5193.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10415,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T00:00:00",
+        "feature_name": "load",
+        "value": 5417.04,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10416,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T00:15:00",
+        "feature_name": "load",
+        "value": 5592.55,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10321,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T00:30:00",
+        "feature_name": "load",
+        "value": 5187.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10322,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T00:45:00",
+        "feature_name": "load",
+        "value": 5094.03,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10418,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T00:45:00",
+        "feature_name": "load",
+        "value": 5220.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10324,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T01:15:00",
+        "feature_name": "load",
+        "value": 5795.29,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10420,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T01:15:00",
+        "feature_name": "load",
+        "value": 6659.34,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10325,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T01:30:00",
+        "feature_name": "load",
+        "value": 5168.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10327,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T02:00:00",
+        "feature_name": "load",
+        "value": 6813.11,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10423,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T02:00:00",
+        "feature_name": "load",
+        "value": 4782.97,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10426,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T02:45:00",
+        "feature_name": "load",
+        "value": 5192.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10427,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T03:00:00",
+        "feature_name": "load",
+        "value": 7293.85,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10333,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T03:30:00",
+        "feature_name": "load",
+        "value": 6563.59,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10429,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T03:30:00",
+        "feature_name": "load",
+        "value": 5163.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10334,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T03:45:00",
+        "feature_name": "load",
+        "value": 5201.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10430,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T03:45:00",
+        "feature_name": "load",
+        "value": 7307.59,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10335,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T04:00:00",
+        "feature_name": "load",
+        "value": 5180.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10432,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T04:15:00",
+        "feature_name": "load",
+        "value": 6706.84,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10433,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T04:30:00",
+        "feature_name": "load",
+        "value": 5165.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10338,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T04:45:00",
+        "feature_name": "load",
+        "value": 4038.55,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10435,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T05:00:00",
+        "feature_name": "load",
+        "value": 5743.05,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10340,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T05:15:00",
+        "feature_name": "load",
+        "value": 3204.03,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10436,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T05:15:00",
+        "feature_name": "load",
+        "value": 4107.79,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10341,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T05:30:00",
+        "feature_name": "load",
+        "value": 5355.79,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10438,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T05:45:00",
+        "feature_name": "load",
+        "value": 5137.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10439,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T06:00:00",
+        "feature_name": "load",
+        "value": 4743.9,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10344,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T06:15:00",
+        "feature_name": "load",
+        "value": 4826.27,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10440,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T06:15:00",
+        "feature_name": "load",
+        "value": 5200.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10345,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T06:30:00",
+        "feature_name": "load",
+        "value": 6149.15,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10442,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T06:45:00",
+        "feature_name": "load",
+        "value": 2873.71,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10443,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T07:00:00",
+        "feature_name": "load",
+        "value": 5138.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10348,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T07:15:00",
+        "feature_name": "load",
+        "value": 5216.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10444,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T07:15:00",
+        "feature_name": "load",
+        "value": 6377.94,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10349,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T07:30:00",
+        "feature_name": "load",
+        "value": 5627.48,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10447,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T08:00:00",
+        "feature_name": "load",
+        "value": 3420.73,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10352,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T08:15:00",
+        "feature_name": "load",
+        "value": 5200.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10448,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T08:15:00",
+        "feature_name": "load",
+        "value": 4704.01,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10354,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T08:45:00",
+        "feature_name": "load",
+        "value": 4981.16,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10355,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T09:00:00",
+        "feature_name": "load",
+        "value": 4362.62,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10358,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T09:45:00",
+        "feature_name": "load",
+        "value": 5172.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10359,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T10:00:00",
+        "feature_name": "load",
+        "value": 5171.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10457,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T10:30:00",
+        "feature_name": "load",
+        "value": 3421.52,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10458,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T10:45:00",
+        "feature_name": "load",
+        "value": 3844.26,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10364,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T11:15:00",
+        "feature_name": "load",
+        "value": 5660.25,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10365,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T11:30:00",
+        "feature_name": "load",
+        "value": 6601.64,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10461,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T11:30:00",
+        "feature_name": "load",
+        "value": 5128.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10462,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T11:45:00",
+        "feature_name": "load",
+        "value": 5946.49,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10367,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T12:00:00",
+        "feature_name": "load",
+        "value": 5173.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10463,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T12:00:00",
+        "feature_name": "load",
+        "value": 6174.04,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10368,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T12:15:00",
+        "feature_name": "load",
+        "value": 6069.82,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10465,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T12:30:00",
+        "feature_name": "load",
+        "value": 5148.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10466,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T12:45:00",
+        "feature_name": "load",
+        "value": 7406.97,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10467,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T13:00:00",
+        "feature_name": "load",
+        "value": 4845.16,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10468,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T13:15:00",
+        "feature_name": "load",
+        "value": 6747.93,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10469,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T13:30:00",
+        "feature_name": "load",
+        "value": 7302.73,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10470,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T13:45:00",
+        "feature_name": "load",
+        "value": 5124.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10375,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T14:00:00",
+        "feature_name": "load",
+        "value": 5143.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10471,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T14:00:00",
+        "feature_name": "load",
+        "value": 6225.17,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10472,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T14:15:00",
+        "feature_name": "load",
+        "value": 6635.99,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10473,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T14:30:00",
+        "feature_name": "load",
+        "value": 6224.43,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10378,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T14:45:00",
+        "feature_name": "load",
+        "value": 6774.92,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10474,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T14:45:00",
+        "feature_name": "load",
+        "value": 5146.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10379,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T15:00:00",
+        "feature_name": "load",
+        "value": 6951.1,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10380,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T15:15:00",
+        "feature_name": "load",
+        "value": 5159.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10381,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T15:30:00",
+        "feature_name": "load",
+        "value": 5189.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10383,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T16:00:00",
+        "feature_name": "load",
+        "value": 5148.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10479,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T16:00:00",
+        "feature_name": "load",
+        "value": 2878.43,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10480,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T16:15:00",
+        "feature_name": "load",
+        "value": 6162.86,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10385,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T16:30:00",
+        "feature_name": "load",
+        "value": 6388.49,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10482,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T16:45:00",
+        "feature_name": "load",
+        "value": 6568.4,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10387,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T17:00:00",
+        "feature_name": "load",
+        "value": 3874.59,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10483,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T17:00:00",
+        "feature_name": "load",
+        "value": 5170.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10388,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T17:15:00",
+        "feature_name": "load",
+        "value": 5505.47,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11015,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T17:15:00",
+        "feature_name": "load",
+        "value": 5271.74,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11016,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T17:30:00",
+        "feature_name": "load",
+        "value": 6271.59,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11017,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T17:30:00",
+        "feature_name": "load",
+        "value": 6072.49,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10392,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T18:15:00",
+        "feature_name": "load",
+        "value": 3810.12,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11019,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T18:15:00",
+        "feature_name": "load",
+        "value": 6150.08,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10899,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T18:30:00",
+        "feature_name": "load",
+        "value": 5145.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11020,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T18:30:00",
+        "feature_name": "load",
+        "value": 4140.18,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11021,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T18:45:00",
+        "feature_name": "load",
+        "value": 3717.02,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11022,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T18:45:00",
+        "feature_name": "load",
+        "value": 3649.27,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10491,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T19:00:00",
+        "feature_name": "load",
+        "value": 7371.19,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10902,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T19:15:00",
+        "feature_name": "load",
+        "value": 6052.08,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11023,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T19:15:00",
+        "feature_name": "load",
+        "value": 6843.17,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10397,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T19:30:00",
+        "feature_name": "load",
+        "value": 6824.14,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10494,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T19:45:00",
+        "feature_name": "load",
+        "value": 7120.29,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11025,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T20:00:00",
+        "feature_name": "load",
+        "value": 6618.5,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11026,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T20:00:00",
+        "feature_name": "load",
+        "value": 3164.15,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11027,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T20:15:00",
+        "feature_name": "load",
+        "value": 3508.29,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10498,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T20:45:00",
+        "feature_name": "load",
+        "value": 5137.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10403,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T21:00:00",
+        "feature_name": "load",
+        "value": 5176.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10499,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T21:00:00",
+        "feature_name": "load",
+        "value": 5281.15,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10404,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T21:15:00",
+        "feature_name": "load",
+        "value": 4850.37,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10500,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T21:15:00",
+        "feature_name": "load",
+        "value": 5114.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10501,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T21:30:00",
+        "feature_name": "load",
+        "value": 5749.77,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10406,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T21:45:00",
+        "feature_name": "load",
+        "value": 5183.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10407,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T22:00:00",
+        "feature_name": "load",
+        "value": 5211.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10408,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T22:15:00",
+        "feature_name": "load",
+        "value": 5197.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11030,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T22:15:00",
+        "feature_name": "load",
+        "value": 3671.33,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11032,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T22:30:00",
+        "feature_name": "load",
+        "value": 5590.24,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11035,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T23:00:00",
+        "feature_name": "load",
+        "value": 5145.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11036,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T23:00:00",
+        "feature_name": "load",
+        "value": 6012.69,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10412,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T23:15:00",
+        "feature_name": "load",
+        "value": 5147.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10413,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T23:30:00",
+        "feature_name": "load",
+        "value": 5127.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11037,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T23:30:00",
+        "feature_name": "load",
+        "value": 5127.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10917,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-06T23:45:00",
+        "feature_name": "load",
+        "value": 5171.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10511,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T00:00:00",
+        "feature_name": "load",
+        "value": 5182.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11040,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T01:00:00",
+        "feature_name": "load",
+        "value": 6361.45,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10520,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T02:15:00",
+        "feature_name": "load",
+        "value": 5157.04,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10522,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T02:45:00",
+        "feature_name": "load",
+        "value": 4362.58,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11043,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T03:30:00",
+        "feature_name": "load",
+        "value": 5180.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11044,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T03:45:00",
+        "feature_name": "load",
+        "value": 7319.52,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11045,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T04:00:00",
+        "feature_name": "load",
+        "value": 5151.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11046,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T04:45:00",
+        "feature_name": "load",
+        "value": 5184.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10532,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T05:15:00",
+        "feature_name": "load",
+        "value": 5160.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10533,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T05:30:00",
+        "feature_name": "load",
+        "value": 5574.58,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10534,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T05:45:00",
+        "feature_name": "load",
+        "value": 5184.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11047,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T06:00:00",
+        "feature_name": "load",
+        "value": 3257.94,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11048,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T06:15:00",
+        "feature_name": "load",
+        "value": 4381.63,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10537,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T06:30:00",
+        "feature_name": "load",
+        "value": 5131.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11049,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T06:45:00",
+        "feature_name": "load",
+        "value": 5113.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10539,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T07:00:00",
+        "feature_name": "load",
+        "value": 6065.29,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11050,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T07:45:00",
+        "feature_name": "load",
+        "value": 4986.67,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10543,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T08:00:00",
+        "feature_name": "load",
+        "value": 4332.56,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10544,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T08:15:00",
+        "feature_name": "load",
+        "value": 5125.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11051,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T08:30:00",
+        "feature_name": "load",
+        "value": 5238.93,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11052,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T08:45:00",
+        "feature_name": "load",
+        "value": 5195.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11053,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T09:00:00",
+        "feature_name": "load",
+        "value": 5150.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10549,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T09:30:00",
+        "feature_name": "load",
+        "value": 4495.34,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10553,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T10:30:00",
+        "feature_name": "load",
+        "value": 5372.91,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10554,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T10:45:00",
+        "feature_name": "load",
+        "value": 5168.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10555,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T11:00:00",
+        "feature_name": "load",
+        "value": 6095.99,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10559,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T12:00:00",
+        "feature_name": "load",
+        "value": 5401.61,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11056,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T12:30:00",
+        "feature_name": "load",
+        "value": 5165.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11057,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T13:00:00",
+        "feature_name": "load",
+        "value": 5120.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10564,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T13:15:00",
+        "feature_name": "load",
+        "value": 6115.72,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10565,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T13:30:00",
+        "feature_name": "load",
+        "value": 4086.29,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10566,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T13:45:00",
+        "feature_name": "load",
+        "value": 5173.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10567,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T14:00:00",
+        "feature_name": "load",
+        "value": 5131.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10569,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T14:30:00",
+        "feature_name": "load",
+        "value": 7090.18,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11059,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T14:45:00",
+        "feature_name": "load",
+        "value": 6880.01,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10571,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T15:00:00",
+        "feature_name": "load",
+        "value": 5185.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10572,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T15:15:00",
+        "feature_name": "load",
+        "value": 6456.35,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10574,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T15:45:00",
+        "feature_name": "load",
+        "value": 6660.23,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10575,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T16:00:00",
+        "feature_name": "load",
+        "value": 4247.42,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11061,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T16:15:00",
+        "feature_name": "load",
+        "value": 7498.64,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10577,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T16:30:00",
+        "feature_name": "load",
+        "value": 3519.19,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10579,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T17:00:00",
+        "feature_name": "load",
+        "value": 5286.88,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10580,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T17:15:00",
+        "feature_name": "load",
+        "value": 4386.91,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11062,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T17:30:00",
+        "feature_name": "load",
+        "value": 6133.71,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11063,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T17:45:00",
+        "feature_name": "load",
+        "value": 3954.59,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11064,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T18:00:00",
+        "feature_name": "load",
+        "value": 5195.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10584,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T18:15:00",
+        "feature_name": "load",
+        "value": 6308.61,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10586,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T18:45:00",
+        "feature_name": "load",
+        "value": 5139.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10589,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T19:30:00",
+        "feature_name": "load",
+        "value": 5233.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10590,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T19:45:00",
+        "feature_name": "load",
+        "value": 3008.75,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11067,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T20:00:00",
+        "feature_name": "load",
+        "value": 5589.61,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10592,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T20:15:00",
+        "feature_name": "load",
+        "value": 5205.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10594,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T20:45:00",
+        "feature_name": "load",
+        "value": 5352.15,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10600,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T22:15:00",
+        "feature_name": "load",
+        "value": 5198.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10601,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T22:30:00",
+        "feature_name": "load",
+        "value": 5170.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11071,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T22:45:00",
+        "feature_name": "load",
+        "value": 5051.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10603,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T23:00:00",
+        "feature_name": "load",
+        "value": 5075.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11072,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T23:30:00",
+        "feature_name": "load",
+        "value": 5162.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11073,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-07T23:45:00",
+        "feature_name": "load",
+        "value": 5155.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10609,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T00:30:00",
+        "feature_name": "load",
+        "value": 5147.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11075,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T01:15:00",
+        "feature_name": "load",
+        "value": 5176.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11077,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T02:00:00",
+        "feature_name": "load",
+        "value": 5112.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11078,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T02:15:00",
+        "feature_name": "load",
+        "value": 6090.31,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11079,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T02:30:00",
+        "feature_name": "load",
+        "value": 5191.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10620,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T03:15:00",
+        "feature_name": "load",
+        "value": 5330.44,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11081,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T03:45:00",
+        "feature_name": "load",
+        "value": 3255.66,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11083,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T04:30:00",
+        "feature_name": "load",
+        "value": 7096.38,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10629,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T05:30:00",
+        "feature_name": "load",
+        "value": 5188.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11085,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T06:15:00",
+        "feature_name": "load",
+        "value": 5559.13,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11086,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T06:30:00",
+        "feature_name": "load",
+        "value": 5227.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10634,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T06:45:00",
+        "feature_name": "load",
+        "value": 3997.91,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10635,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T07:00:00",
+        "feature_name": "load",
+        "value": 5175.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10636,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T07:15:00",
+        "feature_name": "load",
+        "value": 4654.99,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10639,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T08:00:00",
+        "feature_name": "load",
+        "value": 5193.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11089,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T09:15:00",
+        "feature_name": "load",
+        "value": 5173.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10647,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T10:00:00",
+        "feature_name": "load",
+        "value": 6471.77,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11092,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T10:30:00",
+        "feature_name": "load",
+        "value": 5742.8,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10650,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T10:45:00",
+        "feature_name": "load",
+        "value": 5131.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10651,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T11:00:00",
+        "feature_name": "load",
+        "value": 5131.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10653,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T11:30:00",
+        "feature_name": "load",
+        "value": 5199.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10656,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T12:15:00",
+        "feature_name": "load",
+        "value": 5109.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10658,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T12:45:00",
+        "feature_name": "load",
+        "value": 4899.38,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10659,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T13:00:00",
+        "feature_name": "load",
+        "value": 6195.55,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10661,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T13:30:00",
+        "feature_name": "load",
+        "value": 5115.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11095,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T13:45:00",
+        "feature_name": "load",
+        "value": 3394.89,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11096,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T14:15:00",
+        "feature_name": "load",
+        "value": 6881.27,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10665,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T14:30:00",
+        "feature_name": "load",
+        "value": 5076.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11097,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T15:00:00",
+        "feature_name": "load",
+        "value": 6439.16,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10670,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T15:45:00",
+        "feature_name": "load",
+        "value": 5106.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10671,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T16:00:00",
+        "feature_name": "load",
+        "value": 7261.11,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10673,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T16:30:00",
+        "feature_name": "load",
+        "value": 5089.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11098,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T17:00:00",
+        "feature_name": "load",
+        "value": 5136.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10679,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T18:00:00",
+        "feature_name": "load",
+        "value": 5952.22,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11100,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T18:30:00",
+        "feature_name": "load",
+        "value": 6636.66,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10682,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T18:45:00",
+        "feature_name": "load",
+        "value": 5150.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10684,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T19:15:00",
+        "feature_name": "load",
+        "value": 6895.94,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11101,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T19:30:00",
+        "feature_name": "load",
+        "value": 7085.7,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10686,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T19:45:00",
+        "feature_name": "load",
+        "value": 3121.87,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11102,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T20:00:00",
+        "feature_name": "load",
+        "value": 5133.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11103,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T20:15:00",
+        "feature_name": "load",
+        "value": 5143.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10690,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T20:45:00",
+        "feature_name": "load",
+        "value": 7212.82,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11105,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T21:15:00",
+        "feature_name": "load",
+        "value": 6911.23,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10693,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T21:30:00",
+        "feature_name": "load",
+        "value": 4891.06,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11106,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T21:45:00",
+        "feature_name": "load",
+        "value": 5103.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10695,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T22:00:00",
+        "feature_name": "load",
+        "value": 5128.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10696,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T22:15:00",
+        "feature_name": "load",
+        "value": 5206.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10697,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T22:30:00",
+        "feature_name": "load",
+        "value": 6314.33,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10699,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T23:00:00",
+        "feature_name": "load",
+        "value": 5071.9,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10700,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T23:15:00",
+        "feature_name": "load",
+        "value": 7216.08,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11107,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-08T23:30:00",
+        "feature_name": "load",
+        "value": 4492.48,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10704,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T00:15:00",
+        "feature_name": "load",
+        "value": 6021.13,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10705,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T00:30:00",
+        "feature_name": "load",
+        "value": 7277.57,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11109,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T00:45:00",
+        "feature_name": "load",
+        "value": 4646.09,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11110,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T01:00:00",
+        "feature_name": "load",
+        "value": 3402.67,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10708,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T01:15:00",
+        "feature_name": "load",
+        "value": 5135.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11111,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T01:30:00",
+        "feature_name": "load",
+        "value": 5904.43,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10710,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T01:45:00",
+        "feature_name": "load",
+        "value": 5087.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10711,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T02:00:00",
+        "feature_name": "load",
+        "value": 2897.91,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10712,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T02:15:00",
+        "feature_name": "load",
+        "value": 5110.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11113,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T02:45:00",
+        "feature_name": "load",
+        "value": 3171.92,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10716,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T03:15:00",
+        "feature_name": "load",
+        "value": 3844.6,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10718,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T03:45:00",
+        "feature_name": "load",
+        "value": 3506.17,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11115,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T04:15:00",
+        "feature_name": "load",
+        "value": 6799.31,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10721,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T04:30:00",
+        "feature_name": "load",
+        "value": 3412.34,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10722,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T04:45:00",
+        "feature_name": "load",
+        "value": 3642.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10723,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T05:00:00",
+        "feature_name": "load",
+        "value": 5082.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10724,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T05:15:00",
+        "feature_name": "load",
+        "value": 2871.52,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11116,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T05:45:00",
+        "feature_name": "load",
+        "value": 4317.19,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11117,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T06:15:00",
+        "feature_name": "load",
+        "value": 5137.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10729,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T06:30:00",
+        "feature_name": "load",
+        "value": 6256.91,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11118,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T07:00:00",
+        "feature_name": "load",
+        "value": 3328.24,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11119,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T07:15:00",
+        "feature_name": "load",
+        "value": 7238.32,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11120,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T07:30:00",
+        "feature_name": "load",
+        "value": 6536.8,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10734,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T07:45:00",
+        "feature_name": "load",
+        "value": 5204.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10736,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T08:15:00",
+        "feature_name": "load",
+        "value": 5186.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11123,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T09:15:00",
+        "feature_name": "load",
+        "value": 3217.55,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10741,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T09:30:00",
+        "feature_name": "load",
+        "value": 5190.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10742,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T09:45:00",
+        "feature_name": "load",
+        "value": 4127.14,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10743,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T10:00:00",
+        "feature_name": "load",
+        "value": 5127.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11125,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T10:45:00",
+        "feature_name": "load",
+        "value": 4956.55,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10751,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T12:00:00",
+        "feature_name": "load",
+        "value": 5189.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10752,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T12:15:00",
+        "feature_name": "load",
+        "value": 5150.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11128,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T12:45:00",
+        "feature_name": "load",
+        "value": 4417.13,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11129,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T13:00:00",
+        "feature_name": "load",
+        "value": 4740.28,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10756,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T13:15:00",
+        "feature_name": "load",
+        "value": 4819.89,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10757,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T13:30:00",
+        "feature_name": "load",
+        "value": 5117.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10758,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T13:45:00",
+        "feature_name": "load",
+        "value": 3542.73,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10759,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T14:00:00",
+        "feature_name": "load",
+        "value": 5129.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10760,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T14:15:00",
+        "feature_name": "load",
+        "value": 6639.71,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 11130,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T14:30:00",
+        "feature_name": "load",
+        "value": 3276.89,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10764,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T15:15:00",
+        "feature_name": "load",
+        "value": 5500.11,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10771,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T17:00:00",
+        "feature_name": "load",
+        "value": 5115.0,
+        "slot": "load_forecast"
+      },
+      {
+        "id": 10772,
+        "station_id": "yARGkDuq",
+        "timestamp_utc": "2025-10-09T17:15:00",
+        "feature_name": "load",
+        "value": 5162.0,
+        "slot": "load_forecast"
+      }
+    ],
+    "deleted_ids": [
+      10100,
+      10005,
+      10101,
+      10103,
+      10008,
+      10104,
+      10009,
+      10105,
+      10010,
+      10106,
+      10107,
+      10012,
+      10108,
+      10109,
+      10015,
+      10111,
+      10112,
+      10017,
+      10113,
+      10020,
+      10021,
+      10117,
+      10119,
+      10120,
+      10025,
+      10121,
+      10026,
+      10122,
+      10027,
+      10123,
+      10124,
+      10029,
+      10125,
+      10030,
+      10128,
+      10129,
+      10225,
+      10131,
+      10133,
+      10229,
+      10134,
+      10230,
+      10135,
+      10232,
+      10233,
+      10234,
+      10139,
+      10235,
+      10140,
+      10236,
+      10141,
+      10142,
+      10238,
+      10239,
+      10144,
+      10240,
+      10145,
+      10242,
+      10147,
+      10243,
+      10244,
+      10150,
+      10247,
+      10152,
+      10153,
+      10249,
+      10154,
+      10251,
+      10156,
+      10252,
+      10158,
+      10255,
+      10256,
+      10257,
+      10162,
+      10258,
+      10163,
+      10165,
+      10261,
+      10167,
+      10263,
+      10168,
+      10265,
+      10170,
+      10266,
+      10171,
+      10172,
+      10268,
+      10173,
+      10174,
+      10270,
+      10176,
+      10272,
+      10177,
+      10273,
+      10178,
+      10274,
+      10179,
+      10275,
+      10180,
+      10181,
+      10278,
+      10183,
+      10184,
+      10280,
+      10281,
+      10186,
+      10283,
+      10188,
+      10284,
+      10189,
+      10285,
+      10287,
+      10192,
+      10288,
+      10289,
+      10194,
+      10290,
+      10195,
+      10291,
+      10196,
+      10197,
+      10198,
+      10294,
+      10297,
+      10202,
+      10298,
+      10203,
+      10299,
+      10204,
+      10205,
+      10206,
+      10302,
+      10208,
+      10209,
+      10305,
+      10306,
+      10211,
+      10212,
+      10308,
+      10213,
+      10214,
+      10215,
+      10311,
+      10216,
+      10217,
+      10313,
+      10314,
+      10219,
+      10220,
+      10316,
+      10221,
+      10222,
+      10319,
+      10415,
+      10416,
+      10321,
+      10322,
+      10418,
+      10324,
+      10420,
+      10325,
+      10327,
+      10423,
+      10426,
+      10427,
+      10333,
+      10429,
+      10334,
+      10430,
+      10335,
+      10432,
+      10433,
+      10338,
+      10435,
+      10340,
+      10436,
+      10341,
+      10438,
+      10439,
+      10344,
+      10440,
+      10345,
+      10442,
+      10443,
+      10348,
+      10444,
+      10349,
+      10447,
+      10352,
+      10448,
+      10354,
+      10355,
+      10358,
+      10359,
+      10457,
+      10458,
+      10364,
+      10365,
+      10461,
+      10462,
+      10367,
+      10463,
+      10368,
+      10465,
+      10466,
+      10467,
+      10468,
+      10469,
+      10470,
+      10375,
+      10471,
+      10472,
+      10473,
+      10378,
+      10474,
+      10379,
+      10380,
+      10381,
+      10383,
+      10479,
+      10480,
+      10385,
+      10482,
+      10387,
+      10483,
+      10388,
+      11015,
+      11016,
+      11017,
+      10392,
+      11019,
+      10899,
+      11020,
+      11021,
+      11022,
+      10491,
+      10902,
+      11023,
+      10397,
+      10494,
+      11025,
+      11026,
+      11027,
+      10498,
+      10403,
+      10499,
+      10404,
+      10500,
+      10501,
+      10406,
+      10407,
+      10408,
+      11030,
+      11032,
+      11035,
+      11036,
+      10412,
+      10413,
+      11037,
+      10917,
+      10511,
+      11040,
+      10520,
+      10522,
+      11043,
+      11044,
+      11045,
+      11046,
+      10532,
+      10533,
+      10534,
+      11047,
+      11048,
+      10537,
+      11049,
+      10539,
+      11050,
+      10543,
+      10544,
+      11051,
+      11052,
+      11053,
+      10549,
+      10553,
+      10554,
+      10555,
+      10559,
+      11056,
+      11057,
+      10564,
+      10565,
+      10566,
+      10567,
+      10569,
+      11059,
+      10571,
+      10572,
+      10574,
+      10575,
+      11061,
+      10577,
+      10579,
+      10580,
+      11062,
+      11063,
+      11064,
+      10584,
+      10586,
+      10589,
+      10590,
+      11067,
+      10592,
+      10594,
+      10600,
+      10601,
+      11071,
+      10603,
+      11072,
+      11073,
+      10609,
+      11075,
+      11077,
+      11078,
+      11079,
+      10620,
+      11081,
+      11083,
+      10629,
+      11085,
+      11086,
+      10634,
+      10635,
+      10636,
+      10639,
+      11089,
+      10647,
+      11092,
+      10650,
+      10651,
+      10653,
+      10656,
+      10658,
+      10659,
+      10661,
+      11095,
+      11096,
+      10665,
+      11097,
+      10670,
+      10671,
+      10673,
+      11098,
+      10679,
+      11100,
+      10682,
+      10684,
+      11101,
+      10686,
+      11102,
+      11103,
+      10690,
+      11105,
+      10693,
+      11106,
+      10695,
+      10696,
+      10697,
+      10699,
+      10700,
+      11107,
+      10704,
+      10705,
+      11109,
+      11110,
+      10708,
+      11111,
+      10710,
+      10711,
+      10712,
+      11113,
+      10716,
+      10718,
+      11115,
+      10721,
+      10722,
+      10723,
+      10724,
+      11116,
+      11117,
+      10729,
+      11118,
+      11119,
+      11120,
+      10734,
+      10736,
+      11123,
+      10741,
+      10742,
+      10743,
+      11125,
+      10751,
+      10752,
+      11128,
+      11129,
+      10756,
+      10757,
+      10758,
+      10759,
+      10760,
+      11130,
+      10764,
+      10771,
+      10772
+    ]
+  },
+  "rebind": {
+    "rebound": 3414,
+    "versions_updated": 5,
+    "pipeline": {
+      "skipped": false,
+      "daily_rolling_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251029000000",
+      "daily_rolling_skip_reason": null,
+      "backfill_updated_versions": 0
+    },
+    "rebind_after_pipeline": {
+      "rebound": 3414,
+      "versions_updated": 5,
+      "mape_by_workflow": {
+        "workflow-20260511-optimal-505": 10.213976004611894,
+        "workflow-load-forecast-backtest-v2": 10.073550723602288
+      }
+    }
+  },
+  "pipeline": {
+    "skipped": false,
+    "daily_rolling_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251029000000",
+    "daily_rolling_skip_reason": null,
+    "backfill_updated_versions": 0
+  },
+  "rerun_pipeline": true,
+  "rolling_mape_before": 10.627668,
+  "post_train_rolling_mape": 8.943826,
+  "rolling_mape_after": 9.41396,
+  "post_train_window_mape": 8.943826,
+  "rolling_mape_window_before": 1.827577,
+  "rolling_mape_window_after": 8.943826,
+  "rolling_mape_method": "daily_median",
+  "rolling_mape_pooled_after": 1.827577,
+  "degradation_pct": 57.97347,
+  "mape_delta_pct": 389.381624,
+  "daily_rolling_cycle_id": "workflow-20260511-optimal-505:404444be5e57706c:20251029000000",
+  "daily_rolling_skipped": false,
+  "daily_rolling_skip_reason": null,
+  "experiment_alert_baseline": 10.627668,
+  "experiment_alert_current": 9.41396,
+  "experiment_alert_degradation_pct": -11.420271,
+  "note": "accuracy-ops-ui-data-level",
+  "injected_at": "2026-07-28T03:32:10.670495+00:00"
+}

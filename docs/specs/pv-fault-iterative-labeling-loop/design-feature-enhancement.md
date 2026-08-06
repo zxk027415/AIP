@@ -1,4 +1,6 @@
 <!-- @AI_GENERATED -->
+> **⚠️ 已被取代（2026-07-30）**：见 [`docs/specs/pv-fault-label-segment-redesign/`](../pv-fault-label-segment-redesign/)。`solar_mode` / 多尺度切分 / split parity 相关设计已作废。
+
 # 扩展设计文档：光伏故障诊断窗口切分策略、标签扩充策略与审核增强
 
 ## Overview

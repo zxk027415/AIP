@@ -199,11 +199,14 @@ class AccuracyMonitor:
             "baseline_wmape": version_entry.get("baseline_wmape"),
         }
         if metrics is None:
-            return {**base, "rolling_mape": None, "rolling_wmape": None, "rolling_mae": None, "valid_cycle_count": None, "coverage_rate": None, "window_days": None, "status": None}
+            return {**base, "rolling_mape": None, "rolling_wmape": None, "rolling_mae": None, "valid_cycle_count": None, "coverage_rate": None, "window_days": None, "status": None, "daily_mape_series": [], "rolling_mape_pooled": None, "rolling_mape_method": None}
         return {
             **base,
             "rolling_mape": metrics.get("rolling_mape"),
             "rolling_wmape": metrics.get("rolling_wmape"),
+            "rolling_mape_pooled": metrics.get("rolling_mape_pooled"),
+            "rolling_mape_method": metrics.get("rolling_mape_method"),
+            "daily_mape_series": metrics.get("daily_mape_series") or [],
             "rolling_mae": metrics.get("rolling_mae"),
             "valid_cycle_count": metrics.get("valid_cycle_count"),
             "total_cycle_count": metrics.get("total_cycle_count"),

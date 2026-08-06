@@ -558,6 +558,53 @@ def _spawn_auto_retrain_if_requested(payload: Dict[str, Any], slot: str) -> None
     threading.Thread(target=_worker, daemon=True, name=f"auto-retrain-{request_id}").start()
 
 
+# @AI_GENERATED
+_manual_retrain_inflight: set[str] = set()
+
+
+def _spawn_manual_retrain(request_id: str, slot: str) -> None:
+    """后台执行「冻结快照 → 训练评估 → 切换生产模型」，同一 request_id 只调度一次。
+
+    必须后台化：快照冻结实测约 660s、训练评估还要数分钟，两者都远超前端 axios
+    的 120s 超时。原同步实现下浏览器在 120s 中断，``/run`` 再也不会被调用，
+    请求永久停在 queued —— 即用户看到的「点了立即重训没反应」。
+    """
+    with _auto_retrain_lock:
+        if request_id in _manual_retrain_inflight:
+            return
+        _manual_retrain_inflight.add(request_id)
+
+    def _worker() -> None:
+        service = _cumulative_training_for_slot(slot)
+        try:
+            service.attach_snapshot_to_request(request_id)
+            asyncio.run(_execute_cumulative_retrain(request_id, slot))
+        except Exception as exc:
+            logger.error(
+                "Manual cumulative retrain failed request_id=%s slot=%s: %s",
+                request_id,
+                slot,
+                exc,
+                exc_info=True,
+            )
+            # _execute_cumulative_retrain 内部失败时已置 failed；这里覆盖的是
+            # 快照冻结阶段的失败，否则请求会停在 queued 且无错误可读。
+            try:
+                service.mark_retrain_request(request_id, "failed", error=str(exc))
+            except Exception:
+                logger.exception("标记手动重训失败状态时出错 request_id=%s", request_id)
+        finally:
+            try:
+                service.clear_retrain_job_flag(request_id)
+            except Exception:
+                logger.exception("清理 active_job 标记失败 request_id=%s", request_id)
+            with _auto_retrain_lock:
+                _manual_retrain_inflight.discard(request_id)
+
+    threading.Thread(target=_worker, daemon=True, name=f"manual-retrain-{request_id}").start()
+# @AI_GENERATED: end
+
+
 async def _execute_cumulative_retrain(
     request_id: str,
     slot: str,
@@ -2462,14 +2509,74 @@ async def create_manual_cumulative_retrain_request(slot: str = "default", split_
         raise HTTPException(status_code=500, detail=f"创建手动重训请求失败: {exc}")
 
 
+# @AI_GENERATED
+@router.post("/cumulative-training/retrain-requests/manual-run")
+async def start_manual_cumulative_retrain(
+    slot: str = "default",
+    split_mode: Optional[str] = None,
+):
+    """立即返回，并在后台完成「冻结快照 → 训练评估 → 切换生产模型」。
+
+    前端应改调本接口而非 ``manual`` + ``{id}/run`` 两步同步调用：后者两步都会
+    超过 axios 的 120s 超时，导致重训请求创建后无人执行、永久停在 queued。
+    启动后用 ``GET /cumulative-training/state`` 轮询 ``latest_retrain_request.progress``
+    获取阶段与百分比。
+
+    Args:
+        split_mode: 可选，本次重训的切分策略（by_day / by_day_night），
+            先写入 state.json 再登记请求，供后台快照构建读取。
+    """
+    try:
+        resolved = _normalize_slot(slot)
+        service = _cumulative_training_for_slot(resolved)
+        if split_mode and str(split_mode).strip():
+            service.set_split_mode(str(split_mode).strip())
+        summary = service.reserve_manual_retrain_request()
+        request_id = str((summary.get("retrain_request") or {}).get("request_id") or "").strip()
+        if not request_id:
+            raise RuntimeError("手动重训请求登记失败，未取得 request_id")
+        _spawn_manual_retrain(request_id, resolved)
+        summary["started"] = True
+        summary["request_id"] = request_id
+        return summary
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        # 并发触发属于业务冲突而非参数错误。
+        raise HTTPException(status_code=409, detail=str(exc))
+    except Exception as exc:
+        logger.error("Failed to start manual cumulative retrain: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"启动手动重训失败: {exc}")
+# @AI_GENERATED: end
+
+
 @router.post("/cumulative-training/retrain-requests/{request_id}/run")
 async def run_cumulative_retrain_request(
     request_id: str,
     slot: str = "default",
+    background: bool = False,
 ):
-    """使用不可变累计快照训练；成功后原子切换为该槽位生产模型。"""
+    """使用不可变累计快照训练；成功后原子切换为该槽位生产模型。
+
+    Args:
+        background: 为 true 时立即返回并在后台执行，避免训练耗时打爆前端超时；
+            进度通过 ``GET /cumulative-training/state`` 轮询。
+    """
     try:
-        return await _execute_cumulative_retrain(request_id, _normalize_slot(slot))
+        resolved_slot = _normalize_slot(slot)
+        # @AI_GENERATED: 后台执行分支，供前端避开 120s HTTP 超时
+        if background:
+            service = _cumulative_training_for_slot(resolved_slot)
+            existing = service.get_retrain_request(request_id)
+            if existing.get("status") != "queued":
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"重训请求当前状态为 {existing.get('status')}，仅 queued 状态可执行",
+                )
+            _spawn_manual_retrain(request_id, resolved_slot)
+            return {"request": existing, "started": True, "request_id": request_id}
+        # @AI_GENERATED: end
+        return await _execute_cumulative_retrain(request_id, resolved_slot)
     except HTTPException:
         raise
     except ValueError as exc:
@@ -2852,16 +2959,27 @@ async def get_prediction_batch(batch_id: str, slot: str = "pv_fault"):
 
 
 class TscCompareRequest(BaseModel):
-    """启动 TSC 多模型对比实验的请求体。"""
+    """
+    启动 TSC 多模型对比实验的请求体。
+
+    evaluation — 评估口径：
+      'strict'（默认）严格口径多次划分，返回 mean ± std，可用于对外汇报
+      'legacy'        旧的单次按设备划分，仅供快速探索，不可对外引用
+    """
     model_names: Optional[List[str]] = None
     window_configs: Optional[List[Dict[str, Any]]] = None
-    n_repeats: int = 5
-    test_ratio: float = 0.2
-    random_state: int = 90
+    n_repeats: int = 10                      # strict 模式下是划分次数，建议 >=10
+    test_ratio: float = 0.2                  # 仅 legacy 模式用
+    random_state: int = 90                   # 仅 legacy 模式用
     tier_filter: Optional[int] = None
     dataset_path: Optional[str] = None
     preprocess_method: str = "per_sample_zscore"
-    fault_oversample: bool = True
+    fault_oversample: bool = True            # 仅 legacy 模式用
+    evaluation: str = "strict"               # strict | legacy
+    split_mode: str = "strict"               # strict | time | device
+    n_test_days: int = 3                     # 末尾多少天作为 test
+    held_device_ratio: float = 0.3           # strict 口径下保留作 test 的设备比例
+    baseline_model: Optional[str] = "rocket_rf"   # 配对差的对照基线
 
 
 @router.post("/tsc/compare")
@@ -2889,6 +3007,11 @@ async def start_tsc_compare(request: TscCompareRequest, slot: str = "pv_fault"):
                 detail="未指定 dataset_path 且无可用的累计训练快照"
             )
 
+    if request.evaluation not in ("strict", "legacy"):
+        raise HTTPException(status_code=422, detail="evaluation 只能是 strict 或 legacy")
+    if request.split_mode not in ("strict", "time", "device"):
+        raise HTTPException(status_code=422, detail="split_mode 只能是 strict / time / device")
+
     try:
         job_id = start_tsc_compare_job(
             slot=_normalize_slot(slot),
@@ -2901,8 +3024,19 @@ async def start_tsc_compare(request: TscCompareRequest, slot: str = "pv_fault"):
             tier_filter=request.tier_filter,
             preprocess_method=request.preprocess_method,
             fault_oversample=request.fault_oversample,
+            evaluation=request.evaluation,
+            split_mode=request.split_mode,
+            n_test_days=request.n_test_days,
+            held_device_ratio=request.held_device_ratio,
+            baseline_model=request.baseline_model,
         )
-        return {"job_id": job_id, "status": "started"}
+        warning = None
+        if request.evaluation == "strict" and request.n_repeats < 10:
+            warning = f"n_repeats={request.n_repeats} < 10，标准差估计不可靠，不建议对外引用"
+        elif request.evaluation == "legacy":
+            warning = "legacy 口径为单次按设备划分，仅供探索，不可对外引用"
+        return {"job_id": job_id, "status": "started",
+                "evaluation": request.evaluation, "warning": warning}
     except RuntimeError as e:
         raise HTTPException(status_code=409, detail=str(e))
 

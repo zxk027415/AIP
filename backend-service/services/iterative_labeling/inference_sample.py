@@ -19,7 +19,18 @@ import pandas as pd
 from services.iterative_labeling.daylight_window import DaylightWindow
 from services.iterative_labeling.sample_builder import SampleStrategy, build_samples
 
+# @AI_GENERATED: 与训练侧 snapshot_builder 共用派生列实现，保证 period_is_*/night_* 口径一致
+from services.iterative_labeling.sample_columns import (
+    NIGHT_FEATURE_COLUMNS,
+    PERIOD_ONE_HOT_COLUMNS,
+    sample_derived_columns,
+)
+# @AI_GENERATED: end
+
 logger = logging.getLogger(__name__)
+
+#: 预测侧样本行的派生列集合，供调用方校验模型特征契约是否可满足。
+INFERENCE_DERIVED_COLUMNS = tuple(PERIOD_ONE_HOT_COLUMNS) + tuple(NIGHT_FEATURE_COLUMNS)
 
 
 class InferenceSampleGenerator:
@@ -55,6 +66,13 @@ class InferenceSampleGenerator:
                 sub = device_rows.iloc[list(sample.row_indices)].copy()
                 sub["time_window"] = sample.sample_id
                 sub["period_role"] = sample.period_role
+                # @AI_GENERATED: 补齐 period_is_* / night_* 派生列。
+                # 训练快照由 snapshot_builder._materialize_sample_rows 写入这些列；
+                # 预测侧原先不写，逐点标签模型若把它们选进 feature_list，
+                # feature_select(transform) 就会缺列。用共用实现保证取值口径一致。
+                for column, value in sample_derived_columns(sample.period_role, sub).items():
+                    sub[column] = value
+                # @AI_GENERATED: end
                 frames.append(sub)
 
         if not frames:
@@ -65,6 +83,9 @@ class InferenceSampleGenerator:
             "sample_count": sample_total,
             "row_count": int(len(out)),
             "split_mode": strategy.split_mode,
+            "min_points": strategy.min_points,
+            "daylight_window_count": len(strategy.daylight_windows or {}),
+            "strategy_version": strategy.version,
             "discards": discard_all,
         }
         return out, audit

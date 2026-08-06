@@ -33,13 +33,33 @@ def _ensure_models_dir():
     os.makedirs(_MODELS_DIR, exist_ok=True)
 
 
-def _save_model(clf, feature_list: list, metrics: dict = None) -> str:
-    """序列化模型到磁盘，返回 model_id（文件名不含扩展名）。"""
+def _save_model(
+    clf,
+    feature_list: list,
+    metrics: dict = None,
+    sample_strategy: dict = None,
+    label_snapshot_hash: str = None,
+) -> str:
+    """序列化模型到磁盘，返回 model_id（文件名不含扩展名）。
+
+    Args:
+        sample_strategy: 训练时的样本切分策略。逐点标签路径的预测侧必须靠它复现
+            训练切分口径（见 services/iterative_labeling/inference_sample.py）；
+            原实现不写该字段，用本算子训出的模型天生缺策略，预测时才暴露。
+        label_snapshot_hash: 训练时逐点标签内容哈希，用于追溯。
+    """
     _ensure_models_dir()
     trained_at = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     model_id = f"pv_fault_rfc_{trained_at}_{uuid.uuid4().hex[:6]}"
     path = os.path.join(_MODELS_DIR, f"{model_id}.pkl")
-    payload = {"model": clf, "feature_list": feature_list}
+    # @AI_GENERATED: 与 stratified_cv_eval 的 pkl 结构对齐，补 sample_strategy / label_snapshot_hash
+    payload = {
+        "model": clf,
+        "feature_list": feature_list,
+        "sample_strategy": sample_strategy,
+        "label_snapshot_hash": label_snapshot_hash,
+    }
+    # @AI_GENERATED: end
     with open(path, "wb") as f:
         pickle.dump(payload, f)
     logger.info(f"[{OPERATOR_ID}] Model saved: {path}")
@@ -260,7 +280,30 @@ def execute(params: dict, inputs: dict) -> dict:
             eval_metrics["classification_report"] = classification_report(
                 y_test, predictions_test, labels=labels_sorted, zero_division=0
             )
-            model_id = _save_model(clf, feature_list, metrics=eval_metrics)
+            # @AI_GENERATED: 透传样本策略，使本算子产出的模型也能被逐点标签预测路径使用
+            _strategy = params.get("sample_strategy")
+            if isinstance(_strategy, str):
+                import json as _json
+                try:
+                    _strategy = _json.loads(_strategy)
+                except Exception as exc:
+                    raise OperatorExecutionError(
+                        OPERATOR_ID, "ParameterError",
+                        f"sample_strategy 不是合法 JSON，无法随模型持久化: {exc}",
+                    )
+            if _strategy is not None and not isinstance(_strategy, dict):
+                raise OperatorExecutionError(
+                    OPERATOR_ID, "ParameterError",
+                    f"sample_strategy 必须是对象，实际为 {type(_strategy).__name__}",
+                )
+            model_id = _save_model(
+                clf,
+                feature_list,
+                metrics=eval_metrics,
+                sample_strategy=_strategy,
+                label_snapshot_hash=params.get("label_snapshot_hash"),
+            )
+            # @AI_GENERATED: end
 
         logger.info(
             f"[{OPERATOR_ID}] train: n_estimators={n_estimators}, "
@@ -345,4 +388,9 @@ def execute(params: dict, inputs: dict) -> dict:
         result = {"predictions": predictions, "model_metrics": saved_metrics, "model_id": resolved_model_id}
         if confidences is not None:
             result["confidences"] = confidences
+        # 供审核 SHAP/相似案例：保留本次预测实际喂给模型的特征表（与 predictions 行对齐）
+        try:
+            result["explain_features"] = predict_features.copy()
+        except Exception:
+            pass
         return result

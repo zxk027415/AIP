@@ -1,4 +1,6 @@
 <!-- @AI_GENERATED -->
+> **⚠️ 已被取代（2026-07-30）**：见 [`docs/specs/pv-fault-label-segment-redesign/`](../pv-fault-label-segment-redesign/)。`solar_mode` / 旧 `time_window` 语义 / 逐点 label 列相关需求已作废。
+
 # 需求文档：光伏故障人机协同迭代标注闭环
 
 ## 简介

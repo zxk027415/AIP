@@ -31,6 +31,7 @@ import { PV_FAULT_PRIMARY } from '../theme/pvFaultTheme';
 import './deployment/algorithmDeploymentWorkspace.css';
 // @AI_GENERATED: pv_fault 专用部署视图依赖
 import { cumulativeTrainingApi } from '../services/iterativeLabelingApi';
+import { formatBackendDateTime } from '../utils/datetime';
 // @AI_GENERATED: end
 
 const { Title, Paragraph } = Typography;
@@ -43,11 +44,10 @@ interface LabelWaveform {
   point_count: number;
 }
 
-const formatDeploymentTime = (value?: string) => {
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false });
-};
+// @AI_GENERATED: 后端时间戳是不带时区的 UTC 裸字符串，直接 new Date 会被当成本地时间，
+// 导致完成时间比真实时间早 8 小时（UTC+8）。改用统一工具补 Z 后再转本地。
+const formatDeploymentTime = (value?: string) => formatBackendDateTime(value);
+// @AI_GENERATED: end
 
 const retrainStatusTag = (status?: string) => {
   if (status === 'completed') return <Tag color="success">已完成</Tag>;
@@ -217,10 +217,16 @@ const PvFaultDeploymentView: React.FC = () => {
   const [retrainRunning, setRetrainRunning] = useState(false);
   const [lastTrainResult, setLastTrainResult] = useState<Record<string, any> | null>(null);
   const [selectedRetrainId, setSelectedRetrainId] = useState<string | null>(null);
-  // @AI_GENERATED: 下次重训的切分策略选择器状态（默认 by_day，A/B 验证最优）
-  const [nextSplitMode, setNextSplitMode] = useState<string>(
-    () => String((state as any)?.split_mode || 'by_day')
-  );
+  // @AI_GENERATED: 本次由本页启动的后台重训 request_id。
+  // 重训改为后台执行后，需要它把轮询到的状态和「我刚点的那次」对应上，
+  // 否则页面上残留的历史 completed 请求会被误判成本次已完成。
+  const [retrainJobId, setRetrainJobId] = useState<string | null>(null);
+  // @AI_GENERATED: end
+  // @AI_GENERATED: 下次重训的切分策略选择器状态（默认 by_day，A/B 验证最优）。
+  // 惰性初始化时 state 恒为 null，取不到服务端值，故由 load() 回填一次；
+  // splitModeTouched 保证用户手动选过之后不再被服务端值覆盖。
+  const [nextSplitMode, setNextSplitMode] = useState<string>('by_day');
+  const splitModeTouched = React.useRef(false);
   // @AI_GENERATED: end
   const [waveformOpen, setWaveformOpen] = useState(false);
   const [waveformLoading, setWaveformLoading] = useState(false);
@@ -240,6 +246,12 @@ const PvFaultDeploymentView: React.FC = () => {
       setState(ctState as Record<string, any>);
       setLabels(labelsResp?.labels ?? []);
       const statePayload = ctState as Record<string, any>;
+      // @AI_GENERATED: 用服务端持久化的 split_mode 回填选择器（仅在用户未手动改动时）
+      const serverSplitMode = String(statePayload.split_mode ?? '').trim();
+      if (!splitModeTouched.current && serverSplitMode) {
+        setNextSplitMode(serverSplitMode);
+      }
+      // @AI_GENERATED: end
       setSelectedRetrainId(current => current
         ?? statePayload.production_model?.request_id
         ?? statePayload.latest_completed_retrain?.request_id
@@ -262,50 +274,89 @@ const PvFaultDeploymentView: React.FC = () => {
     }
   }, []);
 
+  // @AI_GENERATED: 重训期间轮询状态。
+  // 只要本页启动过后台任务（retrainJobId 非空）或后端有请求处于 running 就持续轮询；
+  // 不能只看 running —— 快照冻结阶段状态是 queued/preparing_snapshot，若不轮询进度条不动。
   useEffect(() => {
-    const status = state?.latest_retrain_request?.status;
-    if (!retrainRunning && status !== 'running') return undefined;
+    const request = state?.latest_retrain_request as Record<string, any> | undefined;
+    const status = request?.status;
+    // active_job：后端标记「有后台线程正在推进这条请求」。刷新页面后 retrainJobId
+    // 会丢，靠它才能继续把快照冻结阶段的进度刷出来。
+    const backendBusy = status === 'running' || (status === 'queued' && Boolean(request?.active_job));
+    if (!retrainJobId && !backendBusy) return undefined;
     void refreshRetrainState();
     const timer = window.setInterval(() => {
       void refreshRetrainState();
-    }, 1200);
+    }, 1500);
     return () => window.clearInterval(timer);
-  }, [refreshRetrainState, retrainRunning, state?.latest_retrain_request?.status]);
+  }, [
+    refreshRetrainState,
+    retrainJobId,
+    state?.latest_retrain_request?.status,
+    state?.latest_retrain_request?.active_job,
+  ]);
 
+  // @AI_GENERATED: 后台重训终态收敛 —— 只认本页启动的那条 request_id。
+  useEffect(() => {
+    if (!retrainJobId) return;
+    const request = state?.latest_retrain_request as Record<string, any> | undefined;
+    if (!request || String(request.request_id ?? '') !== retrainJobId) return;
+    const status = String(request.status ?? '');
+    if (status !== 'completed' && status !== 'failed' && status !== 'cancelled') return;
+
+    setRetrainJobId(null);
+    setRetrainRunning(false);
+    if (status === 'completed') {
+      const summary = (request.train_summary ?? {}) as Record<string, any>;
+      setLastTrainResult(summary);
+      setSelectedRetrainId(retrainJobId);
+      messageApi.success(
+        `重训完成，生产模型已切换为 ${request.model_ref ?? '—'}：`
+        + `Macro-F1=${summary.macro_f1_mean ?? '—'}，Accuracy=${summary.accuracy_mean ?? '—'}`,
+      );
+    } else if (status === 'failed') {
+      messageApi.error(`重训失败：${request.error ?? '未知原因'}`);
+    } else {
+      messageApi.warning('重训已被新的重训请求取代');
+    }
+    void load();
+  }, [retrainJobId, state?.latest_retrain_request, load, messageApi]);
+  // @AI_GENERATED: end
+
+  // @AI_GENERATED: 改为「启动后台重训 + 轮询进度」。
+  // 原实现同步等待 createManualRetrainRequest 再等 runRetrainRequest，两步都远超
+  // axios 的 120s 超时（快照冻结实测 660s），浏览器中断后 run 永不被调用，
+  // 请求永久停在 queued/0% —— 这正是「点了立即重训没反应」的根因。
   const handleRetrain = async () => {
-    if (state?.latest_retrain_request?.status === 'running') {
+    const latest = state?.latest_retrain_request as Record<string, any> | undefined;
+    if (latest?.status === 'running' || (latest?.status === 'queued' && latest?.active_job)) {
       messageApi.warning('重训正在执行中，请等待完成');
       return;
     }
     setRetrainRunning(true);
     try {
-      const created = await cumulativeTrainingApi.createManualRetrainRequest('pv_fault', nextSplitMode);
-      const requestId = String((created.retrain_request as Record<string, any> | undefined)?.request_id ?? '');
+      const resp = await cumulativeTrainingApi.startManualRetrain('pv_fault', nextSplitMode);
+      const requestId = String(
+        (resp.request_id as string | undefined)
+        ?? (resp.retrain_request as Record<string, any> | undefined)?.request_id
+        ?? '',
+      );
       if (!requestId) {
-        throw new Error('无法创建手动重训请求');
+        throw new Error('启动重训失败：后端未返回 request_id');
       }
-      const resp = await cumulativeTrainingApi.runRetrainRequest(
-        requestId,
-        'pv_fault',
+      setRetrainJobId(requestId);
+      messageApi.info(
+        `已启动后台重训（切分=${nextSplitMode}）：先冻结累计训练快照再训练，`
+        + '耗时通常十几分钟，进度会自动刷新，可离开本页。',
       );
-      const trainResult = resp.train_result as Record<string, any>;
-      const accuracy = trainResult?.accuracy_record as Record<string, any> | undefined;
-      setLastTrainResult(trainResult as Record<string, any>);
-      setSelectedRetrainId((resp.request as Record<string, any>)?.request_id ?? requestId);
-      const f1 = accuracy?.macro_f1_mean;
-      const acc = accuracy?.accuracy_mean;
-      messageApi.success(
-        f1 != null || acc != null
-          ? `重训并切换生产模型完成（切分=${selectedSolarMode || '整天'}）：Macro-F1=${f1 ?? '—'}，Accuracy=${acc ?? '—'}`
-          : `重训完成，生产模型已切换为 ${resp.production_model_ref}`,
-      );
-      await load();
+      await refreshRetrainState();
     } catch (err: any) {
-      messageApi.error(err?.response?.data?.detail || '重训失败');
-    } finally {
+      // 后台化后这里只可能是「启动」失败（并发冲突 409 等），不再有超时中断。
       setRetrainRunning(false);
+      messageApi.error(err?.response?.data?.detail || err?.message || '启动重训失败');
     }
   };
+  // @AI_GENERATED: end
 
   const handleViewLabelWaveforms = async (registrationMode = false) => {
     const snapshotPath = String(state?.latest_snapshot?.dataset_path ?? '').trim();
@@ -396,13 +447,24 @@ const PvFaultDeploymentView: React.FC = () => {
   );
   const retrainStageLabels: Record<string, string> = {
     queued: '等待执行',
-    preparing_snapshot: '校验训练快照',
+    // @AI_GENERATED: 后台化后 preparing_snapshot 是最耗时的阶段（全量拉测量数据冻结快照）
+    preparing_snapshot: '冻结训练快照',
+    snapshot_ready: '快照已就绪',
+    // @AI_GENERATED: end
     training_and_evaluation: '训练与交叉验证',
     registering_model: '登记模型版本',
     promoting_model: '切换生产模型',
     completed: '已完成',
     failed: '执行失败',
+    cancelled: '已被新请求取代',
   };
+  // @AI_GENERATED: 后台重训进行中的判定 —— 刷新页面后本地 retrainRunning 会丢，
+  // 必须依据后端的 active_job 标记，否则用户重复点击只会拿到 409。
+  const retrainInFlight = Boolean(
+    latestRequest?.status === 'running'
+    || (latestRequest?.status === 'queued' && latestRequest?.active_job),
+  );
+  // @AI_GENERATED: end
   const latestCompleted = state?.latest_completed_retrain as Record<string, any> | undefined;
   const productionModel = state?.production_model as Record<string, any> | undefined;
   const latestSnapshot = state?.latest_snapshot;
@@ -692,7 +754,7 @@ const PvFaultDeploymentView: React.FC = () => {
                 <Select
                   size="small"
                   value={nextSplitMode}
-                  onChange={(v: string) => setNextSplitMode(v)}
+                  onChange={(v: string) => { splitModeTouched.current = true; setNextSplitMode(v); }}
                   style={{ width: 150 }}
                   options={[
                     { label: 'by_day（按天）', value: 'by_day' },
@@ -701,8 +763,8 @@ const PvFaultDeploymentView: React.FC = () => {
                 />
                 <Button
                   type="primary"
-                  loading={retrainRunning}
-                  disabled={retrainRunning || latestRequest?.status === 'running'}
+                  loading={retrainRunning || retrainInFlight}
+                  disabled={retrainRunning || retrainInFlight}
                   onClick={handleRetrain}
                 >
                   立即执行重训

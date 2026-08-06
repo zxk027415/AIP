@@ -364,4 +364,53 @@ def test_freeform_import_counts_as_one_unit_and_keeps_window_in_snapshot(tmp_pat
     assert free_key in set(frame["time_window"].astype(str))
     # 同时间戳两条（整天无窗键 / 自由窗）都应保留
     assert len(frame) == 8
+
+
+def test_manual_retrain_request_does_not_require_threshold(tmp_path: Path):
+    service = _service(tmp_path, threshold=20)
+    dataset_path = service.project_root / "historical_labeled.csv"
+    pd.DataFrame(
+        {
+            "time": ["2026-07-14 00:00:00", "2026-07-14 00:15:00"],
+            "site_id": ["site-a", "site-a"],
+            "device_id": ["device-1", "device-1"],
+            "branch_id": ["branch-1", "branch-1"],
+            "value": [1.0, 2.0],
+            "label": [0, 1],
+        }
+    ).to_csv(dataset_path, index=False)
+    service.register_labeled_dataset("historical_labeled.csv", change_units=1)
+
+    result = service.request_manual_retrain()
+    request = result["retrain_request"]
+
+    assert request is not None
+    assert request["status"] == "queued"
+    assert request["trigger_reason"] == "manual"
+    assert request["auto_execute"] is False
+    assert result["pending_change_count"] == 1
+
+
+def test_auto_threshold_request_marks_auto_execute_and_resets_counter(tmp_path: Path):
+    service = _service(tmp_path, threshold=2)
+    dataset_path = service.project_root / "historical_labeled.csv"
+    pd.DataFrame(
+        {
+            "time": ["2026-07-14 00:00:00", "2026-07-14 00:15:00"],
+            "site_id": ["site-a", "site-a"],
+            "device_id": ["device-1", "device-1"],
+            "branch_id": ["branch-1", "branch-1"],
+            "value": [1.0, 2.0],
+            "label": [0, 1],
+        }
+    ).to_csv(dataset_path, index=False)
+
+    result = service.register_labeled_dataset("historical_labeled.csv", change_units=2)
+    request = result["retrain_request"]
+
+    assert request is not None
+    assert request["trigger_reason"] == "auto_threshold"
+    assert request["auto_execute"] is True
+    assert result["pending_change_count"] == 0
+    assert result["_auto_retrain_request_id"] == request["request_id"]
 # @AI_GENERATED: end

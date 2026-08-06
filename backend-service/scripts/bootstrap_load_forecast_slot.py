@@ -54,7 +54,8 @@ def activate_metrics(slot: str, min_valid_cycles: int) -> dict:
 
 def feed_days(slot: str, days: int) -> None:
     """按自然日推进 mock；每天最多暴露 1 个业务日，避免未来行提前可见。"""
-    from services.db.adapter import get_default_adapter
+    from services.db.adapter import DBAdapter
+    from services.db.config import DBConfig
     from services.db.datasources.local_db_mock import (
         LocalDbMockDataSource,
         build_default_mock_feeder,
@@ -66,7 +67,7 @@ def feed_days(slot: str, days: int) -> None:
             f"--feed-days={days} 过大；请分批推进，避免误把长时间跨度当成一次灌库"
         )
 
-    adapter = get_default_adapter()
+    adapter = DBAdapter(DBConfig())
     feeder = build_default_mock_feeder(adapter)
     feeder.ensure_tables()
     source = LocalDbMockDataSource(adapter)

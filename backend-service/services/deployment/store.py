@@ -317,6 +317,15 @@ class DeploymentSlotStore:
             raw[slot_name] = slot_obj.model_dump()
             _atomic_write_json(self._path, raw)
 
+        # JSON 写完后双写 DB（此前漏调会导致 DB 状态落后）
+        try:
+            _dual_write_slot_to_db(slot_obj)
+        except Exception as exc:
+            logger.warning(
+                "deployment.store.promote_prelaunch_to_shadow dual-write failed: %s",
+                exc,
+            )
+
         logger.info(
             "deployment.store.promote_prelaunch_to_shadow: "
             "slot=%s workflow=%s 已从 prelaunch 毕业为 shadow",
@@ -561,7 +570,17 @@ def _dual_write_slot_to_db(slot: "DeploymentSlot") -> None:
                 "consecutive_better_days": int(mv.consecutive_better_days or 0),
                 "source_run_id": (mv.source_run_id or None),
                 "source_candidate_id": (mv.source_candidate_id or None),
-                "prelaunch_meta_json": meta,
+                # DB 尚无独立 experiment_patch 列：嵌进 prelaunch_meta_json 保活
+                "prelaunch_meta_json": {
+                    **(meta or {}),
+                    **(
+                        {"_experiment_patch": getattr(mv, "experiment_patch", None)}
+                        if getattr(mv, "experiment_patch", None)
+                        else {}
+                    ),
+                }
+                if (meta is not None or getattr(mv, "experiment_patch", None))
+                else None,
             })
     except Exception as exc:
         logger.warning("deployment dual-write slot → DB failed (non-fatal): %s", exc)

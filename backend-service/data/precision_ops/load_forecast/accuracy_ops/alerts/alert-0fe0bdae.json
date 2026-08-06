@@ -1,0 +1,28 @@
+{
+  "alert_id": "alert-0fe0bdae",
+  "slot": "load_forecast",
+  "model_form": "production",
+  "workflow_id": "workflow-20260511-optimal-505",
+  "version_tag": "optimal-505-production",
+  "baseline_mape": 5.6616,
+  "current_rolling_mape": 1.827577,
+  "metric_name": "mape",
+  "baseline_metric": 1.169958,
+  "current_metric": 1.827577,
+  "degradation_pct": 56.20876988746603,
+  "degradation_trend": "sudden",
+  "severity": "critical",
+  "status": "open",
+  "cooldown_until": "2026-07-29T03:24:48.640309+00:00",
+  "rca_report_id": "rca-197fc242",
+  "recovery_decision_id": null,
+  "recovery_evidence": {
+    "type": "experiment_inject",
+    "ref": "pre_inject_online_mape_baseline",
+    "at": "2026-07-27T09:58:22.895187+00:00",
+    "baseline_online_mape": 1.169958,
+    "current_mape": 1.827577
+  },
+  "created_at": "2026-07-27T09:58:22.895187+00:00",
+  "updated_at": "2026-07-28T03:24:48.647857+00:00"
+}

@@ -270,8 +270,29 @@ class AccuracyOperationsStore:
         """
         self.save_alert(slot, alert)
 
-    def transition_alert_status(
+    # @AI_GENERATED: 实验 restore 专用——绕过状态机直接关闭，不走 transition
+    def force_close_alert(
         self,
+        slot: str,
+        alert_id: str,
+        recovery_evidence: Optional[dict] = None,
+    ) -> Optional["AccuracyAlert"]:
+        """直接将告警状态改为 closed，不校验状态机迁移路径。
+        仅供劣化实验 restore 使用。正常运营流程必须走 transition_alert_status。
+        """
+        from services.precision_ops.utils import now_iso
+        alert = self.get_alert(slot, alert_id)
+        if alert is None:
+            return None
+        alert.status = "closed"  # type: ignore[assignment]
+        alert.updated_at = now_iso()
+        if recovery_evidence:
+            alert.recovery_evidence = recovery_evidence
+        self.save_alert(slot, alert)
+        return alert
+    # @AI_GENERATED: end
+
+    def transition_alert_status(
         slot: str,
         alert_id: str,
         new_status: str,

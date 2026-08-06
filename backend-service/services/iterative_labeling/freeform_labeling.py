@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""自由时间窗打标：审核页框选区间 → 专属窗口键样本 → 累计训练集。"""
+"""自由时间窗打标：审核页框选区间 → PointLabelService（pv_fault）或 legacy 切片。"""
 
 from __future__ import annotations
 
@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional
 
 from services.iterative_labeling.cumulative_training import CumulativeTrainingService
 from services.iterative_labeling.label_registry import LabelRegistryService
+from services.iterative_labeling.point_label_service import PointLabelService, PointLabelValidationError
+from services.iterative_labeling.point_label_wiring import submit_freeform_as_point_label
 from services.iterative_labeling.pv_training_workspace import PVTrainingWorkspaceService
 from services.iterative_labeling.review_session import ReviewSessionService
 
@@ -55,12 +57,14 @@ class FreeformLabelingService:
         registry: Optional[LabelRegistryService] = None,
         workspace: Optional[PVTrainingWorkspaceService] = None,
         cumulative: Optional[CumulativeTrainingService] = None,
+        point_label_service: Optional[PointLabelService] = None,
     ):
         self.slot = slot
         self.review_service = review_service or ReviewSessionService(slot=slot)
         self.registry = registry or LabelRegistryService(slot=slot)
         self.workspace = workspace or PVTrainingWorkspaceService()
         self.cumulative = cumulative or CumulativeTrainingService(slot=slot)
+        self.point_label_service = point_label_service
 
     def list_labels(self, review_id: str) -> List[Dict[str, Any]]:
         session = self.review_service.get_session(review_id)
@@ -93,12 +97,6 @@ class FreeformLabelingService:
         if end <= start:
             raise ValueError("t_end 必须晚于 t_start")
 
-        ctx = session.get("prediction_context") or {}
-        source_csv_path = str(ctx.get("source_csv_path") or "").strip()
-        if not source_csv_path:
-            raise ValueError("审核会话缺少 prediction_context.source_csv_path")
-
-        # Resolve device identity from source unit when omitted.
         if source_unit_key:
             for unit in session.get("units") or []:
                 if unit.get("unit_key") == source_unit_key:
@@ -108,6 +106,163 @@ class FreeformLabelingService:
                     break
         if device_id is None:
             raise ValueError("缺少 device_id（或有效的 source_unit_key）")
+        branch_id = branch_id if branch_id is not None else "1"
+        site_id = str(site_id) if site_id is not None else ""
+
+        if action_type == "new_label":
+            if not new_label_name or not str(new_label_name).strip():
+                raise ValueError("new_label 需要 new_label_name")
+            allocated = self.registry.allocate_label(str(new_label_name).strip())
+            label_id = int(allocated["label_id"])
+        elif action_type == "correct":
+            if verdict_label is None:
+                raise ValueError("correct 需要 verdict_label")
+            label_id = int(verdict_label)
+        else:
+            raise ValueError("action_type 仅支持 correct / new_label")
+
+        unit_key = freeform_unit_key(site_id, device_id, branch_id, t_start, t_end)
+        window_key = freeform_time_window_key(t_start, t_end)
+
+        if self.slot == "pv_fault" and self.point_label_service is not None:
+            return self._create_point_label(
+                review_id=review_id,
+                session=session,
+                site_id=site_id,
+                device_id=str(device_id),
+                branch_id=str(branch_id),
+                start=start,
+                end=end,
+                label_id=label_id,
+                action_type=action_type,
+                reviewer=reviewer,
+                source_unit_key=source_unit_key,
+                unit_key=unit_key,
+                window_key=window_key,
+            )
+
+        return self._create_legacy_slice(
+            review_id=review_id,
+            session=session,
+            site_id=site_id,
+            device_id=device_id,
+            branch_id=branch_id,
+            start=start,
+            end=end,
+            label_id=label_id,
+            action_type=action_type,
+            reviewer=reviewer,
+            source_unit_key=source_unit_key,
+            unit_key=unit_key,
+            window_key=window_key,
+            t_start=t_start,
+            t_end=t_end,
+        )
+
+    def _create_point_label(
+        self,
+        *,
+        review_id: str,
+        session: Dict[str, Any],
+        site_id: str,
+        device_id: str,
+        branch_id: str,
+        start: datetime,
+        end: datetime,
+        label_id: int,
+        action_type: str,
+        reviewer: str,
+        source_unit_key: Optional[str],
+        unit_key: str,
+        window_key: str,
+    ) -> Dict[str, Any]:
+        service = self.point_label_service
+        assert service is not None
+        overlaps = service._labels.query_active_human_range_overlap(
+            site_id, device_id, branch_id, start, end,
+        )
+        if overlaps:
+            raise ValueError(
+                f"与已有 human_range 标注重叠: {overlaps[0].get('op_id')}"
+            )
+
+        pl_result = submit_freeform_as_point_label(
+            service,
+            review_id=review_id,
+            site_id=site_id,
+            device_id=device_id,
+            branch_id=branch_id,
+            t_start=start,
+            t_end=end,
+            label_id=label_id,
+            reviewer=reviewer,
+        )
+        cumulative_training = self.cumulative.admit_point_label_op(
+            review_id=review_id,
+            op_id=pl_result["op_id"],
+            verdict={
+                "is_ground_truth": True,
+                "action_type": action_type,
+                "verdict_label": label_id,
+                "reviewer": reviewer,
+            },
+        )
+
+        record = {
+            "unit_key": unit_key,
+            "period_role": "freeform",
+            "t_start": start.isoformat(sep=" "),
+            "t_end": end.isoformat(sep=" "),
+            "time_window": window_key,
+            "verdict_label": label_id,
+            "action_type": action_type,
+            "reviewer": reviewer,
+            "reviewed_at": datetime.utcnow().isoformat(),
+            "source_review_id": review_id,
+            "source_unit_key": source_unit_key,
+            "site_id": site_id,
+            "device_id": device_id,
+            "branch_id": branch_id,
+            "op_id": pl_result["op_id"],
+            "companion_op_ids": pl_result.get("companion_op_ids") or [],
+            "materialized": pl_result.get("materialized"),
+            "cumulative_training": cumulative_training,
+            "label_backend": "point_label",
+        }
+        existing = list(session.get("freeform_labels") or [])
+        existing.append(record)
+        session["freeform_labels"] = existing
+        self.review_service.review_repo.save_verdict(self.slot, review_id, session)
+        logger.info(
+            "freeform point_label created review=%s op=%s",
+            review_id,
+            pl_result["op_id"],
+        )
+        return record
+
+    def _create_legacy_slice(
+        self,
+        *,
+        review_id: str,
+        session: Dict[str, Any],
+        site_id: Any,
+        device_id: Any,
+        branch_id: Any,
+        start: datetime,
+        end: datetime,
+        label_id: int,
+        action_type: str,
+        reviewer: str,
+        source_unit_key: Optional[str],
+        unit_key: str,
+        window_key: str,
+        t_start: str,
+        t_end: str,
+    ) -> Dict[str, Any]:
+        ctx = session.get("prediction_context") or {}
+        source_csv_path = str(ctx.get("source_csv_path") or "").strip()
+        if not source_csv_path:
+            raise ValueError("审核会话缺少 prediction_context.source_csv_path")
 
         existing = self.list_labels(review_id)
         for item in existing:
@@ -123,24 +278,7 @@ class FreeformLabelingService:
                 _parse_ts(str(item["t_start"])),
                 _parse_ts(str(item["t_end"])),
             ):
-                raise ValueError(
-                    f"与已有自由窗标注重叠: {item.get('unit_key')}"
-                )
-
-        if action_type == "new_label":
-            if not new_label_name or not str(new_label_name).strip():
-                raise ValueError("new_label 需要 new_label_name")
-            allocated = self.registry.allocate_label(str(new_label_name).strip())
-            label_id = int(allocated["label_id"])
-        elif action_type == "correct":
-            if verdict_label is None:
-                raise ValueError("correct 需要 verdict_label")
-            label_id = int(verdict_label)
-        else:
-            raise ValueError("action_type 仅支持 correct / new_label")
-
-        window_key = freeform_time_window_key(t_start, t_end)
-        unit_key = freeform_unit_key(site_id, device_id, branch_id, t_start, t_end)
+                raise ValueError(f"与已有自由窗标注重叠: {item.get('unit_key')}")
 
         meta = self.workspace.create_confirmed_time_slice(
             source_path=source_csv_path,
@@ -179,11 +317,12 @@ class FreeformLabelingService:
             "dataset_path": meta["dataset_path"],
             "row_count": meta.get("row_count"),
             "cumulative_training": import_result,
+            "label_backend": "legacy_slice",
         }
         existing.append(record)
         session["freeform_labels"] = existing
         self.review_service.review_repo.save_verdict(self.slot, review_id, session)
-        logger.info("freeform label created review=%s unit=%s rows=%s", review_id, unit_key, meta.get("row_count"))
+        logger.info("freeform legacy label created review=%s unit=%s", review_id, unit_key)
         return record
 
     def revoke_label(self, review_id: str, unit_key: str) -> Dict[str, Any]:
@@ -191,12 +330,28 @@ class FreeformLabelingService:
         if not session:
             raise KeyError(review_id)
         labels = list(session.get("freeform_labels") or [])
-        kept = [item for item in labels if item.get("unit_key") != unit_key]
-        if len(kept) == len(labels):
+        target = next((item for item in labels if item.get("unit_key") == unit_key), None)
+        if target is None:
             raise KeyError(unit_key)
+
+        revoke_result: Dict[str, Any] = {"revoked": True, "unit_key": unit_key}
+        if (
+            self.slot == "pv_fault"
+            and self.point_label_service is not None
+            and target.get("op_id")
+        ):
+            try:
+                revoke_result = self.point_label_service.revoke_op(str(target["op_id"]))
+                self.cumulative.admit_point_label_op(
+                    review_id=review_id,
+                    op_id=str(target["op_id"]),
+                    verdict={"is_ground_truth": False, "action_type": "skip"},
+                )
+            except PointLabelValidationError as exc:
+                raise ValueError(str(exc)) from exc
+
+        kept = [item for item in labels if item.get("unit_key") != unit_key]
         session["freeform_labels"] = kept
         self.review_service.review_repo.save_verdict(self.slot, review_id, session)
-        # Note: labeled_imports are content-hashed; revoke removes session pointer only.
-        # Next snapshot rebuild still includes prior imports unless operator re-imports cleanly.
-        # MVP documents this limitation; full ledger remove is phase-2.
-        return {"revoked": True, "unit_key": unit_key, "remaining": len(kept)}
+        revoke_result["remaining"] = len(kept)
+        return revoke_result

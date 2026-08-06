@@ -61,6 +61,19 @@ function formatDate(iso: string): string {
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString('zh-CN', { hour12: false });
 }
 
+function displayBaselineMape(alert: AccuracyAlert): number {
+  return alert.baseline_metric ?? alert.baseline_mape;
+}
+
+function displayCurrentMape(alert: AccuracyAlert): number {
+  return alert.current_metric ?? alert.current_rolling_mape;
+}
+
+function isExperimentInjectAlert(alert: AccuracyAlert): boolean {
+  const evidence = alert.recovery_evidence as { type?: string } | null;
+  return evidence?.type === 'experiment_inject';
+}
+
 function buildColumns(
   onSelectAlert?: (alert: AccuracyAlert) => void,
   onTriggerRCA?: (alert: AccuracyAlert) => Promise<void>,
@@ -73,13 +86,23 @@ function buildColumns(
     {
       title: '基线 / 当前',
       key: 'metrics',
-      width: 130,
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <span>基线 {record.baseline_mape.toFixed(2)}%</span>
-          <span>当前 {record.current_rolling_mape.toFixed(2)}%</span>
-        </Space>
-      ),
+      width: 150,
+      render: (_, record) => {
+        const baseline = displayBaselineMape(record);
+        const current = displayCurrentMape(record);
+        const experiment = isExperimentInjectAlert(record);
+        return (
+          <Space direction="vertical" size={0}>
+            <span>基线 {baseline.toFixed(2)}%</span>
+            <span>当前 {current.toFixed(2)}%</span>
+            {experiment ? (
+              <span style={{ fontSize: 11, color: '#64748b' }}>
+                AR 参考 {record.baseline_mape.toFixed(2)}%
+              </span>
+            ) : null}
+          </Space>
+        );
+      },
     },
     { title: '退化幅度', dataIndex: 'degradation_pct', align: 'right' as const, width: 95, render: (value: number) => `${value.toFixed(2)}%` },
     {
@@ -118,7 +141,7 @@ function buildColumns(
       fixed: 'right',
       render: (_, record) => (
         <Space size={2} wrap>
-          {record.status === 'open' && !record.rca_report_id && onTriggerRCA ? (
+          {record.status === 'open' && onTriggerRCA ? (
             <Button
               size="small"
               type="primary"
@@ -126,7 +149,7 @@ function buildColumns(
               loading={rcaLoading}
               onClick={(event) => { event.stopPropagation(); void onTriggerRCA(record); }}
             >
-              触发 RCA
+              {record.rca_report_id ? '重试 RCA' : '触发 RCA'}
             </Button>
           ) : null}
           {onSelectAlert ? (

@@ -154,6 +154,15 @@ def _production_view(model: Optional[ModelVersion]) -> Optional[Dict[str, Any]]:
     """
     if model is None:
         return None
+    patch = getattr(model, "experiment_patch", None) or None
+    patch_fp = None
+    if patch:
+        try:
+            from services.deployment.experiment_patch import experiment_patch_fingerprint
+
+            patch_fp = experiment_patch_fingerprint(patch)
+        except Exception:
+            patch_fp = "unknown"
     return {
         "workflow_id": model.workflow_id,
         "version_tag": model.version_tag,
@@ -166,6 +175,8 @@ def _production_view(model: Optional[ModelVersion]) -> Optional[Dict[str, Any]]:
         "consecutive_better_days": model.consecutive_better_days,
         "source_run_id": model.source_run_id,
         "source_candidate_id": model.source_candidate_id,
+        "has_experiment_patch": bool(patch),
+        "experiment_patch_fingerprint": patch_fp,
     }
 
 
@@ -176,6 +187,15 @@ def _shadow_view(model: ModelVersion) -> Dict[str, Any]:
     同时暴露 `accuracy_score` 和 `latest_mape`，两者含义相同 —— 便于前端
     在 shadow / production 卡片间共用渲染逻辑。
     """
+    patch = getattr(model, "experiment_patch", None) or None
+    patch_fp = None
+    if patch:
+        try:
+            from services.deployment.experiment_patch import experiment_patch_fingerprint
+
+            patch_fp = experiment_patch_fingerprint(patch)
+        except Exception:
+            patch_fp = "unknown"
     return {
         "workflow_id": model.workflow_id,
         "version_tag": model.version_tag,
@@ -186,6 +206,8 @@ def _shadow_view(model: ModelVersion) -> Dict[str, Any]:
         "consecutive_better_days": model.consecutive_better_days,
         "source_run_id": model.source_run_id,
         "source_candidate_id": model.source_candidate_id,
+        "has_experiment_patch": bool(patch),
+        "experiment_patch_fingerprint": patch_fp,
     }
 
 
@@ -197,6 +219,15 @@ def _prelaunch_view(model: ModelVersion) -> Dict[str, Any]:
     且观察期满则毕业为 shadow。返回体额外包含 `prelaunch_meta` 展示观察进度。
     """
     meta = model.prelaunch_meta
+    patch = getattr(model, "experiment_patch", None) or None
+    patch_fp = None
+    if patch:
+        try:
+            from services.deployment.experiment_patch import experiment_patch_fingerprint
+
+            patch_fp = experiment_patch_fingerprint(patch)
+        except Exception:
+            patch_fp = "unknown"
     return {
         "workflow_id": model.workflow_id,
         "version_tag": model.version_tag,
@@ -206,6 +237,8 @@ def _prelaunch_view(model: ModelVersion) -> Dict[str, Any]:
         "latest_mape": model.accuracy_score,
         "source_run_id": model.source_run_id,
         "source_candidate_id": model.source_candidate_id,
+        "has_experiment_patch": bool(patch),
+        "experiment_patch_fingerprint": patch_fp,
         # 预上线专属字段（meta 为 None 时前端展示为占位）
         "prelaunch_meta": meta.model_dump() if meta is not None else None,
     }
@@ -496,11 +529,26 @@ class PrelaunchEnterBody(BaseModel):
         description="source_run_id — 来源 AutoResearch run ID（可选）",
     )
     note: str = Field(default="", description="note — 人工备注")
+    # @AI_GENERATED: 真实携带 AR 实验补丁（结构/参数/节点），日滚预测前 apply
+    experiment_patch: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="experiment_patch — AutoResearch 实验补丁；缺省则按 candidate_id 从候选池回填",
+    )
+    # @AI_GENERATED: end
 
 
 def _prelaunch_model_view(model: ModelVersion) -> Dict[str, Any]:
     """序列化单条 prelaunch 模型到 API 响应格式（含完整 prelaunch_meta）。"""
     meta = model.prelaunch_meta
+    patch = getattr(model, "experiment_patch", None) or None
+    patch_fp = None
+    if patch:
+        try:
+            from services.deployment.experiment_patch import experiment_patch_fingerprint
+
+            patch_fp = experiment_patch_fingerprint(patch)
+        except Exception:
+            patch_fp = "unknown"
     return {
         "workflow_id": model.workflow_id,
         "version_tag": model.version_tag,
@@ -509,6 +557,8 @@ def _prelaunch_model_view(model: ModelVersion) -> Dict[str, Any]:
         "accuracy_score": model.accuracy_score,
         "source_run_id": model.source_run_id,
         "source_candidate_id": model.source_candidate_id,
+        "has_experiment_patch": bool(patch),
+        "experiment_patch_fingerprint": patch_fp,
         "prelaunch_meta": meta.model_dump() if meta is not None else None,
     }
 
@@ -595,9 +645,14 @@ def enter_prelaunch(slot: str, body: PrelaunchEnterBody) -> Dict[str, Any]:
             },
         )
 
-    # 检查重复
+    version_tag = body.version_tag or f"prelaunch-{body.candidate_id[:12]}"
+
+    # 同一 workflow 可带不同 AR patch / version_tag 入池；仅同 version_tag 视为重复
     dup = next(
-        (m for m in active if m.workflow_id == body.workflow_id),
+        (
+            m for m in active
+            if m.workflow_id == body.workflow_id and m.version_tag == version_tag
+        ),
         None,
     )
     if dup is not None:
@@ -605,19 +660,29 @@ def enter_prelaunch(slot: str, body: PrelaunchEnterBody) -> Dict[str, Any]:
             status_code=409,
             detail={
                 "code": "already_in_prelaunch",
-                "message": f"workflow_id={body.workflow_id!r} 已在预上线观察中，不可重复入池",
+                "message": (
+                    f"workflow_id={body.workflow_id!r} version_tag={version_tag!r} "
+                    "已在预上线观察中，不可重复入池"
+                ),
             },
         )
 
     # 创建 PrelaunchMeta + ModelVersion
     from services.deployment.models import PrelaunchMeta
+    from services.deployment.experiment_patch import (
+        load_experiment_patch_from_candidate_id,
+        normalize_experiment_patch,
+    )
 
     now_iso = datetime.now().isoformat()
     baseline_mape: Optional[float] = None
     if slot_obj.production_model is not None:
         baseline_mape = slot_obj.production_model.accuracy_score
 
-    version_tag = body.version_tag or f"prelaunch-{body.candidate_id[:12]}"
+    experiment_patch = normalize_experiment_patch(body.experiment_patch)
+    if not experiment_patch:
+        experiment_patch = load_experiment_patch_from_candidate_id(body.candidate_id) or None
+
     meta = PrelaunchMeta(
         candidate_id=body.candidate_id,
         started_at=now_iso,
@@ -635,6 +700,7 @@ def enter_prelaunch(slot: str, body: PrelaunchEnterBody) -> Dict[str, Any]:
         prelaunch_meta=meta,
         source_candidate_id=body.candidate_id,
         source_run_id=body.source_run_id,
+        experiment_patch=experiment_patch or None,
     )
     slot_obj.prelaunch_models.append(new_model)
     slot_obj.updated_at = now_iso

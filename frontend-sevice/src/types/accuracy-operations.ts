@@ -171,10 +171,16 @@ export interface AccuracyAlert {
   workflow_id: string;
   /** version_tag — 退化版本的版本标签 */
   version_tag: string;
-  /** baseline_mape — 注册时的基线 MAPE */
+  /** baseline_mape — 注册时的基线 MAPE（AR 参考，实验告警请优先看 baseline_metric） */
   baseline_mape: number;
   /** current_rolling_mape — 当前滚动 MAPE */
   current_rolling_mape: number;
+  /** metric_name — 退化比较指标名 */
+  metric_name?: string;
+  /** baseline_metric — 实验/线上实际比较基线（百分比），有值时 UI 优先展示 */
+  baseline_metric?: number | null;
+  /** current_metric — 实验/线上当前指标（百分比），有值时 UI 优先展示 */
+  current_metric?: number | null;
   /** degradation_pct — 退化百分比 */
   degradation_pct: number;
   /** degradation_trend — 退化趋势 */
@@ -276,6 +282,17 @@ export interface RecoveryDecision {
 // ===========================================================================
 
 /**
+ * DailyMapePoint — 单个业务日的 MAPE 快照
+ */
+export interface DailyMapePoint {
+  business_day?: string | null;
+  prediction_cycle_id?: string | null;
+  daily_mape?: number | null;
+  daily_wmape?: number | null;
+  point_count?: number | null;
+}
+
+/**
  * MonitoringMetrics — 单个模型的精度监控指标
  * （对应后端 GET /monitoring/snapshot 返回的每条 metrics 对象）
  */
@@ -296,6 +313,12 @@ export interface MonitoringMetrics {
   baseline_wmape?: number | null;
   /** rolling_wmape — 当前滚动 WMAPE，退化告警优先使用该指标。 */
   rolling_wmape?: number | null;
+  /** rolling_mape_pooled — 7 天窗口内所有点 pooled MAPE（参考口径）。 */
+  rolling_mape_pooled?: number | null;
+  /** rolling_mape_method — 滚动 MAPE 聚合方式，如 daily_median。 */
+  rolling_mape_method?: string | null;
+  /** daily_mape_series — 按业务日的 MAPE 序列。 */
+  daily_mape_series?: DailyMapePoint[];
   /** coverage_rate — 当前评估窗口中已回填真实值的覆盖率，范围 0~1。 */
   coverage_rate?: number | null;
   /** window_days — 滚动评估窗口天数。 */

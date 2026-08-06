@@ -28,12 +28,18 @@ from services.iterative_labeling.sample_builder import (
     build_samples,
     compute_group_keys,
 )
-from services.operator_backends.night_anomaly import compute_night_anomaly_features
+# @AI_GENERATED: 派生列构造与预测侧共用，见 sample_columns 模块说明
+from services.iterative_labeling.sample_columns import (
+    NIGHT_BAD_VALUE_THRESHOLD,
+    SAMPLING_INTERVAL_SECONDS,
+    compute_night_features,
+    night_feature_defaults,
+    period_one_hot,
+    sanitize_night_values,
+)
+# @AI_GENERATED: end
 
 logger = logging.getLogger(__name__)
-
-NIGHT_BAD_VALUE_THRESHOLD = 1e9
-SAMPLING_INTERVAL_SECONDS = 300
 
 
 def compute_label_snapshot_hash(active_ops: Sequence[Dict[str, Any]]) -> str:
@@ -57,45 +63,14 @@ def compute_label_snapshot_hash(active_ops: Sequence[Dict[str, Any]]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _period_one_hot(period_role: str) -> Dict[str, float]:
-    return {
-        "period_is_whole": 1.0 if period_role == "whole" else 0.0,
-        "period_is_daylight": 1.0 if period_role == "daylight" else 0.0,
-        "period_is_night": 1.0 if period_role == "night" else 0.0,
-    }
-
-
-def _night_feature_defaults() -> Dict[str, float]:
-    return {
-        "night_nonzero_current_ratio": 0.0,
-        "night_current_mean": 0.0,
-        "night_current_max": 0.0,
-        "night_over_threshold_duration": 0.0,
-        "night_power_residual_mean": 0.0,
-    }
-
-
-def _sanitize_night_values(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    for col in ("value", "i_cal"):
-        if col not in out.columns:
-            continue
-        numeric = pd.to_numeric(out[col], errors="coerce")
-        bad = numeric.abs() > NIGHT_BAD_VALUE_THRESHOLD
-        if bad.any():
-            logger.warning("snapshot_builder: 拦截 %d 行夜间量级坏值列 %s", int(bad.sum()), col)
-            numeric = numeric.mask(bad, 0.0)
-        out[col] = numeric
-    return out
-
-
-def _compute_night_features(sample_rows: pd.DataFrame) -> Dict[str, float]:
-    cleaned = _sanitize_night_values(sample_rows)
-    return compute_night_anomaly_features(
-        cleaned,
-        current_col="i_cal" if "i_cal" in cleaned.columns else "value",
-        power_col="value" if "value" in cleaned.columns else None,
-    )
+# @AI_GENERATED: period_is_* / night_* 的构造已移到 services/iterative_labeling/sample_columns.py，
+# 由训练侧（本模块）与预测侧（inference_sample）共用同一份实现，从结构上保证特征口径一致。
+# 下面几个名字保留为薄别名，避免改动既有调用点与测试。
+_period_one_hot = period_one_hot
+_night_feature_defaults = night_feature_defaults
+_sanitize_night_values = sanitize_night_values
+_compute_night_features = compute_night_features
+# @AI_GENERATED: end
 
 
 class SnapshotBuilder:

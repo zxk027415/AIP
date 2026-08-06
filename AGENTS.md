@@ -8,7 +8,7 @@
 - 修改代码或文件前先说明会改哪些文件、计划、影响范围。
 - 不确定项目结构、接口、配置或命令时，先用 `grep_files` / `file_search` / `list_dir` 搜索，不猜。
 - 优先小范围、可验证、容易回滚的改动，保持现有风格。
-- 项目运行环境是 conda 环境 `aip_web`；后端运行、Python 脚本、pytest、语法/导入检查优先在该环境下执行。
+- 项目运行环境是 conda 环境 `cp_web`；后端运行、Python 脚本、pytest、语法/导入检查优先在该环境下执行。
 - 不输出 secrets、tokens、private keys、`.env` 值或凭据；需要密钥时让用户用环境变量提供。
 - 当前工作区很脏，不要擅自清理、重置、删除、提交或切换分支。
 - 禁止使用 `git reset --hard`、`git checkout --` 等可能破坏本地改动的命令，除非用户明确授权。
@@ -38,7 +38,7 @@ bash start-dev.sh
 脚本行为：
 
 - 后端目录：`backend-service`
-- 后端环境：`conda activate aip_web`
+- 后端环境：`conda activate cp_web`
 - 后端会加载：`backend-service/scripts/load_glm_env.sh`
 - 后端命令：`uvicorn main:app --reload --port 8080`
 - 前端目录：`frontend-sevice`
@@ -286,7 +286,7 @@ npm run lint
 后端依赖中包含 `pytest` 和 `pytest-asyncio`。常见命令：
 
 ```bash
-conda activate aip_web
+conda activate cp_web
 cd backend-service
 pytest
 ```
@@ -304,8 +304,8 @@ AutoResearch 研究问题/GLM Questioner 的 focused 校验：
 
 ```bash
 cd backend-service
-PYTHONPATH=. conda run -n aip_web pytest tests/test_autoresearch_glm_question_generator.py tests/test_autoresearch_question_lifecycle.py tests/test_analyst_and_research_questions.py -q
-PYTHONPATH=. conda run -n aip_web python -m py_compile services/autoresearch_glm_question_generator.py services/research_question_generator.py services/autoresearch_question_lifecycle.py api/workflows_enhanced.py
+PYTHONPATH=. conda run -n cp_web pytest tests/test_autoresearch_glm_question_generator.py tests/test_autoresearch_question_lifecycle.py tests/test_analyst_and_research_questions.py -q
+PYTHONPATH=. conda run -n cp_web python -m py_compile services/autoresearch_glm_question_generator.py services/research_question_generator.py services/autoresearch_question_lifecycle.py api/workflows_enhanced.py
 ```
 
 前端涉及 AutoResearch 页面时，再运行：
@@ -433,14 +433,14 @@ cd frontend-sevice
 npm run build
 
 cd backend-service
-PYTHONPATH=. /opt/miniconda3/envs/aip_web/bin/python -m py_compile api/workflows_enhanced.py
+PYTHONPATH=. /opt/miniconda3/envs/cp_web/bin/python -m py_compile api/workflows_enhanced.py
 ```
 
 2026-06-08 复验池并行补强验证记录：
 
 ```bash
 cd backend-service
-/opt/miniconda3/envs/aip_web/bin/python -m py_compile api/workflows_enhanced.py
+/opt/miniconda3/envs/cp_web/bin/python -m py_compile api/workflows_enhanced.py
 
 cd frontend-sevice
 npm run build

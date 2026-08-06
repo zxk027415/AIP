@@ -189,34 +189,53 @@ export const accuracyOperationsApi = {
       min_valid_cycles: minValidCycles,
     }),
 
-  /** 人工注入劣化并触发真实监控 */
+  /** 人工注入劣化并触发真实监控（默认数据层） */
   injectDegradation: (body: {
     slot?: string;
     target_degradation_pct?: number;
     model_form?: string;
     note?: string;
     run_monitor?: boolean;
+    mode?: 'noise' | 'missing' | 'zero_spike' | 'metric_rewrite';
+    days?: number;
+    fraction?: number;
+    noise_pct?: number;
+    rerun_pipeline?: boolean;
   }): Promise<Record<string, unknown>> =>
     api.post('/accuracy-operations/experiments/inject-degradation', body),
 
-  /** 恢复劣化注入前的指标 */
+  /** 恢复劣化注入前的指标（rerun_pipeline 默认 false，接口立即返回） */
   restoreDegradation: (body: {
     slot?: string;
     close_open_alerts?: boolean;
+    rerun_pipeline?: boolean;
   }): Promise<Record<string, unknown>> =>
     api.post('/accuracy-operations/experiments/restore-degradation', body),
 
-  /** 预测 vs 真值时序点 */
+  // @AI_GENERATED: 还原后按需重训（与 restore 解耦，独立 loading）
+  /** 手动触发 gap-1 日滚 + 精度回填，刷新还原后的指标与曲线（可能需要数分钟） */
+  retriggerPipeline: (body: {
+    slot?: string;
+    station_id?: string;
+    feature_name?: string;
+  }): Promise<Record<string, unknown>> =>
+    api.post('/accuracy-operations/experiments/retrigger-pipeline', body),
+  // @AI_GENERATED: end
+
+  /** 预测 vs 真值时序点（默认单日；可传 business_day 翻历史日） */
   getPredictionSeries: (params: {
     slot: string;
     workflow_id?: string;
     version_tag?: string;
     days?: number;
+    business_day?: string;
   }): Promise<{
     slot: string;
     workflow_id: string;
     version_tag: string;
     days: number;
+    business_day?: string | null;
+    available_days?: string[];
     point_count: number;
     points: Array<{
       timestamp: string | null;

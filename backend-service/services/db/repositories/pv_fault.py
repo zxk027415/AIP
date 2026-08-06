@@ -21,8 +21,8 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-# @AI_GENERATED: 未标注样本筛选需要显式 SQL OR 条件
-from sqlalchemy import insert as sa_insert, or_, select
+# @AI_GENERATED: 未标注样本筛选需要显式 SQL OR 条件；逐点标签口径还需 NOT EXISTS 子查询
+from sqlalchemy import and_, insert as sa_insert, or_, select
 # @AI_GENERATED: end
 
 from services.db.adapter import DBAdapter
@@ -30,6 +30,7 @@ from services.db.exceptions import IngestionError
 from services.db.models.pv_fault import (
     DiagnosisResult,
     ModelVersion,
+    PointLabel,
     PredictionRecord,
     TrainingSample,
 )
@@ -284,6 +285,63 @@ class PVFaultRepository:
         stmt = select(*columns).where(
             or_(TrainingSample.label.is_(None), TrainingSample.label < 0)
         )
+        if after_time is not None:
+            stmt = stmt.where(TrainingSample.time > after_time)
+        stmt = stmt.order_by(
+            TrainingSample.time.asc(),
+            TrainingSample.site_id.asc(),
+            TrainingSample.device_id.asc(),
+            TrainingSample.branch_id.asc(),
+            TrainingSample.id.asc(),
+        )
+        with self._adapter.get_sync_session() as session:
+            rows = session.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+    # @AI_GENERATED: end
+
+    # @AI_GENERATED: 逐点标签路径的「未标注」判定入口
+    def query_unlabeled_by_point_labels(
+        self,
+        after_time: Optional[datetime] = None,
+    ) -> List[Dict[str, object]]:
+        """读取 ``point_labels`` 中没有有效标签的观测（逐点标签路径口径）。
+
+        新路径的标签唯一事实来源是 ``point_labels``，不是 ``training_samples.label``。
+        迁移完成后两者会大幅背离：实测 1,058,534 行里，按旧口径
+        （``training_samples.label`` 为空）有 310,060 行「未标注」，但其中 309,964 行
+        在 ``point_labels`` 里已有有效标签——若继续用旧口径选待预测数据，
+        这 30 万行会被反复重复预测，而真正的新增观测被淹没。
+
+        ``label_id IS NULL`` 的 point_labels 行视为未标注（该行只表示曾被处理过）。
+
+        Args:
+            after_time: 预测游标业务时间；传入后只返回更晚的观测。
+        Returns:
+            与 ``query_unlabeled_training_samples`` 同构的字典列表，便于调用方切换口径。
+        """
+        columns = (
+            TrainingSample.time,
+            TrainingSample.site_id,
+            TrainingSample.device_id,
+            TrainingSample.branch_id,
+            TrainingSample.value,
+            TrainingSample.i_cal,
+            TrainingSample.label,
+        )
+        labeled_exists = (
+            select(PointLabel.time)
+            .where(
+                and_(
+                    PointLabel.site_id == TrainingSample.site_id,
+                    PointLabel.device_id == TrainingSample.device_id,
+                    PointLabel.branch_id == TrainingSample.branch_id,
+                    PointLabel.time == TrainingSample.time,
+                    PointLabel.label_id.is_not(None),
+                )
+            )
+            .exists()
+        )
+        stmt = select(*columns).where(~labeled_exists)
         if after_time is not None:
             stmt = stmt.where(TrainingSample.time > after_time)
         stmt = stmt.order_by(

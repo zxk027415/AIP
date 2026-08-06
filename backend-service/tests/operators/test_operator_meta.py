@@ -127,6 +127,59 @@ EXPECTED_P3_W3_OPERATORS = [
     "balanced_accuracy", "pinball_loss",
 ]
 
+EXPECTED_P4_ALPHA_OPERATORS = [
+    "load_csv", "handle_missing", "detect_outliers", "row_filter",
+    "label_encode", "merge_label", "time_window_split",
+    "create_lag_features", "extract_time_features", "rolling_statistics", "diff_features",
+    "ks_test",
+]
+
+
+@pytest.mark.parametrize("op_id", EXPECTED_P4_ALPHA_OPERATORS)
+def test_expected_p4_alpha_operator_is_registered(router, op_id):
+    """P4α Legacy L1 + ks_test 必须全部注册成功。"""
+    assert router.has_operator(op_id), f"Expected P4α operator '{op_id}' is not registered"
+
+
+EXPECTED_P4_BETA_FE_OPERATORS = [
+    "shift_features", "pct_change_features", "peak_valley_features",
+    "workday_features", "holiday_features", "extract_statistical_features",
+    "ts_comparison_features", "sliding_window", "feature_select",
+]
+
+
+@pytest.mark.parametrize("op_id", EXPECTED_P4_BETA_FE_OPERATORS)
+def test_expected_p4_beta_fe_operator_is_registered(router, op_id):
+    """P4-β 特征工程波必须全部注册成功。"""
+    assert router.has_operator(op_id), f"Expected P4-β FE operator '{op_id}' is not registered"
+
+
+EXPECTED_P4_BETA_EVAL_OPERATORS = [
+    "confusion_matrix", "mse_rmse_mae", "smape_score", "precision_recall_f1",
+    "stratified_cv_eval", "random_forest_classifier", "smote_oversample", "tsfresh_extract",
+]
+
+
+@pytest.mark.parametrize("op_id", EXPECTED_P4_BETA_EVAL_OPERATORS)
+def test_expected_p4_beta_eval_operator_is_registered(router, op_id):
+    """P4-β 评估/采样波必须全部注册成功。"""
+    assert router.has_operator(op_id), f"Expected P4-β eval operator '{op_id}' is not registered"
+
+
+EXPECTED_P4_GAMMA_OPERATORS = [
+    "train_test_split_ts", "resample_timeseries", "multi_step_forecast",
+    "ridge_forecast", "xgboost_forecast", "lightgbm_forecast", "catboost_forecast",
+    "ensemble_forecast", "save_model_artifact", "load_model_artifact",
+    "batch_predict_classifier", "load_database", "load_api",
+    "auto_tune_xgboost", "auto_tune_lightgbm", "auto_tune_catboost",
+]
+
+
+@pytest.mark.parametrize("op_id", EXPECTED_P4_GAMMA_OPERATORS)
+def test_expected_p4_gamma_operator_is_registered(router, op_id):
+    """P4-γ 剩余算子必须全部注册成功。"""
+    assert router.has_operator(op_id), f"Expected P4-γ operator '{op_id}' is not registered"
+
 
 @pytest.mark.parametrize("op_id", EXPECTED_P3_W3_OPERATORS)
 def test_expected_p3_w3_operator_is_registered(router, op_id):

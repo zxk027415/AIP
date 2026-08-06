@@ -1,0 +1,113 @@
+{
+  "_comment": "@AI_GENERATED",
+  "purpose": "2021-11-18~24 待人工标注批次（补第二个连续多站点评估块，降低时间切分口径的方差）",
+  "dataset_path_relative": "backend-service/datasets/pv_labeling_batch_2021_11.parquet",
+  "block_start": "2021-11-18",
+  "block_end": "2021-11-24",
+  "rows": 157872,
+  "n_sites": 5,
+  "n_devices": 304,
+  "n_series": 601,
+  "n_days": 7,
+  "days": [
+    "2021-11-18",
+    "2021-11-19",
+    "2021-11-20",
+    "2021-11-21",
+    "2021-11-22",
+    "2021-11-23",
+    "2021-11-24"
+  ],
+  "dates_consecutive": true,
+  "labelable_units_device_x_day": 731,
+  "rows_per_day": {
+    "2021-11-18": 24094,
+    "2021-11-19": 15507,
+    "2021-11-20": 14284,
+    "2021-11-21": 19706,
+    "2021-11-22": 24044,
+    "2021-11-23": 27891,
+    "2021-11-24": 32346
+  },
+  "devices_per_site": {
+    "1DvvBDO6": 33,
+    "1e13a76174000000": 98,
+    "1e44703e7c802000": 7,
+    "HRZzKE4v": 152,
+    "iOmQGTgm": 14
+  },
+  "value_icat_nan_ratio": {
+    "value": 0.0,
+    "i_cal": 0.0
+  },
+  "contributors": [
+    {
+      "file": "data_long#huarong&_&_.csv",
+      "rows": 29368,
+      "devices": 98,
+      "days": 7,
+      "has_label": false
+    },
+    {
+      "file": "data_long#laobagang&_&1124.csv",
+      "rows": 11540,
+      "devices": 33,
+      "days": 7,
+      "has_label": false
+    },
+    {
+      "file": "data_long#peixian&_&1124.csv",
+      "rows": 21955,
+      "devices": 64,
+      "days": 7,
+      "has_label": false
+    },
+    {
+      "file": "data_long#peixian&_&_.csv",
+      "rows": 86980,
+      "devices": 128,
+      "days": 7,
+      "has_label": false
+    },
+    {
+      "file": "data_long#qiyang&_&1124.csv",
+      "rows": 3997,
+      "devices": 7,
+      "days": 5,
+      "has_label": false
+    },
+    {
+      "file": "data_long#yuncheng&_&_.csv",
+      "rows": 84089,
+      "devices": 208,
+      "days": 7,
+      "has_label": true
+    },
+    {
+      "file": "data_long#zhongqi&_&1124.csv",
+      "rows": 8928,
+      "devices": 18,
+      "days": 7,
+      "has_label": false
+    },
+    {
+      "file": "data_long#zhongqi&_&_.csv",
+      "rows": 4896,
+      "devices": 17,
+      "days": 7,
+      "has_label": true
+    }
+  ],
+  "excluded_rows_already_in_main": 88985,
+  "how_to_start_labeling": {
+    "endpoint": "POST /api/iterative-labeling/review-sessions/from-dataset",
+    "body": {
+      "dataset_path": "backend-service/datasets/pv_labeling_batch_2021_11.parquet",
+      "slot": "pv_fault",
+      "reviewer": "<标注人>",
+      "max_units": 731
+    },
+    "note": "dataset_path 必须是相对项目根的路径；端点会按 (site_id, device_id, branch_id, 日期) 聚合成标注单元"
+  },
+  "_comment_end": "@AI_GENERATED: end"
+}

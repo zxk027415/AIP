@@ -167,4 +167,24 @@
   border-color: #82baff;
   background: #e6f2ff;
 }
+
+/* ── 光伏黑橙白（slot=pv_fault） ── */
+.pv-fault-workspace .algorithm-deployment-workspace--pv {
+  --deployment-ink: var(--pv-ink);
+  --deployment-muted: var(--pv-muted);
+  --deployment-line: var(--pv-line);
+  background: var(--pv-canvas);
+}
+
+.pv-fault-workspace .algorithm-deployment-workspace--pv .deployment-page-tabs .ant-btn[href*='accuracy-operations'] {
+  color: #b45309;
+  border-color: rgba(255, 106, 0, 0.35);
+  background: var(--pv-primary-soft);
+}
+
+.pv-fault-workspace .algorithm-deployment-workspace--pv .deployment-page-tabs .ant-btn[href*='accuracy-operations']:hover {
+  color: #92400e;
+  border-color: rgba(255, 106, 0, 0.55);
+  background: #ffe8d6;
+}
 /* @AI_GENERATED: end */

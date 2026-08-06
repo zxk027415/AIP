@@ -15,6 +15,52 @@ def test_generic_trigger_rejects_mock_data_feed_without_confirmation():
     assert exc_info.value.detail["code"] == "manual_mock_feed_confirmation_required"
 # @AI_GENERATED: end
 
+
+def test_pv_mock_feed_coerce_date_and_advance_gate(monkeypatch):
+    """跨日推进：未 advance 只返回确认；advance=True 才真正喂下一天。"""
+    from datetime import date, datetime
+    from types import SimpleNamespace
+
+    from services.db.datasources import pv_fault_mock as mod
+
+    assert mod._coerce_date("2020-05-07T11:00:00") == date(2020, 5, 7)
+    assert mod._coerce_date(datetime(2020, 5, 8, 1, 30)) == date(2020, 5, 8)
+
+    feeder = mod.PvFaultMockFeeder(adapter=SimpleNamespace(), parquet_path="datasets/x.parquet")
+    fed = {"date": date(2020, 5, 6)}
+
+    monkeypatch.setattr(feeder, "_build_preview", lambda: mod.PvMockFeedPreview(
+        state="confirmation_required",
+        current_business_date=date(2020, 5, 6),
+        next_business_date=date(2020, 5, 7),
+        next_source_row_count=10,
+        next_device_count=2,
+        requires_advance_confirmation=True,
+        exhausted=False,
+    ))
+
+    def _fake_feed(business_date):
+        fed["date"] = business_date
+        return mod.PvMockFeedResult(
+            business_date=business_date,
+            source_row_count=10,
+            inserted_row_count=10,
+            skipped_row_count=0,
+            device_count=2,
+            exhausted=False,
+        )
+
+    monkeypatch.setattr(feeder, "_feed_date_locked", _fake_feed)
+
+    preview, result = feeder.feed_manually(advance=False)
+    assert result is None
+    assert preview.requires_advance_confirmation is True
+
+    preview2, result2 = feeder.feed_manually(advance=True)
+    assert result2 is not None
+    assert result2.business_date == date(2020, 5, 7)
+    assert fed["date"] == date(2020, 5, 7)
+
 # @AI_GENERATED: lf_data_pull platform evidence API test
 def test_data_pull_evidence_reads_platform_snapshot_without_running_task():
     from datetime import datetime

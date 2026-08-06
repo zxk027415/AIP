@@ -1,4 +1,6 @@
 <!-- @AI_GENERATED -->
+> **⚠️ 已被取代（2026-07-30）**：本目录文档已被 [`docs/specs/pv-fault-label-segment-redesign/`](../pv-fault-label-segment-redesign/) 取代。与 `solar_mode` 切分模型、`time_window` 字符串语义、逐点 `training_samples.label` 同表存储相关的章节已作废；文件保留供历史对账，勿再按本 spec 实现新功能。
+
 # 设计文档：光伏故障人机协同迭代标注闭环
 
 ## Overview

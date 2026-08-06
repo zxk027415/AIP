@@ -802,6 +802,98 @@ export interface PvSourceFingerprint {
   error?: string;
 }
 
+// @AI_GENERATED: 按日滚动预测生产表结构设计 —— 数据到达仪表盘类型与 API
+/**
+ * PvSiteIngestionOverview — 单个站点的数据到达完整性总览（一行）。
+ *
+ * 对应后端 GET /scheduler/pv-ingestion/site-overview 返回体中 sites 数组的一项。
+ */
+export interface PvSiteIngestionOverview {
+  /** site_id — 站点 ID */
+  site_id: string;
+  /** business_date — 本条总览对应的业务日 YYYY-MM-DD */
+  business_date: string | null;
+  /** device_total — 该站点该业务日的设备总数（设备三元组数） */
+  device_total: number;
+  /** device_complete — 已完整（is_complete=true）的设备数 */
+  device_complete: number;
+  /** completion_ratio — 完成度 0~1 */
+  completion_ratio: number;
+  /** latest_updated_at — 该站点该业务日最近一次完整性记录更新时间 */
+  latest_updated_at: string | null;
+}
+
+/** PvSiteIngestionOverviewResponse — 站点到达总览接口返回体。 */
+export interface PvSiteIngestionOverviewResponse {
+  /** business_date — 请求指定的业务日；未指定时为 null（表示每站点取各自最新业务日） */
+  business_date: string | null;
+  sites: PvSiteIngestionOverview[];
+}
+
+/**
+ * PvDeviceIngestionDetail — 单个设备-天的数据到达完整性明细。
+ *
+ * 对应 measurement_ingestion_daily 表的一行。
+ */
+export interface PvDeviceIngestionDetail {
+  site_id: string;
+  device_id: string;
+  branch_id: string;
+  business_date: string | null;
+  /** point_count — 该设备-天已到达的采样点数 */
+  point_count: number;
+  /** expected_point_count — 理论应有点数，默认 288（5 分钟采样 × 24h） */
+  expected_point_count: number;
+  /** is_complete — 是否已达到完整性阈值（默认 90%） */
+  is_complete: boolean;
+  first_seen_at: string | null;
+  completed_at: string | null;
+  updated_at: string | null;
+  /** last_predicted_business_date — 仅 pending-predictable 接口返回时携带 */
+  last_predicted_business_date?: string | null;
+}
+
+/** PvDeviceIngestionDetailResponse — 设备到达明细（下钻）接口返回体。 */
+export interface PvDeviceIngestionDetailResponse {
+  site_id: string;
+  business_date: string | null;
+  devices: PvDeviceIngestionDetail[];
+}
+
+/** PvPendingPredictableResponse — 已完整但尚未预测的设备-天列表（投喂闸门完整性版）。 */
+export interface PvPendingPredictableResponse {
+  site_id: string | null;
+  count: number;
+  items: PvDeviceIngestionDetail[];
+}
+
+/**
+ * 光伏数据到达仪表盘 API —— 站点总览 / 设备明细下钻 / 完整但未预测列表。
+ *
+ * 均为只读端点，数据来自 measurement_ingestion_daily + device_prediction_cursor。
+ * 人工确认批量预测的动作仍走现有预测触发入口，本组 API 只负责"展示该确认哪些"。
+ */
+export const pvIngestionApi = {
+  /** 站点到达总览：不传 businessDate 时返回每站点"最新业务日"的总览。 */
+  getSiteOverview: (businessDate?: string): Promise<PvSiteIngestionOverviewResponse> =>
+    api.get('/scheduler/pv-ingestion/site-overview', {
+      params: businessDate ? { business_date: businessDate } : {},
+    }),
+
+  /** 设备到达明细下钻：不传 businessDate 时每个设备取其最新业务日的一行。 */
+  getDeviceDetail: (siteId: string, businessDate?: string): Promise<PvDeviceIngestionDetailResponse> =>
+    api.get('/scheduler/pv-ingestion/device-detail', {
+      params: businessDate ? { site_id: siteId, business_date: businessDate } : { site_id: siteId },
+    }),
+
+  /** 已完整但尚未被对应设备游标预测过的设备-天；不传 siteId 时返回全部站点。 */
+  getPendingPredictable: (siteId?: string): Promise<PvPendingPredictableResponse> =>
+    api.get('/scheduler/pv-ingestion/pending-predictable', {
+      params: siteId ? { site_id: siteId } : {},
+    }),
+};
+// @AI_GENERATED: end
+
 /** PvPredictionCursorStatusResponse — 预测游标与最近运行状态。 */
 export interface PvPredictionCursorStatusResponse {
   task_id: string;

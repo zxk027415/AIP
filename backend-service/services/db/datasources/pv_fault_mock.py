@@ -4,19 +4,29 @@
 services/db/datasources/pv_fault_mock.py — 光伏故障诊断 Mock 喂数据器
 
 与负荷预测的 CsvMockCompanyFeeder 平行设计：
-  - 每次 cron 触发只喂一个自然日的数据（以 time 列的 date 为边界）
-  - 跨日必须人工确认（requires_advance_confirmation）才能推进
-  - 写入时 label = NULL，模拟真实场景下数据库新收到的原始光伏观测
+  - 手动"喂入首日/推进下一天"按钮：一次性把整个业务日写入（跨日需人工确认）
+  - 自动 cron 路径（``release_next_batch_tick``）：模拟真实场景下设备异步到达——
+    每次 tick 只释放当前业务日里"计划批次已到、尚未释放"的一批设备数据，
+    不需要人工确认即可跨日自动推进（与旧版 ``feed_next_batch`` 语义一致）。
+  - 写入时 label = NULL，模拟真实场景下数据库新收到的原始光伏观测，
+    ``data_source`` 列固定写 ``"mock"``。
   - 源数据默认 datasets/pv_mock_feed_source.parquet（约 35 天，可用 PV_MOCK_PARQUET_PATH 覆盖）
+
+错峰释放计划（``PvMockReleaseSchedule``，mock 专用表）：
+  - 每个业务日首次被处理时，一次性为当天全部设备生成释放计划（确定性随机，
+    以 business_date 做种子，重复调用不会产生不同结果）。
+  - 设备被均匀分配到若干释放批次（``_RELEASE_BATCH_COUNT``），
+    约 ``_DELAY_RATIO`` 比例的设备额外延迟 1~2 个批次到达，
+    约 ``_DROP_RATIO`` 比例的设备当天完全缺失（模拟采集器故障）。
+  - 每次写入 ``training_samples`` 后同步调用 ``IngestionTrackerRepository``
+    更新设备-天完整性进度，供预测任务和前端"数据到达"面板消费。
 
 与负荷预测 feeder 的主要差异：
   - 数据源是 Parquet（多设备多列），而非 CSV（单设备单列）
   - 目标表是 training_samples（多列：site_id/device_id/branch_id/value/i_cal），
     而非 station_observations（单列：value）
-  - 每天行数约为 devices × time_points_per_day（可能是数千行），
-    expected_points_per_day 用来标记当天是否完整
 
-持久化路径：所有状态通过数据库游标（MAX source_row_index）和目标表推断，
+持久化路径：所有状态通过数据库游标/释放计划表和目标表推断，
 不依赖外部文件，符合项目相对路径规范。
 """
 
@@ -25,7 +35,7 @@ from __future__ import annotations
 import logging
 import json
 import os
-import tempfile
+import random
 import threading
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -33,10 +43,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
-from sqlalchemy import text
+from sqlalchemy import func, select, text, update
 
 from services.db.adapter import DBAdapter
 from services.db.exceptions import DataSourceError, IngestionError
+from services.db.models.pv_fault import PvMockReleaseSchedule, TrainingSample
+from services.db.repositories.ingestion_tracker import (
+    DEFAULT_EXPECTED_POINT_COUNT,
+    IngestionTrackerRepository,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +61,12 @@ _DEFAULT_PARQUET_PATH = "datasets/pv_mock_feed_source.parquet"
 # training_samples 表结构（与 PVFaultRepository.ingest_parquet 一致）
 _SCHEMA = "aip_algo_platform"
 _CURSOR_TABLE = "pv_mock_feed_cursor"
+
+# 错峰释放计划参数（可按需调整；用常量而非硬编码，便于测试覆盖）
+_RELEASE_BATCH_COUNT = 7      # 一天分 7 批释放（约 10~15 分钟一批，覆盖 1~2 小时）
+_DELAY_RATIO = 0.05           # 5% 设备额外延迟
+_DELAY_TICKS_RANGE = (1, 2)   # 延迟 1~2 个批次
+_DROP_RATIO = 0.01            # 1% 设备当天完全缺失
 
 # 进程内缓存：避免每次 feed-status / 指纹都扫百万行 parquet（会拖死单进程 uvicorn）
 _FINGERPRINT_CACHE: Dict[str, Any] = {"key": None, "value": None}
@@ -201,7 +222,7 @@ def _resolve_path(path: str) -> Path:
 
 @dataclass(frozen=True)
 class PvMockFeedResult:
-    """喂数据结果：一次 feed 的元数据。"""
+    """喂数据结果：一次 feed（或一次批次 tick）的元数据。"""
     business_date: Optional[date]
     source_row_count: int
     inserted_row_count: int
@@ -231,6 +252,9 @@ class PvMockFeedPreview:
     requires_advance_confirmation: bool
     exhausted: bool
     source_fingerprint: Optional[Dict[str, Any]] = None
+    # @AI_GENERATED: 按日滚动预测 —— 当前正在自动错峰释放的业务日的批次进度
+    release_progress: Optional[Dict[str, Any]] = None
+    # @AI_GENERATED: end
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -246,6 +270,7 @@ class PvMockFeedPreview:
             "requires_advance_confirmation": self.requires_advance_confirmation,
             "exhausted": self.exhausted,
             "source_fingerprint": self.source_fingerprint,
+            "release_progress": self.release_progress,
         }
 
 
@@ -256,11 +281,18 @@ class PvMockFeedPreview:
 class PvFaultMockFeeder:
     """从 Parquet 文件按自然日向 training_samples 表喂光伏观测数据。
 
-    喂数据时 label 列强制设为 NULL，模拟真实场景下数据库新收到的原始观测。
-    源数据中的 label 列仅用于验证数据完整性，不会被写入 training_samples。
+    喂数据时 label 列强制设为 NULL，模拟真实场景下数据库新收到的原始观测；
+    ``data_source`` 列固定写 ``"mock"``。源数据中的 label 列仅用于验证数据
+    完整性，不会被写入 training_samples。
 
-    跨日推进需要人工确认（requires_advance_confirmation=True），
-    与负荷预测 CsvMockCompanyFeeder.feed_manually(advance=True) 语义完全一致。
+    两条写入路径：
+      - ``feed_manually`` / ``_feed_date_locked``：人工触发，一次性把整个
+        业务日写完（跨日推进需要 ``advance=True`` 人工确认），
+        与旧版行为完全一致，供"喂入首日/推进下一天"按钮使用。
+      - ``release_next_batch_tick``：cron 自动触发，每次只释放当前业务日
+        里"计划批次已到"的一批设备，不需要人工确认即可跨日自动推进
+        （与旧版 ``feed_next_batch`` 的自动推进语义一致），用来模拟真实
+        场景下设备异步到达、偶发延迟/缺失。
     """
 
     def __init__(
@@ -274,6 +306,7 @@ class PvFaultMockFeeder:
         self._df_dates: Optional[List[date]] = None      # 所有自然日列表（有序）
         self._feed_lock = threading.RLock()
         self._last_feed_result: Optional[PvMockFeedResult] = None
+        self._tracker = IngestionTrackerRepository(adapter)
 
     @property
     def last_feed_result(self) -> Optional[PvMockFeedResult]:
@@ -330,7 +363,7 @@ class PvFaultMockFeeder:
             """))
 
     def _last_fed_date(self) -> Optional[date]:
-        """返回上次成功喂完的最新自然日，没有则返回 None。"""
+        """返回上次成功喂完（该业务日全部非缺失设备已释放）的最新自然日。"""
         self._ensure_cursor_table()
         with self._adapter.get_sync_session() as session:
             result = session.execute(
@@ -377,8 +410,21 @@ class PvFaultMockFeeder:
         df["_date"] = df["time"].dt.date
         return df[df["_date"] == target].copy()
 
+    def _devices_for_date(self, business_date: date) -> List[Tuple[str, str, str]]:
+        """该业务日的全部设备三元组（site_id, device_id, branch_id），去重排序。"""
+        rows_df = self._rows_for_date(business_date)
+        if rows_df.empty:
+            return []
+        triples = (
+            rows_df[["site_id", "device_id", "branch_id"]]
+            .astype(str)
+            .drop_duplicates()
+            .itertuples(index=False, name=None)
+        )
+        return sorted(triples)
+
     def _next_unfed_date(self) -> Optional[date]:
-        """返回下一个还没喂过的自然日。"""
+        """返回下一个还没"整体喂完"的自然日（当前正在被自动释放或等待人工确认的那天）。"""
         last = self._last_fed_date()
         for d in self._unique_dates():
             day = _coerce_date(d)
@@ -387,6 +433,83 @@ class PvFaultMockFeeder:
             if last is None or day > last:
                 return day
         return None  # exhausted
+
+    # ------------------------------------------------------------------
+    # 错峰释放计划（PvMockReleaseSchedule）—— mock 专用
+    # ------------------------------------------------------------------
+
+    def _ensure_release_schedule(self, business_date: date) -> None:
+        """为该业务日生成错峰释放计划（幂等；已存在则不重新生成）。
+
+        确定性随机：以 business_date 做种子，同一天多次调用产出相同计划，
+        便于测试和排错复现。
+        """
+        with self._adapter.get_sync_session() as session:
+            exists = session.execute(
+                select(func.count()).select_from(PvMockReleaseSchedule)
+                .where(PvMockReleaseSchedule.business_date == business_date)
+            ).scalar()
+        if exists:
+            return
+
+        devices = self._devices_for_date(business_date)
+        if not devices:
+            return
+
+        rng = random.Random(f"pv-mock-release|{business_date.isoformat()}")
+        shuffled = list(devices)
+        rng.shuffle(shuffled)
+
+        rows = []
+        now = datetime.utcnow()
+        for idx, (site_id, device_id, branch_id) in enumerate(shuffled):
+            is_dropped = rng.random() < _DROP_RATIO
+            delay_ticks = 0
+            if not is_dropped and rng.random() < _DELAY_RATIO:
+                delay_ticks = rng.randint(*_DELAY_TICKS_RANGE)
+            rows.append({
+                "business_date": business_date,
+                "site_id": site_id,
+                "device_id": device_id,
+                "branch_id": branch_id,
+                "planned_batch_index": idx % _RELEASE_BATCH_COUNT,
+                "delay_ticks": delay_ticks,
+                "is_dropped": is_dropped,
+                "released_at": None,
+                "created_at": now,
+            })
+
+        from sqlalchemy import insert as sa_insert
+        with self._adapter.get_sync_session() as session:
+            stmt = sa_insert(PvMockReleaseSchedule).prefix_with("IGNORE").values(rows)
+            session.execute(stmt)
+        logger.info(
+            "pv_mock_feed: 业务日 %s 释放计划已生成 devices=%d batches=%d",
+            business_date.isoformat(), len(rows), _RELEASE_BATCH_COUNT,
+        )
+
+    def _release_progress_for_date(self, business_date: date) -> Optional[Dict[str, Any]]:
+        """返回该业务日释放计划的进度摘要（供预览/前端展示）；无计划返回 None。"""
+        with self._adapter.get_sync_session() as session:
+            rows = session.execute(
+                select(
+                    PvMockReleaseSchedule.is_dropped,
+                    PvMockReleaseSchedule.released_at,
+                ).where(PvMockReleaseSchedule.business_date == business_date)
+            ).all()
+        if not rows:
+            return None
+        total = len(rows)
+        dropped = sum(1 for r in rows if r[0])
+        released = sum(1 for r in rows if r[1] is not None and not r[0])
+        pending = total - dropped - released
+        return {
+            "devices_total": total,
+            "devices_dropped": dropped,
+            "devices_released": released,
+            "devices_pending": pending,
+            "batches_total": _RELEASE_BATCH_COUNT,
+        }
 
     # ------------------------------------------------------------------
     # Public API（与 CsvMockCompanyFeeder 接口对齐）
@@ -427,12 +550,13 @@ class PvFaultMockFeeder:
 
         next_rows = self._rows_for_date(next_date)
         next_device_count = int(next_rows["device_id"].nunique()) if not next_rows.empty else 0
+        release_progress = self._release_progress_for_date(next_date)
 
         if last_date is None:
             state = "initial_feed"
             requires_confirm = False
         else:
-            # 跨日需要人工确认
+            # 跨日需要人工确认（仅约束手动按钮；自动 cron 路径不受此约束）
             requires_confirm = True
             state = "confirmation_required"
 
@@ -445,10 +569,11 @@ class PvFaultMockFeeder:
             requires_advance_confirmation=requires_confirm,
             exhausted=False,
             source_fingerprint=source_fp,
+            release_progress=release_progress,
         )
 
     def feed_manually(self, advance: bool = False) -> Tuple[PvMockFeedPreview, Optional[PvMockFeedResult]]:
-        """人工触发：需要 advance=True 才能跨日推进。"""
+        """人工触发：需要 advance=True 才能跨日推进。一次性写完整个业务日。"""
         with self._feed_lock:
             preview = self._build_preview()
             if preview.exhausted:
@@ -460,13 +585,20 @@ class PvFaultMockFeeder:
             return self._build_preview(), result
 
     def feed_next_batch(self) -> int:
-        """调度 cron 触发：自动喂下一日（首次无需确认，跨日也自动推进）。
+        """兼容旧接口：委托给 ``release_next_batch_tick``，返回本次插入行数。"""
+        result = self.release_next_batch_tick()
+        return result.inserted_row_count if result else 0
 
-        返回插入行数（兼容 SchedulerEngine.register_task 的调用约定）。
+    def release_next_batch_tick(self) -> PvMockFeedResult:
+        """cron 自动触发：释放当前业务日里"计划批次已到"的下一批设备数据。
+
+        不需要人工确认即可跨日自动推进（与旧版 ``feed_next_batch`` 一致）。
+        每次调用只处理一批，模拟设备异步到达；当某业务日全部非缺失设备都
+        释放完毕后自动标记该日"已喂完"，下次调用推进到下一个自然日。
         """
         with self._feed_lock:
-            next_date = self._next_unfed_date()
-            if next_date is None:
+            active_date = self._next_unfed_date()
+            if active_date is None:
                 logger.info("pv_mock_feed: source exhausted")
                 self._last_feed_result = PvMockFeedResult(
                     business_date=None,
@@ -476,19 +608,45 @@ class PvFaultMockFeeder:
                     device_count=0,
                     exhausted=True,
                 )
-                return 0
-            result = self._feed_date_locked(next_date)
-            return result.inserted_row_count if result else 0
+                return self._last_feed_result
 
-    # ------------------------------------------------------------------
-    # Core insert
-    # ------------------------------------------------------------------
+            self._ensure_release_schedule(active_date)
 
-    def _feed_date_locked(self, business_date: date) -> PvMockFeedResult:
-        """把 business_date 当天的所有观测写入 training_samples（label=NULL）。"""
-        rows_df = self._rows_for_date(business_date)
-        if rows_df.empty:
-            self._last_feed_result = PvMockFeedResult(
+            with self._adapter.get_sync_session() as session:
+                max_released_batch = session.execute(
+                    select(func.max(PvMockReleaseSchedule.planned_batch_index))
+                    .where(
+                        PvMockReleaseSchedule.business_date == active_date,
+                        PvMockReleaseSchedule.released_at.is_not(None),
+                    )
+                ).scalar()
+            pointer = 0 if max_released_batch is None else int(max_released_batch) + 1
+
+            with self._adapter.get_sync_session() as session:
+                due_rows = session.execute(
+                    select(PvMockReleaseSchedule).where(
+                        PvMockReleaseSchedule.business_date == active_date,
+                        PvMockReleaseSchedule.released_at.is_(None),
+                        PvMockReleaseSchedule.is_dropped.is_(False),
+                        (
+                            PvMockReleaseSchedule.planned_batch_index
+                            + PvMockReleaseSchedule.delay_ticks
+                        ) <= pointer,
+                    )
+                ).scalars().all()
+                due_keys = {(r.site_id, r.device_id, r.branch_id) for r in due_rows}
+
+            result = self._release_due_devices(active_date, due_keys)
+            self._maybe_mark_day_fed(active_date)
+            self._last_feed_result = result
+            return result
+
+    def _release_due_devices(
+        self, business_date: date, due_keys: set,
+    ) -> PvMockFeedResult:
+        """把 due_keys 对应设备当天的观测写入 training_samples 并更新完整性表。"""
+        if not due_keys:
+            return PvMockFeedResult(
                 business_date=business_date,
                 source_row_count=0,
                 inserted_row_count=0,
@@ -496,31 +654,125 @@ class PvFaultMockFeeder:
                 device_count=0,
                 exhausted=False,
             )
-            return self._last_feed_result
 
-        # 构造写入字段：label 强制 NULL（模拟无标签的新到观测）
+        rows_df = self._rows_for_date(business_date)
+        if rows_df.empty:
+            return PvMockFeedResult(
+                business_date=business_date,
+                source_row_count=0,
+                inserted_row_count=0,
+                skipped_row_count=0,
+                device_count=0,
+                exhausted=False,
+            )
+
+        key_series = list(zip(
+            rows_df["site_id"].astype(str),
+            rows_df["device_id"].astype(str),
+            rows_df["branch_id"].astype(str),
+        ))
+        mask = [k in due_keys for k in key_series]
+        subset = rows_df[mask].copy()
+        if subset.empty:
+            return PvMockFeedResult(
+                business_date=business_date,
+                source_row_count=0,
+                inserted_row_count=0,
+                skipped_row_count=0,
+                device_count=0,
+                exhausted=False,
+            )
+
+        inserted, skipped = self._write_training_samples(subset)
+        now = datetime.utcnow()
+
+        with self._adapter.get_sync_session() as session:
+            for site_id, device_id, branch_id in due_keys:
+                session.execute(
+                    update(PvMockReleaseSchedule)
+                    .where(
+                        PvMockReleaseSchedule.business_date == business_date,
+                        PvMockReleaseSchedule.site_id == site_id,
+                        PvMockReleaseSchedule.device_id == device_id,
+                        PvMockReleaseSchedule.branch_id == branch_id,
+                    )
+                    .values(released_at=now)
+                )
+
+        # 按设备三元组分组更新完整性表
+        for (site_id, device_id, branch_id), grp in subset.groupby(
+            ["site_id", "device_id", "branch_id"]
+        ):
+            self._tracker.record_arrival(
+                str(site_id), str(device_id), str(branch_id), business_date,
+                point_delta=len(grp),
+                expected_point_count=DEFAULT_EXPECTED_POINT_COUNT,
+                arrived_at=now,
+            )
+
+        device_count = len(due_keys)
+        logger.info(
+            "pv_mock_feed: 业务日 %s 释放 %d 台设备 rows=%d inserted=%d skipped=%d",
+            business_date.isoformat(), device_count, len(subset), inserted, skipped,
+        )
+        return PvMockFeedResult(
+            business_date=business_date,
+            source_row_count=len(subset),
+            inserted_row_count=inserted,
+            skipped_row_count=skipped,
+            device_count=device_count,
+            exhausted=False,
+        )
+
+    def _maybe_mark_day_fed(self, business_date: date) -> None:
+        """若该业务日全部非缺失设备均已释放，标记该日"已喂完"。"""
+        with self._adapter.get_sync_session() as session:
+            remaining = session.execute(
+                select(func.count()).select_from(PvMockReleaseSchedule).where(
+                    PvMockReleaseSchedule.business_date == business_date,
+                    PvMockReleaseSchedule.released_at.is_(None),
+                    PvMockReleaseSchedule.is_dropped.is_(False),
+                )
+            ).scalar()
+        if remaining:
+            return
+        rows_df = self._rows_for_date(business_date)
+        self._mark_date_fed(business_date, len(rows_df))
+        logger.info("pv_mock_feed: 业务日 %s 全部设备已释放，标记为已喂完", business_date.isoformat())
+
+    # ------------------------------------------------------------------
+    # Core insert
+    # ------------------------------------------------------------------
+
+    def _write_training_samples(self, rows_df: pd.DataFrame) -> Tuple[int, int]:
+        """把测量行写入 training_samples（label=NULL，data_source='mock'）。
+
+        Returns:
+            (inserted_row_count, skipped_row_count)
+        """
         write_df = rows_df[["time", "site_id", "device_id", "branch_id", "value", "i_cal"]].copy()
         write_df["label"] = None   # 原始观测不带标签
 
-        # 类型归一化
         write_df["time"] = pd.to_datetime(write_df["time"])
         if write_df["time"].dt.tz is not None:
             write_df["time"] = write_df["time"].dt.tz_convert("UTC").dt.tz_localize(None)
         write_df["branch_id"] = write_df["branch_id"].astype(str)
         write_df["label"] = write_df["label"].astype(object)
+        # @AI_GENERATED: 按日滚动预测 —— 标记数据来源为 mock
+        write_df["data_source"] = "mock"
+        # @AI_GENERATED: end
 
-        # 批量写入 training_samples，复用 PVFaultRepository 的 INSERT IGNORE 逻辑
         from sqlalchemy import insert as sa_insert
-        from services.db.models.pv_fault import TrainingSample
 
         records = write_df.where(pd.notnull(write_df), None).to_dict(orient="records")
-        # branch_id 是 Int，还原为 int 或 None
         for rec in records:
             if rec.get("branch_id") is not None:
                 try:
                     rec["branch_id"] = str(rec["branch_id"])
                 except (TypeError, ValueError):
                     pass
+            if rec.get("data_source") is None:
+                rec["data_source"] = "mock"
 
         _BATCH_SIZE = 500
         total_inserted = 0
@@ -532,33 +784,61 @@ class PvFaultMockFeeder:
                 total_inserted += int(result.rowcount or 0)
 
         skipped = len(records) - total_inserted
-        device_count = int(write_df["device_id"].nunique())
+        return total_inserted, skipped
 
-        # 记录游标
-        self._mark_date_fed(business_date, len(records))
+    def _feed_date_locked(self, business_date: date) -> PvMockFeedResult:
+        """人工"喂入首日/推进下一天"：一次性把当天全部非缺失设备写完。
 
-        feed_result = PvMockFeedResult(
-            business_date=business_date,
-            source_row_count=len(records),
-            inserted_row_count=total_inserted,
-            skipped_row_count=skipped,
-            device_count=device_count,
-            exhausted=False,
-        )
-        self._last_feed_result = feed_result
+        内部仍走释放计划表记账（避免与自动 cron 路径产生重复释放/重复计数），
+        但不受批次/延迟节奏限制——所有未释放且非缺失的设备立即全部释放。
+        """
+        self._ensure_release_schedule(business_date)
+
+        with self._adapter.get_sync_session() as session:
+            pending_rows = session.execute(
+                select(PvMockReleaseSchedule).where(
+                    PvMockReleaseSchedule.business_date == business_date,
+                    PvMockReleaseSchedule.released_at.is_(None),
+                    PvMockReleaseSchedule.is_dropped.is_(False),
+                )
+            ).scalars().all()
+            due_keys = {(r.site_id, r.device_id, r.branch_id) for r in pending_rows}
+
+        if not due_keys:
+            # 该日全部设备已释放过（比如之前 cron 已经喂完，或该日在 parquet 中无设备）
+            rows_df = self._rows_for_date(business_date)
+            self._last_feed_result = PvMockFeedResult(
+                business_date=business_date,
+                source_row_count=0,
+                inserted_row_count=0,
+                skipped_row_count=0,
+                device_count=0,
+                exhausted=False,
+            )
+            if not rows_df.empty:
+                self._maybe_mark_day_fed(business_date)
+            return self._last_feed_result
+
+        result = self._release_due_devices(business_date, due_keys)
+        self._maybe_mark_day_fed(business_date)
+        self._last_feed_result = result
 
         logger.info(
-            "pv_mock_feed: business_date=%s source_rows=%d inserted=%d skipped=%d devices=%d",
+            "pv_mock_feed: business_date=%s（人工全量释放）source_rows=%d inserted=%d skipped=%d devices=%d",
             business_date.isoformat(),
-            len(records),
-            total_inserted,
-            skipped,
-            device_count,
+            result.source_row_count,
+            result.inserted_row_count,
+            result.skipped_row_count,
+            result.device_count,
         )
-        return feed_result
+        return result
 
     def reset_feed_cursor(self, reason: str = "manual_reset") -> Dict[str, Any]:
-        """清空喂数游标，下次可从 parquet 首日重新推进（已写入行仍受 INSERT IGNORE 保护）。"""
+        """清空喂数游标与释放计划，下次可从 parquet 首日重新推进。
+
+        已写入 ``training_samples`` 的行仍受 INSERT IGNORE 保护（不会重复插入），
+        但会重新生成释放计划并重新走一遍完整性/游标记账流程。
+        """
         with self._feed_lock:
             self._ensure_cursor_table()
             previous = self._last_fed_date()
@@ -567,6 +847,8 @@ class PvFaultMockFeeder:
                     text(f"DELETE FROM `{_SCHEMA}`.`{_CURSOR_TABLE}`")
                 )
                 deleted = int(result.rowcount or 0)
+                session.execute(text("DELETE FROM pv_mock_release_schedule"))
+                session.execute(text("DELETE FROM measurement_ingestion_daily"))
             preview = self._build_preview()
             logger.info(
                 "pv_mock_feed: cursor reset reason=%s deleted_rows=%d previous=%s next=%s",

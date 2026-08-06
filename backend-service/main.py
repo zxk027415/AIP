@@ -270,6 +270,13 @@ async def startup_event():
         set_pv_mock_feeder(_pv_mock_feeder)
         # @AI_GENERATED: end
 
+        # @AI_GENERATED: 按日滚动预测生产表结构设计 —— 设备-天完整性判定仓库注入
+        from services.db.repositories.ingestion_tracker import IngestionTrackerRepository
+        from api.scheduler import set_ingestion_tracker
+        _ingestion_tracker = IngestionTrackerRepository(_db_adapter)
+        set_ingestion_tracker(_ingestion_tracker)
+        # @AI_GENERATED: end
+
         _sched_engine = SchedulerEngine()
 
         # @AI_GENERATED: formal-load-forecast-scheduler-evidence
@@ -355,11 +362,13 @@ async def startup_event():
             "5 4 * * *", "load_forecast",
         )
         # @AI_GENERATED: end
-        # @AI_GENERATED: PV mock 喂数据 cron（每天 01:30，先于预测任务）
+        # @AI_GENERATED: PV mock 错峰释放 cron（按日滚动预测生产表结构设计）
+        # 从"每天一次整批写完"改为分钟级多批错峰释放，模拟设备异步到达；
+        # 每次 tick 只释放当前业务日里"计划批次已到"的一批设备。
         _sched_engine.register_task(
             "pv_mock_data_feed",
-            _pv_mock_feeder.feed_next_batch,
-            "30 1 * * *", "pv_fault"
+            _pv_mock_feeder.release_next_batch_tick,
+            _db_cfg.sched_pv_mock_feed_cron, "pv_fault"
         )
         # @AI_GENERATED: end
         # @AI_GENERATED: PV 预测模型由累计训练 completed request 决定，禁止启动时硬编码工件。
@@ -567,13 +576,13 @@ def _seed_scheduler_tasks(db_cfg) -> None:
                 "cron_expr": getattr(db_cfg, "sched_pv_predict_cron", "30 2 * * *"),
                 "slot": "default",
             },
-            # @AI_GENERATED: 光伏 mock 喂数据任务种子
+            # @AI_GENERATED: 光伏 mock 错峰释放任务种子（按日滚动预测生产表结构设计）
             {
                 "task_id": "pv_mock_data_feed",
-                "name": "光伏故障 — 模拟喂数据（按自然日逐日，跨日需人工确认）",
+                "name": "光伏故障 — 模拟错峰释放（分钟级 tick，模拟设备异步到达）",
                 "pipeline": "pv_fault",
                 "schedule_type": "cron",
-                "cron_expr": "30 1 * * *",
+                "cron_expr": getattr(db_cfg, "sched_pv_mock_feed_cron", "*/12 * * * *"),
                 "slot": "pv_fault",
             },
             # @AI_GENERATED: end

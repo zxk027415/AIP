@@ -153,6 +153,14 @@ class DBConfig:
     sched_pv_predict_cron: str = "30 2 * * *"
     """SCHED_PV_PREDICT_CRON — PV 预测 cron（默认每天 02:30）"""
 
+    # @AI_GENERATED: 按日滚动预测生产表结构设计 —— mock 喂数据改为分钟级错峰释放
+    sched_pv_mock_feed_cron: str = "*/12 * * * *"
+    """SCHED_PV_MOCK_FEED_CRON — PV mock 错峰释放 cron（默认每 12 分钟一次 tick，
+    每次只释放当前业务日里"计划批次已到"的一批设备，模拟真实场景下设备异步到达）。
+    从"每天一次整批写入"改为"分钟级多批错峰释放"，见 PvFaultMockFeeder.release_next_batch_tick。
+    """
+    # @AI_GENERATED: end
+
     task_retry_delay: int = 60
     """SCHED_TASK_RETRY_DELAY — 任务失败重试延迟（秒），范围 [10, 600]"""
 
@@ -218,3 +226,8 @@ class DBConfig:
         self.sched_pv_predict_cron = _get(
             "SCHED_PV_PREDICT_CRON", file_data, "sched_pv_predict_cron", self.sched_pv_predict_cron
         )
+        # @AI_GENERATED: 按日滚动预测生产表结构设计
+        self.sched_pv_mock_feed_cron = _get(
+            "SCHED_PV_MOCK_FEED_CRON", file_data, "sched_pv_mock_feed_cron", self.sched_pv_mock_feed_cron
+        )
+        # @AI_GENERATED: end

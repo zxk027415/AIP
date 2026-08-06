@@ -51,5 +51,10 @@ sched_lf_backfill_cron: "0 4 * * *"
 sched_pv_pull_cron: "0 2 * * *"
 sched_pv_predict_cron: "30 2 * * *"
 
+# pv_mock_data_feed：错峰释放 tick，默认每 12 分钟一次（按日滚动预测生产表结构设计）。
+# 每次 tick 只释放当前业务日里"计划批次已到"的一批设备，模拟真实场景下设备异步到达；
+# 不再是"每天一次整批写完"，见 PvFaultMockFeeder.release_next_batch_tick。
+sched_pv_mock_feed_cron: "*/12 * * * *"
+
 task_retry_delay: 60
 # @AI_GENERATED: end

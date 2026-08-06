@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import date as _date
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -57,6 +58,16 @@ def set_pv_mock_feeder(feeder: Any) -> None:
     """由 main.py 注入 PvFaultMockFeeder，供手动喂数据端点使用。"""
     global _pv_mock_feeder
     _pv_mock_feeder = feeder
+# @AI_GENERATED: end
+
+# @AI_GENERATED: 按日滚动预测生产表结构设计 —— 设备-天完整性判定仓库注入
+_ingestion_tracker: Optional[Any] = None
+
+
+def set_ingestion_tracker(tracker: Any) -> None:
+    """由 main.py 注入 IngestionTrackerRepository，供"数据到达"面板端点使用。"""
+    global _ingestion_tracker
+    _ingestion_tracker = tracker
 # @AI_GENERATED: end
 
 
@@ -903,6 +914,77 @@ async def reset_pv_mock_feed_cursor() -> Dict[str, Any]:
         ),
         **payload,
     }
+# @AI_GENERATED: end
+
+
+# @AI_GENERATED: 按日滚动预测生产表结构设计 —— 数据到达仪表盘 3 个端点
+# 站点到达总览 / 设备到达明细（下钻） / 完整但未预测的设备-天（投喂闸门完整性版）
+# 均只读，数据来自 measurement_ingestion_daily + device_prediction_cursor，
+# 由 IngestionTrackerRepository 封装（main.py 通过 set_ingestion_tracker 注入）。
+
+def _require_ingestion_tracker() -> Any:
+    if _ingestion_tracker is None:
+        raise HTTPException(status_code=503, detail="IngestionTrackerRepository 尚未注入（需要重启后端）")
+    return _ingestion_tracker
+
+
+def _parse_business_date(value: Optional[str]) -> Optional["_date"]:
+    if not value:
+        return None
+    try:
+        return _date.fromisoformat(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"business_date 格式应为 YYYY-MM-DD: {value!r}") from exc
+
+
+@router.get("/pv-ingestion/site-overview")
+async def get_pv_ingestion_site_overview(business_date: Optional[str] = None) -> Dict[str, Any]:
+    """按站点聚合数据到达完整性总览：设备总数、已完整设备数、完成度百分比。
+
+    Query params:
+      business_date — 可选，YYYY-MM-DD；不传时返回每个站点"最新业务日"的总览。
+
+    供前端"数据到达总览（站点级）"面板使用。
+    """
+    tracker = _require_ingestion_tracker()
+    parsed_date = _parse_business_date(business_date)
+    sites = tracker.query_site_overview(business_date=parsed_date)
+    return {"business_date": business_date, "sites": sites}
+
+
+@router.get("/pv-ingestion/device-detail")
+async def get_pv_ingestion_device_detail(
+    site_id: str,
+    business_date: Optional[str] = None,
+) -> Dict[str, Any]:
+    """列出某站点下所有设备在指定业务日（或各自最新业务日）的到达完整性明细。
+
+    Query params:
+      site_id       — 必填，站点 ID
+      business_date — 可选，YYYY-MM-DD；不传时每个设备取其最新业务日的一行。
+
+    供前端"设备到达明细（下钻）"表格使用。
+    """
+    tracker = _require_ingestion_tracker()
+    parsed_date = _parse_business_date(business_date)
+    devices = tracker.query_device_detail(site_id, business_date=parsed_date)
+    return {"site_id": site_id, "business_date": business_date, "devices": devices}
+
+
+@router.get("/pv-ingestion/pending-predictable")
+async def get_pv_ingestion_pending_predictable(site_id: Optional[str] = None) -> Dict[str, Any]:
+    """列出已完整但尚未被对应设备游标预测过的设备-天。
+
+    Query params:
+      site_id — 可选，限定站点；不传返回全部站点。
+
+    供"投喂闸门（完整性版）"人工确认批量预测使用：运营人员看到这批"已完整、
+    待预测"的设备-天后手动确认，触发批量预测（人工确认闸门按用户决策保留，
+    不自动流转）。
+    """
+    tracker = _require_ingestion_tracker()
+    items = tracker.query_pending_predictable(site_id=site_id)
+    return {"site_id": site_id, "count": len(items), "items": items}
 # @AI_GENERATED: end
 
 

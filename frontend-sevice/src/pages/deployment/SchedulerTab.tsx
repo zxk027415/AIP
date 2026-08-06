@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Button, Descriptions, Divider, Dropdown, Empty, Form, Input, InputNumber,
+  Alert, Button, Card, Descriptions, Divider, Dropdown, Empty, Form, Input, InputNumber,
   Modal, Popconfirm, Select, Space, Switch, Table, Tag, Tooltip, Typography, message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -22,12 +22,18 @@ import {
   type ScheduledTaskCreate, type ScheduledTaskDetail, type ScheduledTaskSummary,
   type PvMockFeedDataEvidence, type PvMockFeedPreview, type ManualPvMockFeedResponse,
   type PvSourceFingerprint, type PvMockFeedLastRecord, type PvMockFeedIngestBatch,
+  // @AI_GENERATED: 按日滚动预测生产表结构设计 —— 数据到达仪表盘
+  pvIngestionApi, type PvDeviceIngestionDetail as PvPendingPredictableItem,
+  // @AI_GENERATED: end
 } from '../../services/deploymentApi';
 // @AI_GENERATED: 后端部分时间戳是 UTC 裸字符串（fed_at / ingested_at），
 // 需归一化后再转本地；调度自身字段（上次执行时间等）存的是本地时间，不能一起转。
 import { formatBackendDateTime } from '../../utils/datetime';
 // @AI_GENERATED: end
 import { getSchedulerStatus, type FailureRecord } from '../../services/schedulerApi';
+// @AI_GENERATED: 按日滚动预测生产表结构设计 —— 数据到达总览/设备明细面板
+import PvIngestionSiteOverview from '../../components/pv-fault/PvIngestionSiteOverview';
+// @AI_GENERATED: end
 
 const { Text } = Typography;
 
@@ -132,6 +138,11 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
   const [pvMockFeedPreview, setPvMockFeedPreview] = useState<PvMockFeedPreview | null>(null);
   const [pvMockFeedPreviewError, setPvMockFeedPreviewError] = useState<string | null>(null);
   // @AI_GENERATED: end
+  // @AI_GENERATED: 按日滚动预测生产表结构设计 —— 已完整但未预测的设备-天（投喂闸门完整性版）
+  const [pendingPredictable, setPendingPredictable] = useState<PvPendingPredictableItem[]>([]);
+  const [pendingPredictableLoading, setPendingPredictableLoading] = useState(false);
+  const [pendingPredictableError, setPendingPredictableError] = useState<string | null>(null);
+  // @AI_GENERATED: end
   const [loading, setLoading] = useState(false);
   const [rowActionLoading, setRowActionLoading] = useState<Record<string, boolean>>({});
   const [createOpen, setCreateOpen] = useState(false);
@@ -217,7 +228,34 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
     }
   }, [messageApi]);
 
+  // @AI_GENERATED: 按日滚动预测生产表结构设计 —— 加载已完整但未预测的设备-天
+  const loadPendingPredictable = useCallback(async () => {
+    setPendingPredictableLoading(true);
+    setPendingPredictableError(null);
+    try {
+      const resp = await pvIngestionApi.getPendingPredictable();
+      setPendingPredictable(resp.items);
+    } catch (err: any) {
+      setPendingPredictableError(err?.response?.data?.detail || err?.message || '加载待预测设备-天失败');
+      setPendingPredictable([]);
+    } finally {
+      setPendingPredictableLoading(false);
+    }
+  }, []);
+  // @AI_GENERATED: end
+
   useEffect(() => { loadTasks(); }, [loadTasks]);
+
+  // @AI_GENERATED: 按日滚动预测生产表结构设计 —— 光伏槽位加载已完整但未预测的设备-天
+  useEffect(() => {
+    if (isPvSlot) {
+      void loadPendingPredictable();
+    } else {
+      setPendingPredictable([]);
+      setPendingPredictableError(null);
+    }
+  }, [isPvSlot, loadPendingPredictable]);
+  // @AI_GENERATED: end
 
   const visibleTasks = useMemo(() => {
     return tasks.filter((task) => {
@@ -703,6 +741,57 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
               </Space>
             )}
           />
+        )}
+        {/* @AI_GENERATED: end */}
+        {/* @AI_GENERATED: 按日滚动预测生产表结构设计 —— 数据到达总览 + 完整但未预测的设备-天 */}
+        {isPvSlot && (
+          <>
+            <PvIngestionSiteOverview />
+            <Card
+              size="small"
+              title="投喂闸门（完整性版）— 已完整但尚未预测的设备-天"
+              extra={(
+                <Button size="small" icon={<ReloadOutlined />} loading={pendingPredictableLoading} onClick={() => void loadPendingPredictable()}>
+                  刷新
+                </Button>
+              )}
+            >
+              <Alert
+                type="info"
+                showIcon
+                message="人工确认闸门"
+                description="以下设备-天已判定数据完整（默认按到达点数 ≥ 理论点数的 90% 判定），但尚未被对应设备的预测游标处理过。确认无误后前往「pv_prediction」任务手动触发，或等待下次自动预测。本列表仅展示，不会自动触发预测。"
+                style={{ marginBottom: 12 }}
+              />
+              {pendingPredictableError ? <Alert type="error" showIcon message={pendingPredictableError} style={{ marginBottom: 12 }} /> : null}
+              <Table<PvPendingPredictableItem>
+                rowKey={(row) => `${row.site_id}|${row.device_id}|${row.branch_id}|${row.business_date ?? ''}`}
+                size="small"
+                loading={pendingPredictableLoading}
+                dataSource={pendingPredictable}
+                pagination={{ pageSize: 10, size: 'small' }}
+                locale={{ emptyText: '暂无已完整待预测的设备-天' }}
+                columns={[
+                  { title: '站点', dataIndex: 'site_id', width: 160, ellipsis: true },
+                  { title: '设备', dataIndex: 'device_id', width: 160, ellipsis: true },
+                  { title: '支路', dataIndex: 'branch_id', width: 80 },
+                  { title: '业务日', dataIndex: 'business_date', width: 120 },
+                  {
+                    title: '到达点数',
+                    key: 'points',
+                    width: 140,
+                    render: (_: unknown, row) => `${row.point_count}/${row.expected_point_count}`,
+                  },
+                  {
+                    title: '上次预测业务日',
+                    dataIndex: 'last_predicted_business_date',
+                    width: 140,
+                    render: (v: string | null) => v ?? '从未预测',
+                  },
+                ]}
+              />
+            </Card>
+          </>
         )}
         {/* @AI_GENERATED: end */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

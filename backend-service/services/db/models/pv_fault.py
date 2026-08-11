@@ -175,11 +175,14 @@ class DevicePredictionCursor(Base):
 
     真实生产环境下不同设备的数据到达节奏互不同步，用一个全局游标会导致
     "先到齐的设备要等最慢的设备"或"漏预测晚到设备"。本表把游标粒度下沉到
-    设备三元组，每个设备独立记录"已预测到哪一天"。
+    设备三元组，每个设备独立记录"已预测到哪一时刻"。
 
-    ``pv_prediction`` 任务对每个 ``is_complete=True`` 且
-    ``business_date > last_predicted_business_date`` 的设备-天执行预测，
-    成功写入 ``PredictionRecord`` 后才推进本表（失败不推进，下次重试）。
+    ``pv_prediction`` 任务每次触发时，对每台设备取
+    ``(last_predicted_time, cutoff]`` 时间窗口内未预测的测量点（点粒度），
+    不管这些点跨几天——积压的点下次自然补上，不需要任何额外逻辑。
+    成功写入 ``PredictionRecord`` 后才推进游标（失败不推进，下次重试）。
+
+    初始值：``2021-11-24T23:50:00``（与历史全局游标对齐，避免重复预测）。
     """
 
     __tablename__ = "device_prediction_cursor"
@@ -187,7 +190,10 @@ class DevicePredictionCursor(Base):
     site_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     device_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     branch_id: Mapped[str] = mapped_column(String(128), primary_key=True)
-    last_predicted_business_date: Mapped[date] = mapped_column(Date, nullable=True)
+    # @AI_GENERATED: 点粒度游标 — 从 last_predicted_business_date(DATE) 改为 last_predicted_time(DATETIME)
+    # 支撑"截止到设定时间点之前的点都诊断，后到的点下次补"逻辑
+    last_predicted_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    # @AI_GENERATED: end
     last_predicted_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     model_version_id: Mapped[str] = mapped_column(String(64), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(

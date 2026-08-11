@@ -27,6 +27,9 @@ from services.db.repositories.pv_fault import PVFaultRepository
 from services.iterative_labeling.cumulative_training import CumulativeTrainingService
 from services.iterative_labeling.label_registry import LabelRegistryService
 from services.iterative_labeling.review_session import ReviewSessionService
+# @AI_GENERATED: 点粒度时间窗口改造 — 按设备游标遍历预测
+from services.db.models.pv_fault import DevicePredictionCursor
+# @AI_GENERATED: end
 
 logger = logging.getLogger(__name__)
 
@@ -660,301 +663,280 @@ def _run_pv_prediction_cycle(
     pv_repo: PVFaultRepository,
     model_ref: Optional[str] = None,
 ) -> None:
-        resolved_ref = str(model_ref or "").strip() or _production_model_ref()
-        if not resolved_ref:
-            logger.info(
-                "MODEL_PENDING: pv_prediction_task is waiting for a pv_fault production model"
-            )
-            _save_prediction_last_run(
-                {
-                    "status": "skipped",
-                    "reason": "model_pending",
-                    "message": "尚无可用模型，预测已跳过。",
-                    "updated_at": _utc_now_iso(),
-                }
-            )
-            return
+    # @AI_GENERATED: 点粒度时间窗口预测改造
+    # 原逻辑：读全局 prediction_cursor.json → 整批取全部未标注行 → 整批预测
+    # 新逻辑：读 device_prediction_cursor 表 → 每台设备按 (last_predicted_time, cutoff]
+    #         取各自的测量点 → 各自跑 InferenceSampleGenerator → 整批写 PredictionRecord
+    #         → 各自推进游标（失败不推进，下次补）
+    # 后到的点：不需要任何特殊处理，下次 cron 触发时游标还在原处，
+    #           晚到的点时间戳自然落进下次窗口，自动补上。
+    # @AI_GENERATED: end
 
+    resolved_ref = str(model_ref or "").strip() or _production_model_ref()
+    if not resolved_ref:
+        logger.info("MODEL_PENDING: pv_prediction_task is waiting for a pv_fault production model")
+        _save_prediction_last_run({"status": "skipped", "reason": "model_pending",
+                                   "message": "尚无可用模型，预测已跳过。", "updated_at": _utc_now_iso()})
+        return
+
+    try:
+        model_id, model_file, model_path, execution_model_path = _resolve_model_artifact(resolved_ref)
+    except FileNotFoundError:
+        logger.info("MODEL_PENDING: pv_prediction_task model artifact not found model_ref=%s", resolved_ref)
+        _save_prediction_last_run({"status": "skipped", "reason": "model_pending",
+                                   "message": f"模型工件不存在：{resolved_ref}", "updated_at": _utc_now_iso()})
+        return
+
+    feature_list, sample_strategy = _load_model_contract(model_file)
+    modeling_path = _production_modeling_path()
+    use_point_label_path = modeling_path in _POINT_LABEL_MODELING_PATHS
+    if use_point_label_path and not sample_strategy:
+        message = (
+            f"生产建模路径为 {modeling_path}，但模型 {resolved_ref} 的 pkl 里没有 "
+            "sample_strategy，无法复现训练切分口径，预测已跳过。"
+        )
+        logger.error("pv_prediction_task: %s", message)
+        _save_prediction_last_run({"status": "skipped", "reason": "sample_strategy_missing",
+                                   "message": message, "model_ref": resolved_ref,
+                                   "modeling_path": modeling_path, "updated_at": _utc_now_iso()})
+        return
+
+    # @AI_GENERATED: 点粒度改造 — cutoff = 本次 cron 触发时刻（UTC）
+    cutoff = datetime.utcnow()
+    # @AI_GENERATED: end
+    # @AI_GENERATED: 点粒度改造 — 从 device_prediction_cursor 表读各设备游标
+    from services.db.adapter import DBAdapter
+    from services.db.config import DBConfig
+    from services.db.models.pv_fault import DevicePredictionCursor
+    from sqlalchemy import select
+
+    _db_adapter = DBAdapter(DBConfig())
+    with _db_adapter.get_sync_session() as _sess:
+        cursor_rows = _sess.execute(select(DevicePredictionCursor)).scalars().all()
+        device_cursors: Dict[tuple, Optional[datetime]] = {
+            (r.site_id, r.device_id, r.branch_id): r.last_predicted_time
+            for r in cursor_rows
+        }
+    _db_adapter.dispose()
+
+    if not device_cursors:
+        logger.info("pv_prediction_task: device_prediction_cursor 为空，无设备可预测")
+        _save_prediction_last_run({"status": "skipped", "reason": "no_device_cursors",
+                                   "message": "device_prediction_cursor 表为空，请先运行初始化脚本。",
+                                   "updated_at": _utc_now_iso()})
+        return
+
+    # 按设备查各自时间窗口内的测量点，汇总后一次性跑预测
+    _query_by_time = (
+        pv_repo.query_unlabeled_by_point_labels
+        if use_point_label_path
+        else pv_repo.query_unlabeled_training_samples
+    )
+
+    all_rows: List[Dict[str, Any]] = []
+    device_new_rows: Dict[tuple, List[Dict[str, Any]]] = {}
+    skipped_caught_up = 0
+
+    for (site_id, device_id, branch_id), last_time in device_cursors.items():
+        rows = _query_by_time(
+            after_time=last_time,
+            before_time=cutoff,
+            site_id=site_id,
+            device_id=device_id,
+            branch_id=branch_id,
+        )
+        if not rows:
+            skipped_caught_up += 1
+            continue
+        device_new_rows[(site_id, device_id, branch_id)] = rows
+        all_rows.extend(rows)
+
+    if not all_rows:
+        logger.info(
+            "pv_prediction_task: cutoff=%s，%d 台设备均已追平，无新增待预测数据",
+            cutoff.isoformat(), skipped_caught_up,
+        )
+        _save_prediction_last_run({
+            "status": "skipped", "reason": "skipped_caught_up",
+            "message": f"所有 {skipped_caught_up} 台设备截止 {cutoff.isoformat()} 均无新增数据。",
+            "cutoff": cutoff.isoformat(), "modeling_path": modeling_path,
+            "updated_at": _utc_now_iso(),
+        })
+        return
+
+    logger.info(
+        "pv_prediction_task: cutoff=%s，%d 台设备有新数据，共 %d 行，跳过 %d 台已追平",
+        cutoff.isoformat(), len(device_new_rows), len(all_rows), skipped_caught_up,
+    )
+    # @AI_GENERATED: end
+
+    batch_id = f"pred-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    # @AI_GENERATED: 点粒度改造 — 用所有设备汇总的测量行切推理样本
+    split_audit: Optional[Dict[str, Any]] = None
+    if use_point_label_path:
+        from services.iterative_labeling.inference_sample import (
+            INFERENCE_DERIVED_COLUMNS,
+            InferenceSampleGenerator,
+        )
+        measurements = pd.DataFrame(all_rows)
+        measurements["time"] = pd.to_datetime(measurements["time"])
         try:
-            model_id, model_file, model_path, execution_model_path = _resolve_model_artifact(resolved_ref)
-        except FileNotFoundError:
-            logger.info(
-                "MODEL_PENDING: pv_prediction_task is waiting for model artifact model_ref=%s",
-                resolved_ref,
+            sample_frame, split_audit = InferenceSampleGenerator().generate_inference_samples(
+                measurements, str(model_file)
             )
-            _save_prediction_last_run(
-                {
-                    "status": "skipped",
-                    "reason": "model_pending",
-                    "message": f"模型工件不存在：{resolved_ref}",
-                    "updated_at": _utc_now_iso(),
-                }
-            )
-            return
-        # @AI_GENERATED: 逐点标签路径下必须按模型持久化策略切样本
-        feature_list, sample_strategy = _load_model_contract(model_file)
-        modeling_path = _production_modeling_path()
-        use_point_label_path = modeling_path in _POINT_LABEL_MODELING_PATHS
-        if use_point_label_path and not sample_strategy:
-            # 缺策略就没法复现训练切分。宁可跳过也不要用错误口径静默预测。
+        except ValueError as exc:
             message = (
-                f"生产建模路径为 {modeling_path}，但模型 {resolved_ref} 的 pkl 里没有 "
-                "sample_strategy，无法复现训练切分口径，预测已跳过。"
-                "请用累计训练重训产出带策略的模型。"
+                f"待预测数据未能按策略 {sample_strategy.get('split_mode')} 切出推理样本：{exc}"
             )
-            logger.error("pv_prediction_task: %s", message)
-            _save_prediction_last_run(
-                {
-                    "status": "skipped",
-                    "reason": "sample_strategy_missing",
-                    "message": message,
-                    "model_ref": resolved_ref,
-                    "modeling_path": modeling_path,
-                    "updated_at": _utc_now_iso(),
-                }
-            )
+            logger.warning("pv_prediction_task: %s", message)
+            _save_prediction_last_run({"status": "skipped", "reason": "no_inference_sample",
+                                       "message": message, "model_ref": resolved_ref,
+                                       "modeling_path": modeling_path,
+                                       "unlabeled_rows": len(all_rows), "updated_at": _utc_now_iso()})
             return
-        # @AI_GENERATED: end
-
-        try:
-            source_fp = _current_source_fingerprint()
-        except Exception as exc:
-            _save_prediction_last_run(
-                {
-                    "status": "skipped",
-                    "reason": "source_fingerprint_unavailable",
-                    "message": f"无法计算当前数据源指纹，已跳过预测：{exc}",
-                    "updated_at": _utc_now_iso(),
-                }
-            )
-            logger.warning("pv_prediction_task: source fingerprint unavailable, skip: %s", exc)
-            return
-
-        prediction_cursor, cursor_reset, previous_fp = _align_prediction_cursor_to_source(source_fp)
-        # @AI_GENERATED: 未标注判定按建模路径取口径。
-        # 逐点标签路径的标签事实来源是 point_labels，不是 training_samples.label；
-        # 实测两者背离 309,964 行（新路径已标注、旧口径却当成未标注），
-        # 继续用旧口径会让这批数据被反复重复预测、真正的新增观测被淹没。
-        _query_unlabeled = (
-            pv_repo.query_unlabeled_by_point_labels
-            if use_point_label_path
-            else pv_repo.query_unlabeled_training_samples
-        )
-        # @AI_GENERATED: end
-        unlabeled_rows = _query_unlabeled(after_time=prediction_cursor)
-        if not unlabeled_rows:
-            all_unlabeled = _query_unlabeled(after_time=None)
-            unlabeled_total = len(all_unlabeled)
-            if all_unlabeled and prediction_cursor is not None:
-                max_time = max(
-                    (row["time"] for row in all_unlabeled if row.get("time") is not None),
-                    default=None,
-                )
-                # 游标已覆盖到最新业务时间：正常「已追平」，不是待审核积压，也不默认建议重置。
-                reason = "skipped_caught_up"
-                cursor_iso = prediction_cursor.isoformat()
-                max_iso = max_time.isoformat() if hasattr(max_time, "isoformat") else max_time
-                message = (
-                    f"本次无新增待预测数据：预测进度已覆盖至 {cursor_iso}"
-                    f"（库内最新无标签观测时间={max_iso}）。"
-                    "说明：库中「无标签」样本不等于「待人工审核」；"
-                    "审核请看已保存的预测结果批次。"
-                    "仅在更换历史数据源或需要整段重跑时，才重置预测进度。"
-                )
-            else:
-                reason = "skipped_no_unlabeled"
-                message = "当前没有待预测的观测（游标之后无新数据）。"
-                unlabeled_total = 0
-            _save_prediction_last_run(
-                {
-                    "status": "skipped",
-                    "reason": reason,
-                    "message": message,
-                    "cursor_reset": cursor_reset,
-                    "previous_fingerprint": previous_fp,
-                    "source_fingerprint": source_fp,
-                    "prediction_cursor": prediction_cursor.isoformat() if prediction_cursor else None,
-                    "unlabeled_total": unlabeled_total,
-                    # @AI_GENERATED: 跳过分支也留痕建模路径 —— 「未标注」是按哪个口径统计的
-                    # 直接决定 unlabeled_total 的含义，缺了这个字段无法解读。
-                    "modeling_path": modeling_path,
-                    # @AI_GENERATED: end
-                    "updated_at": _utc_now_iso(),
-                }
-            )
-            logger.info("pv_prediction_task: %s", message)
-            return
-
-        batch_id = f"pred-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
-        # @AI_GENERATED: 逐点标签路径 —— 用模型持久化策略切出推理样本，
-        # 并把样本边界（time_window，含 '#'）与派生列写进预测输入。
-        # time_window_split 会把带 '#' 的显式窗口键原样保留、不再按 solar_mode 重切，
-        # 于是预测样本粒度与训练快照严格一致（by_day 下一天一条）。
-        split_audit: Optional[Dict[str, Any]] = None
-        if use_point_label_path:
-            from services.iterative_labeling.inference_sample import (
-                INFERENCE_DERIVED_COLUMNS,
-                InferenceSampleGenerator,
-            )
-
-            measurements = pd.DataFrame(unlabeled_rows)
-            measurements["time"] = pd.to_datetime(measurements["time"])
-            try:
-                sample_frame, split_audit = InferenceSampleGenerator().generate_inference_samples(
-                    measurements, str(model_file)
-                )
-            except ValueError as exc:
-                message = (
-                    f"待预测数据未能按策略 {sample_strategy.get('split_mode')} 切出推理样本："
-                    f"{exc}（可能是每个设备-天的有效点数不足 min_points）"
-                )
-                logger.warning("pv_prediction_task: %s", message)
-                _save_prediction_last_run(
-                    {
-                        "status": "skipped",
-                        "reason": "no_inference_sample",
-                        "message": message,
-                        "model_ref": resolved_ref,
-                        "modeling_path": modeling_path,
-                        "unlabeled_rows": len(unlabeled_rows),
-                        "updated_at": _utc_now_iso(),
-                    }
-                )
-                return
-            extra_columns = ["time_window", "period_role", *INFERENCE_DERIVED_COLUMNS]
-            _input_path, source_dataset_path = _write_prediction_input(
-                sample_frame, batch_id, extra_columns=extra_columns
-            )
-            logger.info(
-                "pv_prediction_task: 推理样本已按 split_mode=%s 切出 samples=%d rows=%d",
-                split_audit.get("split_mode"),
-                split_audit.get("sample_count"),
-                split_audit.get("row_count"),
-            )
-        else:
-            _input_path, source_dataset_path = _write_prediction_input(unlabeled_rows, batch_id)
-        # @AI_GENERATED: end
-
-        from api.workflows_enhanced import _execute_pipeline_sync, load_workflow_from_file
-
-        workflow = load_workflow_from_file("workflow-pv-fault-diag-quickval-predict-v1")
-        if workflow is None:
-            raise RuntimeError("预测工作流模板 workflow-pv-fault-diag-quickval-predict-v1 不存在")
-
-        required_nodes = {"load_csv": False, "feature_select": False, "random_forest_classifier": False}
-        for node in workflow.nodes:
-            config = node.data.config
-            function_id = config.get("functionId") if isinstance(config, dict) else getattr(config, "functionId", None)
-            if function_id == "load_csv":
-                _workflow_config_set(config, "file_path", source_dataset_path)
-                required_nodes[function_id] = True
-            elif function_id == "feature_select":
-                _workflow_config_set(config, "feature_list", feature_list)
-                _workflow_config_set(config, "model_path", execution_model_path)
-                required_nodes[function_id] = True
-            elif function_id == "random_forest_classifier":
-                _workflow_config_set(config, "model_id", model_id)
-                _workflow_config_set(config, "model_path", execution_model_path)
-                required_nodes[function_id] = True
-            # @AI_GENERATED: 逐点标签路径下让 time_window_split 退化为透传。
-            # 样本边界已由 InferenceSampleGenerator 预置在 time_window 列（含 '#'），
-            # 算子会原样保留；清掉按功率值判定的 solar_mode 及其附属参数，
-            # 既消除口径歧义，也让个别漏窗行退回「按自然日 resample」而不是被按值切两段。
-            elif function_id == "time_window_split" and use_point_label_path:
-                _workflow_config_set(config, "solar_mode", None)
-                _workflow_config_set(config, "attach_night_features", False)
-            # @AI_GENERATED: end
-        if not all(required_nodes.values()):
-            missing = [node for node, found in required_nodes.items() if not found]
-            raise RuntimeError(f"预测工作流缺少必要节点: {', '.join(missing)}")
-
-        execution_result = _execute_pipeline_sync(workflow)
-        if not execution_result.get("success", False):
-            raise RuntimeError(f"预测工作流执行失败: {execution_result.get('error', '未知错误')}")
-        raw_predictions = execution_result.get("fault_predictions")
-        unit_features: Dict[str, Any] = {}
-        for raw in raw_predictions or []:
-            if not isinstance(raw, dict):
-                continue
-            feats = raw.get("_features")
-            if not isinstance(feats, dict) or not feats:
-                continue
-            uk = (
-                f"{_review_unit_id(raw.get('site_id'))}|{_review_unit_id(raw.get('device_id'))}|"
-                f"{_review_unit_id(raw.get('branch_id'))}|{raw.get('time_window')}"
-            )
-            unit_features[uk] = _json_safe(feats)
-        predictions = _normalize_predictions(raw_predictions)
-
-        model_version = pv_repo.get_model_version(model_id)
-        for prediction in predictions:
-            pv_repo.insert_prediction_record(
-                {
-                    "model_version_id": model_id if model_version is not None else None,
-                    "site_id": prediction["site_id"],
-                    "device_id": prediction["device_id"],
-                    "branch_id": prediction["branch_id"],
-                    "predicted_label": prediction["predicted_label"],
-                    "confidence": prediction["confidence"],
-                    "input_feature_json": {
-                        "prediction_batch_id": batch_id,
-                        "time_window": prediction["time_window"],
-                        "source_dataset_path": source_dataset_path,
-                        "model_ref": resolved_ref,
-                    },
-                }
-            )
-
-        _write_prediction_batch(
-            batch_id,
-            source_dataset_path=source_dataset_path,
-            model_ref=resolved_ref,
-            model_path=model_path,
-            predictions=predictions,
-            unit_features=unit_features,
-            feature_list=feature_list,
-        )
-        review_session = _create_prediction_review_session(
-            batch_id,
-            source_dataset_path=source_dataset_path,
-            model_ref=resolved_ref,
-            predictions=predictions,
-        )
-        review_id = str(review_session["review_id"])
-        _save_prediction_cursor(
-            batch_id,
-            max(row["time"] for row in unlabeled_rows if row.get("time") is not None),
-            source_fp=source_fp,
-        )
-        _save_prediction_last_run(
-            {
-                "status": "success",
-                "reason": "predicted",
-                "message": (
-                    f"已写出预测结果 {batch_id}（{len(predictions)} 条）"
-                    + ("；本次因数据源变更已自动重置预测进度" if cursor_reset else "")
-                ),
-                "batch_id": batch_id,
-                "review_id": review_id,
-                "prediction_count": len(predictions),
-                "cursor_reset": cursor_reset,
-                "previous_fingerprint": previous_fp,
-                "source_fingerprint": source_fp,
-                "model_ref": resolved_ref,
-                # @AI_GENERATED: 留痕本次用的建模路径与切分口径，便于排查训练/预测错位
-                "modeling_path": modeling_path,
-                "split_audit": _json_safe(split_audit) if split_audit else None,
-                # @AI_GENERATED: end
-                "updated_at": _utc_now_iso(),
-            }
+        extra_columns = ["time_window", "period_role", *INFERENCE_DERIVED_COLUMNS]
+        _input_path, source_dataset_path = _write_prediction_input(
+            sample_frame, batch_id, extra_columns=extra_columns
         )
         logger.info(
-            "pv_prediction_task: 完成真实推理 batch=%s review=%s inputs=%d predictions=%d model_ref=%s cursor_reset=%s",
-            batch_id,
-            review_id,
-            len(unlabeled_rows),
-            len(predictions),
-            resolved_ref,
-            cursor_reset,
+            "pv_prediction_task: 推理样本已按 split_mode=%s 切出 samples=%d rows=%d",
+            split_audit.get("split_mode"), split_audit.get("sample_count"), split_audit.get("row_count"),
         )
+    else:
+        _input_path, source_dataset_path = _write_prediction_input(all_rows, batch_id)
+    # @AI_GENERATED: end
+
+    from api.workflows_enhanced import _execute_pipeline_sync, load_workflow_from_file
+
+    workflow = load_workflow_from_file("workflow-pv-fault-diag-quickval-predict-v1")
+    if workflow is None:
+        raise RuntimeError("预测工作流模板 workflow-pv-fault-diag-quickval-predict-v1 不存在")
+
+    required_nodes = {"load_csv": False, "feature_select": False, "random_forest_classifier": False}
+    for node in workflow.nodes:
+        config = node.data.config
+        function_id = config.get("functionId") if isinstance(config, dict) else getattr(config, "functionId", None)
+        if function_id == "load_csv":
+            _workflow_config_set(config, "file_path", source_dataset_path)
+            required_nodes[function_id] = True
+        elif function_id == "feature_select":
+            _workflow_config_set(config, "feature_list", feature_list)
+            _workflow_config_set(config, "model_path", execution_model_path)
+            required_nodes[function_id] = True
+        elif function_id == "random_forest_classifier":
+            _workflow_config_set(config, "model_id", model_id)
+            _workflow_config_set(config, "model_path", execution_model_path)
+            required_nodes[function_id] = True
+        elif function_id == "time_window_split" and use_point_label_path:
+            _workflow_config_set(config, "solar_mode", None)
+            _workflow_config_set(config, "attach_night_features", False)
+    if not all(required_nodes.values()):
+        missing = [n for n, found in required_nodes.items() if not found]
+        raise RuntimeError(f"预测工作流缺少必要节点: {', '.join(missing)}")
+
+    execution_result = _execute_pipeline_sync(workflow)
+    if not execution_result.get("success", False):
+        raise RuntimeError(f"预测工作流执行失败: {execution_result.get('error', '未知错误')}")
+    raw_predictions = execution_result.get("fault_predictions")
+    unit_features: Dict[str, Any] = {}
+    for raw in raw_predictions or []:
+        if not isinstance(raw, dict):
+            continue
+        feats = raw.get("_features")
+        if not isinstance(feats, dict) or not feats:
+            continue
+        uk = (
+            f"{_review_unit_id(raw.get('site_id'))}|{_review_unit_id(raw.get('device_id'))}|"
+            f"{_review_unit_id(raw.get('branch_id'))}|{raw.get('time_window')}"
+        )
+        unit_features[uk] = _json_safe(feats)
+    predictions = _normalize_predictions(raw_predictions)
+
+    model_version = pv_repo.get_model_version(model_id)
+    for prediction in predictions:
+        pv_repo.insert_prediction_record({
+            "model_version_id": model_id if model_version is not None else None,
+            "site_id": prediction["site_id"],
+            "device_id": prediction["device_id"],
+            "branch_id": prediction["branch_id"],
+            "predicted_label": prediction["predicted_label"],
+            "confidence": prediction["confidence"],
+            "input_feature_json": {
+                "prediction_batch_id": batch_id,
+                "time_window": prediction["time_window"],
+                "source_dataset_path": source_dataset_path,
+                "model_ref": resolved_ref,
+            },
+        })
+
+    _write_prediction_batch(
+        batch_id,
+        source_dataset_path=source_dataset_path,
+        model_ref=resolved_ref,
+        model_path=model_path,
+        predictions=predictions,
+        unit_features=unit_features,
+        feature_list=feature_list,
+    )
+    review_session = _create_prediction_review_session(
+        batch_id,
+        source_dataset_path=source_dataset_path,
+        model_ref=resolved_ref,
+        predictions=predictions,
+    )
+    review_id = str(review_session["review_id"])
+
+    # @AI_GENERATED: 点粒度改造 — 按设备推进各自游标到 cutoff（只推进有新数据的设备）
+    from services.db.adapter import DBAdapter as _DBAdapter
+    from services.db.config import DBConfig as _DBConfig
+    from sqlalchemy.dialects.mysql import insert as _mysql_insert
+
+    _cursor_adapter = _DBAdapter(_DBConfig())
+    _now = datetime.utcnow()
+    _cursor_records = [
+        {
+            "site_id": dk[0],
+            "device_id": dk[1],
+            "branch_id": dk[2],
+            "last_predicted_time": cutoff,
+            "last_predicted_at": _now,
+            "model_version_id": model_id,
+            "updated_at": _now,
+        }
+        for dk in device_new_rows
+    ]
+    with _cursor_adapter.get_sync_session() as _sess:
+        _stmt = _mysql_insert(DevicePredictionCursor).values(_cursor_records)
+        _stmt = _stmt.on_duplicate_key_update(
+            last_predicted_time=_stmt.inserted.last_predicted_time,
+            last_predicted_at=_stmt.inserted.last_predicted_at,
+            model_version_id=_stmt.inserted.model_version_id,
+            updated_at=_stmt.inserted.updated_at,
+        )
+        _sess.execute(_stmt)
+    _cursor_adapter.dispose()
+    logger.info("pv_prediction_task: 已推进 %d 台设备游标到 cutoff=%s", len(_cursor_records), cutoff.isoformat())
+    # @AI_GENERATED: end
+
+    _save_prediction_last_run({
+        "status": "success",
+        "reason": "predicted",
+        "message": f"已写出预测结果 {batch_id}（{len(predictions)} 条），处理 {len(device_new_rows)} 台设备",
+        "batch_id": batch_id,
+        "review_id": review_id,
+        "prediction_count": len(predictions),
+        "device_count": len(device_new_rows),
+        "skipped_caught_up": skipped_caught_up,
+        "cutoff": cutoff.isoformat(),
+        "model_ref": resolved_ref,
+        "modeling_path": modeling_path,
+        "split_audit": _json_safe(split_audit) if split_audit else None,
+        "updated_at": _utc_now_iso(),
+    })
+    logger.info(
+        "pv_prediction_task: 完成 batch=%s review=%s inputs=%d predictions=%d "
+        "devices=%d skipped=%d model_ref=%s cutoff=%s",
+        batch_id, review_id, len(all_rows), len(predictions),
+        len(device_new_rows), skipped_caught_up, resolved_ref, cutoff.isoformat(),
+    )
 # @AI_GENERATED: end

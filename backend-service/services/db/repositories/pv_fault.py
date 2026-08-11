@@ -267,11 +267,19 @@ class PVFaultRepository:
     def query_unlabeled_training_samples(
         self,
         after_time: Optional[datetime] = None,
+        # @AI_GENERATED: 点粒度时间窗口改造 — 新增 before_time 和设备过滤参数（全部可选，向后兼容）
+        before_time: Optional[datetime] = None,
+        site_id: Optional[str] = None,
+        device_id: Optional[str] = None,
+        branch_id: Optional[str] = None,
+        # @AI_GENERATED: end
     ) -> List[Dict[str, object]]:
         """读取 ``label IS NULL OR label < 0`` 的观测，按复合业务键稳定排序。
 
-        ``after_time`` 是调度侧成功预测游标：传入后仅返回更晚的未标注观测，避免每日任务
-        对同一批待审核数据重复推理。返回普通字典，调用方可直接构造 pandas CSV。
+        ``after_time`` / ``before_time`` 构成半开区间 ``(after_time, before_time]``；
+        ``site_id`` / ``device_id`` / ``branch_id`` 可选，用于按设备过滤（点粒度查询）。
+        传入后仅返回指定窗口内的未标注观测，避免每日任务对同一批待审核数据重复推理。
+        返回普通字典，调用方可直接构造 pandas CSV。
         """
         columns = (
             TrainingSample.time,
@@ -287,6 +295,16 @@ class PVFaultRepository:
         )
         if after_time is not None:
             stmt = stmt.where(TrainingSample.time > after_time)
+        # @AI_GENERATED: 点粒度时间窗口改造 — before_time 上界和设备过滤
+        if before_time is not None:
+            stmt = stmt.where(TrainingSample.time <= before_time)
+        if site_id is not None:
+            stmt = stmt.where(TrainingSample.site_id == site_id)
+        if device_id is not None:
+            stmt = stmt.where(TrainingSample.device_id == device_id)
+        if branch_id is not None:
+            stmt = stmt.where(TrainingSample.branch_id == branch_id)
+        # @AI_GENERATED: end
         stmt = stmt.order_by(
             TrainingSample.time.asc(),
             TrainingSample.site_id.asc(),
@@ -303,19 +321,23 @@ class PVFaultRepository:
     def query_unlabeled_by_point_labels(
         self,
         after_time: Optional[datetime] = None,
+        # @AI_GENERATED: 点粒度时间窗口改造 — 新增 before_time 和设备过滤参数（全部可选，向后兼容）
+        before_time: Optional[datetime] = None,
+        site_id: Optional[str] = None,
+        device_id: Optional[str] = None,
+        branch_id: Optional[str] = None,
+        # @AI_GENERATED: end
     ) -> List[Dict[str, object]]:
         """读取 ``point_labels`` 中没有有效标签的观测（逐点标签路径口径）。
 
         新路径的标签唯一事实来源是 ``point_labels``，不是 ``training_samples.label``。
-        迁移完成后两者会大幅背离：实测 1,058,534 行里，按旧口径
-        （``training_samples.label`` 为空）有 310,060 行「未标注」，但其中 309,964 行
-        在 ``point_labels`` 里已有有效标签——若继续用旧口径选待预测数据，
-        这 30 万行会被反复重复预测，而真正的新增观测被淹没。
-
-        ``label_id IS NULL`` 的 point_labels 行视为未标注（该行只表示曾被处理过）。
+        ``after_time`` / ``before_time`` 构成半开区间 ``(after_time, before_time]``；
+        ``site_id`` / ``device_id`` / ``branch_id`` 可选，用于按设备过滤（点粒度查询）。
 
         Args:
             after_time: 预测游标业务时间；传入后只返回更晚的观测。
+            before_time: 截止时刻（含）；传入后只返回不晚于此时刻的观测。
+            site_id / device_id / branch_id: 设备过滤，全部可选。
         Returns:
             与 ``query_unlabeled_training_samples`` 同构的字典列表，便于调用方切换口径。
         """
@@ -344,6 +366,16 @@ class PVFaultRepository:
         stmt = select(*columns).where(~labeled_exists)
         if after_time is not None:
             stmt = stmt.where(TrainingSample.time > after_time)
+        # @AI_GENERATED: 点粒度时间窗口改造 — before_time 上界和设备过滤
+        if before_time is not None:
+            stmt = stmt.where(TrainingSample.time <= before_time)
+        if site_id is not None:
+            stmt = stmt.where(TrainingSample.site_id == site_id)
+        if device_id is not None:
+            stmt = stmt.where(TrainingSample.device_id == device_id)
+        if branch_id is not None:
+            stmt = stmt.where(TrainingSample.branch_id == branch_id)
+        # @AI_GENERATED: end
         stmt = stmt.order_by(
             TrainingSample.time.asc(),
             TrainingSample.site_id.asc(),

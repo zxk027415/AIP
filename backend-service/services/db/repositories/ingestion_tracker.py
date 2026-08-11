@@ -271,11 +271,11 @@ class IngestionTrackerRepository:
 
         判定条件：``is_complete=True`` 且
         （无对应 device_prediction_cursor 行，或
-         ``business_date > last_predicted_business_date``）。
+         ``business_date > DATE(last_predicted_time)``）。
         """
         with self._adapter.get_sync_session() as session:
             stmt = (
-                select(MeasurementIngestionDaily, DevicePredictionCursor.last_predicted_business_date)
+                select(MeasurementIngestionDaily, DevicePredictionCursor.last_predicted_time)
                 .outerjoin(
                     DevicePredictionCursor,
                     and_(
@@ -291,11 +291,13 @@ class IngestionTrackerRepository:
             rows = session.execute(stmt).all()
 
         result = []
-        for ingestion_row, last_predicted in rows:
-            if last_predicted is not None and ingestion_row.business_date <= last_predicted:
+        for ingestion_row, last_predicted_time in rows:
+            # 游标是精确时刻，转换成 date 后与 business_date 比较
+            last_predicted_date = last_predicted_time.date() if last_predicted_time else None
+            if last_predicted_date is not None and ingestion_row.business_date <= last_predicted_date:
                 continue
             item = self._row_to_dict(ingestion_row)
-            item["last_predicted_business_date"] = last_predicted.isoformat() if last_predicted else None
+            item["last_predicted_business_date"] = last_predicted_date.isoformat() if last_predicted_date else None
             result.append(item)
         return result
 
@@ -336,15 +338,15 @@ class IngestionTrackerRepository:
         site_id: str,
         device_id: str,
         branch_id: str,
-        business_date: date,
+        predicted_time: datetime,
         *,
         model_version_id: Optional[str] = None,
         predicted_at: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """推进设备预测游标（只应在预测成功写入 PredictionRecord 后调用）。
 
-        Upsert 语义：不存在则新建；存在则覆盖 last_predicted_business_date
-        （调用方需保证按业务日升序推进，本方法不做单调性校验）。
+        Upsert 语义：不存在则新建；存在则覆盖 last_predicted_time。
+        ``predicted_time`` 是本次预测的 cutoff 时刻（精确到秒），替代旧的 business_date。
         """
         now = predicted_at or datetime.utcnow()
         with self._adapter.get_sync_session() as session:
@@ -352,7 +354,7 @@ class IngestionTrackerRepository:
                 "site_id": site_id,
                 "device_id": device_id,
                 "branch_id": branch_id,
-                "last_predicted_business_date": business_date,
+                "last_predicted_time": predicted_time,
                 "last_predicted_at": now,
                 "model_version_id": model_version_id,
                 "updated_at": now,
@@ -361,7 +363,7 @@ class IngestionTrackerRepository:
             update_cols = {
                 col: stmt.inserted[col]
                 for col in (
-                    "last_predicted_business_date", "last_predicted_at",
+                    "last_predicted_time", "last_predicted_at",
                     "model_version_id", "updated_at",
                 )
             }
@@ -374,7 +376,7 @@ class IngestionTrackerRepository:
             result = self._cursor_to_dict(row)
         logger.info(
             "ingestion_tracker: 设备(%s,%s,%s) 预测游标推进至 %s",
-            site_id, device_id, branch_id, business_date,
+            site_id, device_id, branch_id, predicted_time,
         )
         return result
 
@@ -384,9 +386,9 @@ class IngestionTrackerRepository:
             "site_id": row.site_id,
             "device_id": row.device_id,
             "branch_id": row.branch_id,
-            "last_predicted_business_date": (
-                row.last_predicted_business_date.isoformat()
-                if row.last_predicted_business_date else None
+            "last_predicted_time": (
+                row.last_predicted_time.isoformat()
+                if row.last_predicted_time else None
             ),
             "last_predicted_at": row.last_predicted_at.isoformat() if row.last_predicted_at else None,
             "model_version_id": row.model_version_id,

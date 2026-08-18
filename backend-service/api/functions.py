@@ -171,6 +171,94 @@ async def get_function(function_id: str):
         raise HTTPException(status_code=500, detail=f"获取函数失败: {str(e)}")
 
 
+# @AI_GENERATED: operator source code endpoint
+class OperatorSourceResponse(BaseModel):
+    """算子源码响应体"""
+    operator_id: str
+    source_code: str          # 文件完整源码
+    key_snippet: str          # execute() 函数片段（约 80 行以内）
+    file_path: str            # 相对于 backend-service/ 的路径
+    available: bool           # 是否存在对应后端文件
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "operator_id": "load_csv",
+                "source_code": "# @AI_GENERATED\n...",
+                "key_snippet": "def execute(params, inputs):\n    ...",
+                "file_path": "services/operator_backends/load_csv.py",
+                "available": True,
+            }
+        }
+
+
+@router.get("/{function_id}/source", response_model=OperatorSourceResponse, summary="获取算子源码")
+async def get_operator_source(function_id: str):
+    """
+    返回指定算子对应的 operator_backends/{function_id}.py 源码内容。
+
+    - source_code：完整文件内容
+    - key_snippet：仅 execute() 函数体（方便前端高亮展示）
+    - file_path：相对于 backend-service/ 的相对路径
+    - available：后端文件是否存在（不存在时 source_code / key_snippet 均为空字符串）
+    """
+    import re
+
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    operator_file = os.path.join(
+        backend_dir, "services", "operator_backends", f"{function_id}.py"
+    )
+    rel_path = os.path.join("services", "operator_backends", f"{function_id}.py")
+
+    if not os.path.isfile(operator_file):
+        return OperatorSourceResponse(
+            operator_id=function_id,
+            source_code="",
+            key_snippet="",
+            file_path=rel_path,
+            available=False,
+        )
+
+    try:
+        with open(operator_file, "r", encoding="utf-8") as f:
+            source_code = f.read()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取算子源码失败: {str(e)}")
+
+    # 提取 execute() 函数片段
+    # 策略：找到 "def execute(" 所在行，截取到下一个顶层 def/class 之前（最多 120 行）
+    lines = source_code.splitlines()
+    execute_start = None
+    for idx, line in enumerate(lines):
+        if re.match(r"^def execute\s*\(", line):
+            execute_start = idx
+            break
+
+    if execute_start is not None:
+        snippet_lines = []
+        for line in lines[execute_start:]:
+            snippet_lines.append(line)
+            if len(snippet_lines) > 120:
+                break
+            # 遇到下一个顶层 def/class（非首行）就停止
+            if len(snippet_lines) > 1 and re.match(r"^(def |class )", line):
+                snippet_lines.pop()  # 去掉触发结束的那行
+                break
+        key_snippet = "\n".join(snippet_lines)
+    else:
+        # 没有 execute()，回退到前 80 行
+        key_snippet = "\n".join(lines[:80])
+
+    return OperatorSourceResponse(
+        operator_id=function_id,
+        source_code=source_code,
+        key_snippet=key_snippet,
+        file_path=rel_path,
+        available=True,
+    )
+# @AI_GENERATED: end
+
+
 @router.get("/search/", response_model=List[FunctionDefinition], summary="搜索函数")
 async def search_functions(
     q: Optional[str] = Query(None, description="搜索关键词"),

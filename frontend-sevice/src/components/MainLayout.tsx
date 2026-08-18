@@ -89,7 +89,6 @@ const MainLayout: React.FC = () => {
       || path === '/algorithm-dev/deployment'
       || path.startsWith('/iterative-labeling')
       || path === '/precision-ops'
-      || path === '/algorithm-dev/ops'
     );
   }, [location.pathname]);
   const showRunningReturn =

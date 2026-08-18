@@ -172,6 +172,10 @@ function App() {
           <Route path="/algorithm-dev/deployment" element={<AlgorithmDeploymentPage />} />
           {/* @AI_GENERATED */}
           <Route path="/accuracy-operations" element={<AccuracyOperationsPage />} />
+          <Route
+            path="/pv-dual-path"
+            element={<Navigate to="/algorithm-deployment?slot=pv_fault&tab=governance" replace />}
+          />
           {/* @AI_GENERATED: end */}
           
           {/* 模板测试页面 */}

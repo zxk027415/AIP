@@ -27,7 +27,7 @@ from datetime import date as _date
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 from pydantic import BaseModel, Field
 
 # @AI_GENERATED: 本模块原先没有模块级 logger，但多处 except 块里直接调用了
@@ -928,6 +928,28 @@ def _require_ingestion_tracker() -> Any:
     return _ingestion_tracker
 
 
+def _pv_production_modeling_path() -> str:
+    """读当前日滚主线；读失败时按天级处理，避免闸门误用点级门槛。"""
+    try:
+        from services.iterative_labeling.cumulative_training import CumulativeTrainingService
+
+        paths = CumulativeTrainingService(slot="pv_fault").get_modeling_paths()
+        path = str(paths.get("production_path") or "legacy_day").strip() or "legacy_day"
+        if path in ("legacy_day", "seq_annotation"):
+            return path
+    except Exception as exc:  # noqa: BLE001 — 闸门只读，读指针失败不能 500
+        logger.warning("pv-ingestion: 无法读取生产建模路径，按 legacy_day: %s", exc)
+    return "legacy_day"
+
+
+def _resolve_ingestion_modeling_path(modeling_path: Optional[str] = None) -> str:
+    """允许 query 预览指定路径；非法值回退当前日滚主线。"""
+    path = str(modeling_path or "").strip()
+    if path in ("legacy_day", "seq_annotation"):
+        return path
+    return _pv_production_modeling_path()
+
+
 def _parse_business_date(value: Optional[str]) -> Optional["_date"]:
     if not value:
         return None
@@ -938,18 +960,30 @@ def _parse_business_date(value: Optional[str]) -> Optional["_date"]:
 
 
 @router.get("/pv-ingestion/site-overview")
-async def get_pv_ingestion_site_overview(business_date: Optional[str] = None) -> Dict[str, Any]:
+async def get_pv_ingestion_site_overview(
+    business_date: Optional[str] = None,
+    modeling_path: Optional[str] = None,
+) -> Dict[str, Any]:
     """按站点聚合数据到达完整性总览：设备总数、已完整设备数、完成度百分比。
 
     Query params:
       business_date — 可选，YYYY-MM-DD；不传时返回每个站点"最新业务日"的总览。
+      modeling_path — 可选，legacy_day / seq_annotation；不传时用当前日滚主线。
 
-    供前端"数据到达总览（站点级）"面板使用。
+    供前端"数据到达总览（站点级）"面板使用。点级按占用 ≥173 计完整。
     """
     tracker = _require_ingestion_tracker()
     parsed_date = _parse_business_date(business_date)
-    sites = tracker.query_site_overview(business_date=parsed_date)
-    return {"business_date": business_date, "sites": sites}
+    path = _resolve_ingestion_modeling_path(modeling_path)
+    sites = tracker.query_site_overview(business_date=parsed_date, modeling_path=path)
+    return {
+        "business_date": business_date,
+        "modeling_path": path,
+        "ready_criterion": (
+            "seq_occupied_173" if path == "seq_annotation" else "legacy_no_completeness_gate"
+        ),
+        "sites": sites,
+    }
 
 
 @router.get("/pv-ingestion/device-detail")
@@ -972,19 +1006,37 @@ async def get_pv_ingestion_device_detail(
 
 
 @router.get("/pv-ingestion/pending-predictable")
-async def get_pv_ingestion_pending_predictable(site_id: Optional[str] = None) -> Dict[str, Any]:
-    """列出已完整但尚未被对应设备游标预测过的设备-天。
+async def get_pv_ingestion_pending_predictable(
+    site_id: Optional[str] = None,
+    modeling_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """列出当前路径已可检测、但尚未被该路径游标处理过的设备-天。
 
     Query params:
       site_id — 可选，限定站点；不传返回全部站点。
+      modeling_path — 可选，legacy_day / seq_annotation；不传时用当前日滚主线。
+        点级按占用点数 ≥173 判定，天级仍按 is_complete（默认 90%/288）。
 
     供"投喂闸门（完整性版）"人工确认批量预测使用：运营人员看到这批"已完整、
     待预测"的设备-天后手动确认，触发批量预测（人工确认闸门按用户决策保留，
     不自动流转）。
     """
     tracker = _require_ingestion_tracker()
-    items = tracker.query_pending_predictable(site_id=site_id)
-    return {"site_id": site_id, "count": len(items), "items": items}
+    path = _resolve_ingestion_modeling_path(modeling_path)
+    items = tracker.query_pending_predictable(
+        site_id=site_id,
+        slot="pv_fault",
+        modeling_path=path,
+    )
+    return {
+        "site_id": site_id,
+        "modeling_path": path,
+        "ready_criterion": (
+            "seq_occupied_173" if path == "seq_annotation" else "legacy_no_completeness_gate"
+        ),
+        "count": len(items),
+        "items": items,
+    }
 # @AI_GENERATED: end
 
 
@@ -1227,16 +1279,34 @@ async def get_pv_prediction_cursor_status() -> Dict[str, Any]:
     return get_prediction_cursor_status()
 
 
+# @AI_GENERATED
 @router.post("/tasks/pv_prediction/reset-cursor")
-async def reset_pv_prediction_cursor() -> Dict[str, Any]:
-    """手动重置光伏预测进度（清空业务时间游标，并绑定当前数据源指纹）。"""
+async def reset_pv_prediction_cursor(
+    device_scope: Optional[List[Dict[str, str]]] = Body(None, description="设备三元组列表，传入时只重置这些设备"),
+) -> Dict[str, Any]:
+    """手动重置光伏预测进度（清空业务时间游标，并绑定当前数据源指纹）。
+
+    可选请求体：
+      device_scope — 设备三元组列表 [{site_id, device_id, branch_id}, ...]。
+          传入时只重置这些设备的游标，避免全量重置后两千多台逐台打 MAX(time) 卡死。
+          不传或为空则保持旧行为：清空该 slot 下全部设备游标。
+    """
     from services.scheduler.tasks.pv_fault_tasks import reset_prediction_cursor
 
-    payload = reset_prediction_cursor(reason="manual_reset")
+    scope = device_scope if device_scope else None
+
+    payload = reset_prediction_cursor(reason="manual_reset", device_scope=scope)
+    scoped = bool(scope)
+    msg = (
+        f"已重置 {payload.get('cleared_device_cursors', 0)} 台设备的预测游标（限定范围）。"
+        if scoped
+        else "预测进度已重置。下次预测将按当前数据源重新计算。"
+    )
     return {
         "task_id": "pv_prediction",
         "status": "reset",
-        "message": "预测进度已重置。下次预测将按当前数据源重新计算。",
+        "message": msg,
+        "scoped": scoped,
         "cursor": payload,
     }
 # @AI_GENERATED: end

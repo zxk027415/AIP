@@ -78,6 +78,7 @@ class SwitchDecisionError(ValueError):
       | cooldown_active            | 409       | 冷却期内重复切换                 |
       | no_previous_version        | 400       | 回滚时无前一版本                 |
       | no_current_production      | 400       | 回滚时当前无 production          |
+      | pv_fault_registry_read_only| 409       | pv_fault 只读，禁止 Arena 写入   |
     """
 
     def __init__(self, code: str, message: str) -> None:
@@ -191,6 +192,19 @@ class SwitchDecisionEngine:
         :param slot: 槽位名称
         :return: SwitchEligibility 数据类
         """
+        # @AI_GENERATED: pv_fault 不走 Arena 自动切换资格
+        from services.deployment.pv_read_adapter import (
+            PV_FAULT_READ_ONLY_CODE,
+            is_pv_fault_slot,
+        )
+
+        if is_pv_fault_slot(slot):
+            return SwitchEligibility(
+                eligible=False,
+                target_workflow_id=None,
+                reason=PV_FAULT_READ_ONLY_CODE,
+            )
+        # @AI_GENERATED: end
         slot_obj = self._slot_store.get(slot)
         if slot_obj is None:
             return SwitchEligibility(
@@ -311,6 +325,19 @@ class SwitchDecisionEngine:
 
         :return: 已持久化的 SwitchEvent
         """
+        # @AI_GENERATED: pv_fault 禁止 Arena switch
+        from services.deployment.pv_read_adapter import (
+            PV_FAULT_READ_ONLY_CODE,
+            PV_FAULT_READ_ONLY_MESSAGE,
+            is_pv_fault_slot,
+        )
+
+        if is_pv_fault_slot(slot):
+            raise SwitchDecisionError(
+                code=PV_FAULT_READ_ONLY_CODE,
+                message=PV_FAULT_READ_ONLY_MESSAGE,
+            )
+        # @AI_GENERATED: end
         if trigger_type not in ("auto", "manual"):
             raise SwitchDecisionError(
                 code="invalid_state_transition",
@@ -458,6 +485,19 @@ class SwitchDecisionEngine:
 
         :return: 回滚 SwitchEvent
         """
+        # @AI_GENERATED: pv_fault 禁止 Arena rollback
+        from services.deployment.pv_read_adapter import (
+            PV_FAULT_READ_ONLY_CODE,
+            PV_FAULT_READ_ONLY_MESSAGE,
+            is_pv_fault_slot,
+        )
+
+        if is_pv_fault_slot(slot):
+            raise SwitchDecisionError(
+                code=PV_FAULT_READ_ONLY_CODE,
+                message=PV_FAULT_READ_ONLY_MESSAGE,
+            )
+        # @AI_GENERATED: end
         slot_obj = self._slot_store.get(slot)
         if slot_obj is None:
             raise SwitchDecisionError(

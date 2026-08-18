@@ -14,12 +14,23 @@ services/db/datasources/pv_fault_mock.py — 光伏故障诊断 Mock 喂数据�
 
 错峰释放计划（``PvMockReleaseSchedule``，mock 专用表）：
   - 每个业务日首次被处理时，一次性为当天全部设备生成释放计划（确定性随机，
-    以 business_date 做种子，重复调用不会产生不同结果）。
+    以 business_date 做种子，重复调用不会产生不同结果——同一业务日重复生成的
+    设备集合、每台设备延迟/缺失归类以及释放顺序均逐项一致，见 Req8.6）。
   - 设备被均匀分配到若干释放批次（``_RELEASE_BATCH_COUNT``），
-    约 ``_DELAY_RATIO`` 比例的设备额外延迟 1~2 个批次到达，
-    约 ``_DROP_RATIO`` 比例的设备当天完全缺失（模拟采集器故障）。
+    约 ``_DELAY_RATIO`` 比例的设备额外延迟 1~2 个批次到达（延迟到达占比落在
+    4%~6% 区间，见 Req8.1），
+    约 ``_DROP_RATIO`` 比例的设备当天完全缺失（当天缺失占比落在 0.5%~1.5%
+    区间，模拟采集器故障，见 Req8.1）。
   - 每次写入 ``training_samples`` 后同步调用 ``IngestionTrackerRepository``
-    更新设备-天完整性进度，供预测任务和前端"数据到达"面板消费。
+    更新设备-天完整性进度，供预测任务和前端"数据到达"面板消费；单个设备-天的
+    完整性更新在 ``record_arrival`` 的单事务内完成，失败即回滚不产生部分更新，
+    并抛出标明所涉设备-天的错误（见 Req8.4）。
+
+点级错峰（Req8.5，本轮不实现）：
+  - 当前只做**设备级错峰**（整台设备整天一次性释放）。点级错峰（同一设备当天
+    的 288 个测点分批错峰到达）仅对 ``Legacy_Day_Strategy``（传统按天路径，可
+    增量拉取当天已到达测点）有意义；对 ``Seq_Daily_Strategy``（全天序列路径，
+    按整天检测、要求当天近完整）无意义。故点级错峰列为可选低优先能力，本轮不实现。
 
 与负荷预测 feeder 的主要差异：
   - 数据源是 Parquet（多设备多列），而非 CSV（单设备单列）
@@ -63,10 +74,24 @@ _SCHEMA = "aip_algo_platform"
 _CURSOR_TABLE = "pv_mock_feed_cursor"
 
 # 错峰释放计划参数（可按需调整；用常量而非硬编码，便于测试覆盖）
+# Req8.1 口径：延迟到达设备占比落在 4%~6%（5%±1%），当天缺失设备占比落在
+# 0.5%~1.5%（1%±0.5%）。下列默认值取各区间中心，落在合法区间内。
 _RELEASE_BATCH_COUNT = 7      # 一天分 7 批释放（约 10~15 分钟一批，覆盖 1~2 小时）
-_DELAY_RATIO = 0.05           # 5% 设备额外延迟
+_DELAY_RATIO = 0.05           # 5% 设备额外延迟（合法区间 [0.04, 0.06]，Req8.1）
 _DELAY_TICKS_RANGE = (1, 2)   # 延迟 1~2 个批次
-_DROP_RATIO = 0.01            # 1% 设备当天完全缺失
+_DROP_RATIO = 0.01            # 1% 设备当天完全缺失（合法区间 [0.005, 0.015]，Req8.1）
+
+# Req8.1 占比区间（供确定性校准与单元测试断言口径引用）
+_DELAY_RATIO_RANGE = (0.04, 0.06)   # 延迟到达设备占比合法区间
+_DROP_RATIO_RANGE = (0.005, 0.015)  # 当天缺失设备占比合法区间
+
+# 启动即断言默认占比落在 Req8.1 区间内，避免误改常量后偏离需求口径。
+assert _DELAY_RATIO_RANGE[0] <= _DELAY_RATIO <= _DELAY_RATIO_RANGE[1], (
+    f"_DELAY_RATIO={_DELAY_RATIO} 超出 Req8.1 延迟占比区间 {_DELAY_RATIO_RANGE}"
+)
+assert _DROP_RATIO_RANGE[0] <= _DROP_RATIO <= _DROP_RATIO_RANGE[1], (
+    f"_DROP_RATIO={_DROP_RATIO} 超出 Req8.1 缺失占比区间 {_DROP_RATIO_RANGE}"
+)
 
 # 进程内缓存：避免每次 feed-status / 指纹都扫百万行 parquet（会拖死单进程 uvicorn）
 _FINGERPRINT_CACHE: Dict[str, Any] = {"key": None, "value": None}
@@ -699,16 +724,26 @@ class PvFaultMockFeeder:
                     .values(released_at=now)
                 )
 
-        # 按设备三元组分组更新完整性表
+        # 按设备三元组分组更新完整性表（Req8.3）。
+        # Req8.4：单个设备-天的完整性更新在 record_arrival 的单事务内完成，
+        # 失败即回滚（不产生部分更新）；此处把底层异常包装成标明所涉设备-天的
+        # IngestionError 后向上抛出，供调用方定位失败设备-天。
         for (site_id, device_id, branch_id), grp in subset.groupby(
             ["site_id", "device_id", "branch_id"]
         ):
-            self._tracker.record_arrival(
-                str(site_id), str(device_id), str(branch_id), business_date,
-                point_delta=len(grp),
-                expected_point_count=DEFAULT_EXPECTED_POINT_COUNT,
-                arrived_at=now,
-            )
+            try:
+                self._tracker.record_arrival(
+                    str(site_id), str(device_id), str(branch_id), business_date,
+                    point_delta=len(grp),
+                    expected_point_count=DEFAULT_EXPECTED_POINT_COUNT,
+                    arrived_at=now,
+                )
+            except Exception as exc:  # noqa: BLE001 - 需保留原因并附设备-天上下文
+                raise IngestionError(
+                    "record_arrival 更新完整性失败 "
+                    f"device=({site_id},{device_id},{branch_id}) "
+                    f"business_date={business_date.isoformat()}: {exc}"
+                ) from exc
 
         device_count = len(due_keys)
         logger.info(

@@ -2,7 +2,6 @@
 """
 异步任务入口 — 后台线程跑 TSC 多模型对比实验。
 
-接口设计参考 split_mode_compare.py 的 start_compare_job / load_compare_status。
 状态写入 data/tsc_experiments/{slot}/status.json。
 
 设计文档: .kiro/specs/pv-fault-timeseries-diagnosis/design.md §三

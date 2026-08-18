@@ -3,7 +3,7 @@
 TSCPipeline — 时序分类训练评估主流程。
 
 完整流程: 加载数据 → 滑窗切分 → 预处理 → 交叉验证训练评估 → 输出指标。
-输出指标格式与 split_mode_compare.py 对齐（macro_f1_mean/std, accuracy_mean/std 等）。
+输出统一分类评测字段（macro_f1_mean/std, accuracy_mean/std 等）。
 
 设计文档: .kiro/specs/pv-fault-timeseries-diagnosis/design.md §三
 """
@@ -91,7 +91,7 @@ class TSCPipeline:
 
         Returns
         -------
-        dict — 指标结果（格式与 split_mode_compare.py 对齐）。
+        dict — 统一分类评测指标结果。
         """
         started = time.time()
 
@@ -138,7 +138,7 @@ class TSCPipeline:
             "model_name": self.model_name,
             "status": "ok",
             "elapsed_sec": elapsed,
-            # 与 split_mode_compare.py 对齐的指标
+            # 统一分类评测指标
             "macro_f1_mean": cv_results["macro_f1_mean"],
             "macro_f1_std": cv_results["macro_f1_std"],
             "accuracy_mean": cv_results["accuracy_mean"],

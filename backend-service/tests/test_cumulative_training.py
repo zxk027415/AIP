@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from services.iterative_labeling.cumulative_training import CumulativeTrainingService
+from services.iterative_labeling.pv_model_registry import PVModelRegistry
 
 
 def _service(tmp_path: Path, threshold: int = 20) -> CumulativeTrainingService:
@@ -21,6 +22,10 @@ def _service(tmp_path: Path, threshold: int = 20) -> CumulativeTrainingService:
     )
     # 服务运行时允许使用临时项目根；对外持久化字段仍只保存该根下的相对路径。
     service.project_root = project_root
+    # 单元测试固定使用临时 CSV 快照，禁止默认 point_label 模式误连真实数据库。
+    state = service._load_state()
+    state["snapshot_mode"] = "legacy"
+    service._save_state(state)
     return service
 
 
@@ -204,10 +209,18 @@ def test_completed_retrain_persists_train_summary_and_reconciles_pending(tmp_pat
         model_ref="model-test-1",
         train_summary={
             "model_ref": "model-test-1",
+            "modeling_path": "legacy_day",
             "accuracy_record": {"macro_f1_mean": 0.91, "accuracy_mean": 0.88},
         },
     )
     service.register_labeled_dataset("historical_labeled_b.csv")
+    # 自动重训要求“阈值 AND 周期”；把目标路径上次成功时间固定到周期外。
+    with service._lock:
+        raw_state = service._load_state()
+        raw_state["retrain_watermarks"]["legacy_day"]["last_consumed_at"] = (
+            "2000-01-01T00:00:00"
+        )
+        service._save_state(raw_state)
 
     state = service.get_state()
     completed = state["latest_completed_retrain"]
@@ -218,7 +231,7 @@ def test_completed_retrain_persists_train_summary_and_reconciles_pending(tmp_pat
     assert state["production_model"]["is_production"] is True
     assert state["production_model"]["request_id"] == request_id
     assert state["latest_retrain_request"]["status"] == "queued"
-    assert state["pending_change_count"] == 0
+    assert state["pending_change_count"] == 2
     assert len(state["retrain_history"]) == 2
 
     next_request_id = state["latest_retrain_request"]["request_id"]
@@ -260,7 +273,9 @@ def test_retrain_progress_is_persisted_for_polling(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_retrain_api_registers_model_version_before_production_switch(monkeypatch):
+async def test_retrain_api_registers_model_version_before_production_switch(
+    monkeypatch, tmp_path: Path
+):
     import api.iterative_labeling as iterative_api
 
     events = []
@@ -271,6 +286,7 @@ async def test_retrain_api_registers_model_version_before_production_switch(monk
                 "request_id": request_id,
                 "status": "queued",
                 "dataset_path": "backend-service/data/snapshot.csv",
+                "snapshot_id": "snapshot-a",
                 "sample_count": 123,
             }
 
@@ -281,6 +297,9 @@ async def test_retrain_api_registers_model_version_before_production_switch(monk
         def update_retrain_progress(self, request_id, **kwargs):
             events.append(("progress", kwargs["stage"], kwargs))
             return {"request_id": request_id, "status": "running", "progress": kwargs}
+
+        def get_production_model_ref(self):
+            return "pv_fault_rfc_20260720T080000Z_abc123"
 
     class FakeOrchestrator:
         def create_loop(self, base_dataset_version):
@@ -301,10 +320,18 @@ async def test_retrain_api_registers_model_version_before_production_switch(monk
     monkeypatch.setattr(iterative_api, "_cumulative_training_for_slot", lambda slot: FakeService())
     monkeypatch.setattr(iterative_api, "_orchestrator_for_slot", lambda slot: FakeOrchestrator())
     monkeypatch.setattr(iterative_api, "_pv_repo_instance", FakeRepository())
+    monkeypatch.setattr(
+        iterative_api,
+        "_pv_model_registry",
+        PVModelRegistry(
+            base_dir=tmp_path / "registry",
+            events_base_dir=tmp_path / "events",
+        ),
+    )
 
     response = await iterative_api.run_cumulative_retrain_request("retrain-1", slot="pv_fault")
 
-    assert response["publication"] == "auto_promoted"
+    assert response["publication"] == "promoted_within_path"
     assert response["production_model_ref"] == "pv_fault_rfc_20260720T080000Z_abc123"
     assert events[0][0:2] == ("state", "running")
     progress_stages = [event[1] for event in events if event[0] == "progress"]
@@ -312,7 +339,7 @@ async def test_retrain_api_registers_model_version_before_production_switch(monk
         "preparing_snapshot",
         "training_and_evaluation",
         "registering_model",
-        "promoting_model",
+        "registering_challenger",
     ]
     registry_event = next(event for event in events if event[0] == "registry")
     assert registry_event[1]["training_sample_count"] == 123
@@ -391,7 +418,7 @@ def test_manual_retrain_request_does_not_require_threshold(tmp_path: Path):
     assert result["pending_change_count"] == 1
 
 
-def test_auto_threshold_request_marks_auto_execute_and_resets_counter(tmp_path: Path):
+def test_auto_threshold_request_reserves_counter_until_training_succeeds(tmp_path: Path):
     service = _service(tmp_path, threshold=2)
     dataset_path = service.project_root / "historical_labeled.csv"
     pd.DataFrame(
@@ -409,8 +436,272 @@ def test_auto_threshold_request_marks_auto_execute_and_resets_counter(tmp_path: 
     request = result["retrain_request"]
 
     assert request is not None
-    assert request["trigger_reason"] == "auto_threshold"
+    assert request["trigger_reason"] == "auto_threshold_and_period"
     assert request["auto_execute"] is True
-    assert result["pending_change_count"] == 0
+    assert result["pending_change_count"] == 2
     assert result["_auto_retrain_request_id"] == request["request_id"]
+# @AI_GENERATED: end
+
+# @AI_GENERATED: seq_annotation 实验登记与安全 Promote 门控
+def test_seq_annotation_model_is_registered_without_automatic_promotion(tmp_path: Path):
+    service = _service(tmp_path)
+    reserved = service.reserve_manual_retrain_request("seq_annotation")
+    request = reserved["retrain_request"]
+
+    completed = service.mark_retrain_request(
+        request["request_id"],
+        "completed",
+        model_ref="seqann-bilstm-attn-test",
+        train_summary={
+            "modeling_path": "seq_annotation",
+            "model_path": "data/models/seq_annotation/seqann-bilstm-attn-test",
+            "artifact_format": "torch_state_dict_dir",
+            "trained_full_day": True,
+            "sequence_contract": {
+                "model_name": "bilstm_attn",
+                "loss": "cross_entropy",
+                "seq_len": 288,
+                "channels": ["value", "i_cal", "is_measured"],
+                "trained_full_day": True,
+                "grid_aligned": True,
+                "sequence_weighting": {
+                    "field": "data_type",
+                    "match": "segment_boundary",
+                    "multiplier": 4.0,
+                },
+                "postprocessing": {
+                    "enabled": True,
+                    "force_normal_outside_fault_window": True,
+                    "fault_window_hours": [7, 17],
+                    "min_fault_segment_points": 3,
+                    "short_run_policy": "same_neighbors_else_normal",
+                },
+            },
+            "accuracy_record": {
+                "point_macro_f1": 0.62,
+                "binary_f1": 0.88,
+                "segment_iou": 0.71,
+                "n_samples": 200,
+            },
+            "macro_f1_mean": 0.62,
+            "n_samples": 200,
+        },
+        promote_to_production=False,
+    )
+
+    paths = service.get_modeling_paths()
+    assert completed["promote_to_production"] is False
+    assert paths["production_path"] == "legacy_day"
+    assert paths["production_model_ref"] is None
+    seq_entry = paths["path_models"]["seq_annotation"]
+    assert seq_entry["model_ref"] == "seqann-bilstm-attn-test"
+    assert seq_entry["trained_full_day"] is True
+    assert seq_entry["metrics"]["segment_iou"] == 0.71
+
+    promoted = service.set_modeling_paths("seq_annotation", "legacy_day")
+    assert promoted["production_path"] == "seq_annotation"
+    assert promoted["production_model_ref"] == "seqann-bilstm-attn-test"
+
+    with pytest.raises(ValueError, match="只能通过正式重训登记"):
+        service.register_path_model("seq_annotation", "seqann-bypass")
+    assert service.get_production_model_ref() == "seqann-bilstm-attn-test"
+
+
+def test_seq_annotation_cannot_be_promoted_without_full_day_model(tmp_path: Path):
+    service = _service(tmp_path)
+    with pytest.raises(ValueError, match="尚无已登记模型"):
+        service.set_modeling_paths("seq_annotation", "legacy_day")
+
+    reserved = service.reserve_manual_retrain_request("seq_annotation")
+    request_id = reserved["retrain_request"]["request_id"]
+    invalid_summary = {
+        "modeling_path": "seq_annotation",
+        "model_path": "data/models/seq_annotation/seqann-daylight-only",
+        "artifact_format": "torch_state_dict_dir",
+        "trained_full_day": False,
+        "sequence_contract": {"seq_len": 120, "trained_full_day": False},
+        "accuracy_record": {"n_samples": 100},
+    }
+    with pytest.raises(ValueError, match="最终生产契约"):
+        service.mark_retrain_request(
+            request_id,
+            "completed",
+            model_ref="seqann-daylight-only",
+            train_summary=invalid_summary,
+            promote_to_production=True,
+        )
+    assert service.get_production_model_ref() is None
+
+    service.mark_retrain_request(
+        request_id,
+        "completed",
+        model_ref="seqann-daylight-only",
+        train_summary=invalid_summary,
+        promote_to_production=False,
+    )
+    with pytest.raises(ValueError, match="最终生产契约"):
+        service.set_modeling_paths("seq_annotation", "legacy_day")
+
+
+# ============================================================================
+# 安全修复回归测试（2026-08-12）：
+#   R4 未 Promote 的 seq 实验模型不得被兼容回退误当成生产模型
+# ============================================================================
+
+
+def test_unpromoted_experimental_seq_model_is_not_production_ref(tmp_path: Path):
+    """R4 主场景：只有 promote_to_production=False 的实验 seq 模型时，生产 ref 必须为空。"""
+    service = _service(tmp_path)
+    reserved = service.reserve_manual_retrain_request("seq_annotation")
+    request = reserved["retrain_request"]
+    service.mark_retrain_request(
+        request["request_id"],
+        "completed",
+        model_ref="seqann-experiment-only",
+        train_summary={
+            "modeling_path": "seq_annotation",
+            "model_path": "data/models/seq_annotation/seqann-experiment-only",
+            "artifact_format": "torch_state_dict_dir",
+            "trained_full_day": True,
+            "sequence_contract": {"seq_len": 288, "trained_full_day": True},
+            "accuracy_record": {"point_macro_f1": 0.5, "n_samples": 100},
+        },
+        promote_to_production=False,
+    )
+
+    # 显式 production_model_ref 与兼容回退都不应返回实验模型
+    assert service.get_production_model_ref() is None
+    assert service.get_latest_completed_model_ref() is None
+    state = service.get_state()
+    assert state.get("production_model_ref") is None
+
+
+def test_legacy_completed_request_still_promotes_for_backward_compat(tmp_path: Path):
+    """R4 兼容边界：历史状态里无 promote 字段的 completed 请求仍按自动晋升语义处理。"""
+    service = _service(tmp_path)
+    # 绕过 mark_retrain_request，直接构造一个"旧格式"已完成请求（无 promote_to_production 字段）
+    with service._lock:
+        state = service._load_state()
+        request_id = "legacy-request-1"
+        state["retrain_requests"][request_id] = {
+            "request_id": request_id,
+            "status": "completed",
+            "model_ref": "legacy-prod-model",
+            "finished_at": "2026-08-01T00:00:00",
+            "updated_at": "2026-08-01T00:00:00",
+            "created_at": "2026-08-01T00:00:00",
+        }
+        # 不写 production_model_ref，模拟旧状态
+        state.pop("production_model_ref", None)
+        service._save_state(state)
+
+    # 兼容回退：无显式 ref 时，历史 completed 请求应作为生产模型返回
+    assert service.get_production_model_ref() == "legacy-prod-model"
+
+
+def test_experimental_seq_does_not_shadow_older_promoted_model(tmp_path: Path):
+    """R4 关键：实验 seq 模型登记后，不得覆盖/抢走既有的生产模型 ref。"""
+    service = _service(tmp_path, threshold=2)
+    # 先造一个已 Promote 的 legacy 生产模型
+    dataset_path = service.project_root / "hist.csv"
+    pd.DataFrame(
+        {
+            "time": ["2026-07-14 00:00:00", "2026-07-14 00:15:00"],
+            "site_id": ["site-a", "site-a"],
+            "device_id": ["device-1", "device-1"],
+            "branch_id": ["branch-1", "branch-1"],
+            "value": [1.0, 2.0],
+            "label": [0, 1],
+        }
+    ).to_csv(dataset_path, index=False)
+    registered = service.register_labeled_dataset("hist.csv")
+    prod_request_id = registered["retrain_request"]["request_id"]
+    service.mark_retrain_request(
+        prod_request_id,
+        "completed",
+        model_ref="legacy-prod-model",
+        train_summary={
+            "modeling_path": "legacy_day",
+            "accuracy_record": {"macro_f1_mean": 0.9},
+        },
+        promote_to_production=True,
+    )
+    assert service.get_production_model_ref() == "legacy-prod-model"
+
+    # 再登记一个实验 seq 模型（不 Promote）
+    reserved = service.reserve_manual_retrain_request("seq_annotation")
+    seq_request = reserved["retrain_request"]
+    service.mark_retrain_request(
+        seq_request["request_id"],
+        "completed",
+        model_ref="seqann-experiment-2",
+        train_summary={
+            "modeling_path": "seq_annotation",
+            "model_path": "data/models/seq_annotation/seqann-experiment-2",
+            "artifact_format": "torch_state_dict_dir",
+            "trained_full_day": True,
+            "sequence_contract": {"seq_len": 288, "trained_full_day": True},
+            "accuracy_record": {"point_macro_f1": 0.6, "n_samples": 100},
+        },
+        promote_to_production=False,
+    )
+
+    # 生产 ref 仍应是 legacy 生产模型，实验 seq 模型不得抢走
+    assert service.get_production_model_ref() == "legacy-prod-model"
+    state = service.get_state()
+    assert state["production_model_ref"] == "legacy-prod-model"
+# @AI_GENERATED: end
+
+# @AI_GENERATED: seq_annotation 快照全天网格门控回归测试
+@pytest.mark.parametrize(
+    ("grid_validated", "expected_full_day"),
+    [(False, False), (True, True)],
+)
+def test_seq_snapshot_full_day_requires_real_grid_validation(
+    tmp_path: Path,
+    monkeypatch,
+    grid_validated: bool,
+    expected_full_day: bool,
+):
+    """累计训练快照不能只凭 288 长度宣称全天，必须携带真实网格验证证据。"""
+    import services.iterative_labeling.seq_annotation.dataset_builder as builder_module
+
+    service = _service(tmp_path)
+    relative_output = "data/seq_annotation_datasets/snapshots/snap-grid-test"
+    dataset_dir = service.project_root / "backend-service" / relative_output
+    dataset_dir.mkdir(parents=True)
+    (dataset_dir / "dataset.npz").write_bytes(b"grid-snapshot-test")
+
+    report = {
+        "seq_len": 288,
+        "daylight_hours": [0, 24],
+        "n_sequences": 3,
+        "n_classes": 2,
+        "channels": ["value", "i_cal", "is_measured"],
+        "full_day_grid_validated": grid_validated,
+        "grid_contract": {
+            "grid_aligned": True,
+            "slots_per_day": 288,
+            "slot_minutes": 5,
+            "require_all_hours_covered": True,
+        },
+        "label_snapshot_hash": "hash-grid-test",
+        "night_label_policy": "weak_to_normal_explicit_preserved",
+    }
+    monkeypatch.setattr(
+        builder_module,
+        "build_dataset",
+        lambda **kwargs: {
+            "version": "snap-grid-test",
+            "output_dir": relative_output,
+            "report": report,
+        },
+    )
+
+    state = service._load_state()
+    snapshot = service._create_snapshot_seq_annotation(state)
+
+    assert snapshot["sample_strategy"]["trained_full_day"] is expected_full_day
+    assert snapshot["sample_strategy"]["full_day_grid_validated"] is grid_validated
+    assert snapshot["grid_contract"]["grid_aligned"] is True
 # @AI_GENERATED: end

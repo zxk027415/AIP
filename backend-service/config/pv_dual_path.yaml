@@ -1,0 +1,76 @@
+# @AI_GENERATED
+# 光伏故障诊断双路径生产接入 — 完整性闸门（Completeness_Gate）可配阈值
+#
+# 加载优先级（高 → 低）：环境变量 > 本文件 > 代码默认值。
+# 越界或非法值不报错，自动回退代码默认（见 services/scheduler/pv_dual_path/config.py）。
+
+# completeness_ratio — 完整性阈值比例，范围 [0.0, 1.0]，默认 0.9。
+#   判定 point_count / expected_point_count >= 该比例为「设备-天达标」。
+#   seq_annotation（全天序列路径）严格要求达标才检测；legacy_day（传统按天路径）不以此为前置。
+#   环境变量覆盖：PV_COMPLETENESS_RATIO
+completeness_ratio: 0.9
+
+# expected_point_count — 期望点数（一天满格的时钟槽数），范围 [1, 288]，默认 288。
+#   288 = 24 小时 / 5 分钟槽间隔。
+#   环境变量覆盖：PV_EXPECTED_POINT_COUNT
+expected_point_count: 288
+
+# 任务 2.3 新增 12 项设计默认值（design.md 全部配置默认值），仍属于文件顶部标记包裹的同一生成块。
+
+# max_device_days_per_cycle — Seq 单轮调度周期最多检测的设备日数量，范围 [1, 1000]，默认 50。
+#   超出前 N 条的候选保持 ready，顺延到下一轮，不合并多日输入。
+#   环境变量覆盖：PV_MAX_DEVICE_DAYS_PER_CYCLE
+max_device_days_per_cycle: 50
+
+# max_backfill_days — recent_window/full_backfill 允许的最大回看天数，范围 [1, 3650]，默认 14。
+#   超过该值的启用请求被拒绝，不建立 Epoch。
+#   环境变量覆盖：PV_MAX_BACKFILL_DAYS
+max_backfill_days: 14
+
+# recent_window_backfill_days — recent_window 启用模式默认回看天数，
+#   范围 [1, 当前生效的 max_backfill_days]，默认 7。
+#   环境变量覆盖：PV_RECENT_WINDOW_BACKFILL_DAYS
+recent_window_backfill_days: 7
+
+# production_capacity_reserved_ratio — 历史回放（BackfillRunner）不得占用的生产预留容量比例，
+#   范围 [0.0, 1.0]，默认 0.8。生产预留令牌数 = ceil(总令牌数 * 该比例)。
+#   环境变量覆盖：PV_PRODUCTION_CAPACITY_RESERVED_RATIO
+production_capacity_reserved_ratio: 0.8
+
+# shadow_report_valid_days — Cross-Path Shadow 报告的有效期天数，范围 [1, 3650]，默认 14。
+#   超过有效期的报告不能用于跨路径切换准入。
+#   环境变量覆盖：PV_SHADOW_REPORT_VALID_DAYS
+shadow_report_valid_days: 14
+
+# min_comparable_device_days — 跨路径切换九项准入要求的最少可比设备日数，范围 >= 0，默认 200。
+#   环境变量覆盖：PV_MIN_COMPARABLE_DEVICE_DAYS
+min_comparable_device_days: 200
+
+# min_shadow_coverage_rate — 跨路径切换九项准入要求的最小 Shadow 覆盖率，范围 [0.0, 1.0]，默认 0.9。
+#   环境变量覆盖：PV_MIN_SHADOW_COVERAGE_RATE
+min_shadow_coverage_rate: 0.9
+
+# retrain_change_threshold — 触发自动重训（Challenger 登记）的累计标签变动单元阈值，
+#   范围 >= 0，默认 200。
+#   环境变量覆盖：PV_RETRAIN_CHANGE_THRESHOLD
+retrain_change_threshold: 200
+
+# retrain_period_days — 触发自动重训的周期天数，范围 >= 0，默认 7。
+#   环境变量覆盖：PV_RETRAIN_PERIOD_DAYS
+retrain_period_days: 7
+
+# promotion_margin — 路径内 Challenger 晋升所需严格优于 Champion 的边际，
+#   范围 >= 0.0，默认 0.0（平局不得晋升）。
+#   环境变量覆盖：PV_PROMOTION_MARGIN
+promotion_margin: 0.0
+
+# no_coverage_failure_cycles — CompletenessGate 连续无覆盖多少轮计入整路径不可用判定，
+#   范围 >= 1，默认 24。
+#   环境变量覆盖：PV_NO_COVERAGE_FAILURE_CYCLES
+no_coverage_failure_cycles: 24
+
+# path_failed_cycles — 路径连续失败多少轮计入整路径不可用判定，范围 >= 1，默认 3。
+#   环境变量覆盖：PV_PATH_FAILED_CYCLES
+path_failed_cycles: 3
+# @AI_GENERATED: end
+

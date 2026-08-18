@@ -120,6 +120,8 @@ interface ReviewSession {
   prediction_context?: {
     manual_labeling?: boolean;
     source_csv_path?: string;
+    modeling_path?: string;
+    prediction_granularity?: 'day' | 'point';
   };
 }
 
@@ -191,6 +193,21 @@ const IterativeLabelingReviewPage: React.FC = () => {
     timestamps: string[];
     series: Record<string, Array<number | null>>;
     point_count: number;
+    prediction_overlay?: {
+      granularity: 'point';
+      timestamps: string[];
+      point_predictions: number[];
+      point_confidences: number[];
+      segment_predictions: Array<{
+        t_start: string;
+        t_end: string;
+        label: number;
+        n_points: number;
+      }>;
+      model_name?: string;
+      seq_len_used?: number;
+      trained_full_day?: boolean;
+    } | null;
   } | null>(null);
   const [timeseriesLoading, setTimeseriesLoading] = useState(false);
 
@@ -962,6 +979,15 @@ const IterativeLabelingReviewPage: React.FC = () => {
             message="框选自由时间窗"
             description="在波形工具栏点「横向选择」后拖选区间，确认标签后会写入专属窗口样本并进入累计训练集（不影响整日单元裁决）。"
           />
+          {unitTimeseries?.prediction_overlay && (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 8 }}
+              message={`序列标注逐点预测 · ${unitTimeseries.prediction_overlay.seq_len_used ?? 288} 点/天`}
+              description="图中底色色带和下方分段列表来自模型逐点输出。上方“确认正确”只确认天级摘要，不会把整天写成同一标签；请框选真实故障区间，形成 human_range 逐点真值。"
+            />
+          )}
           {timeseriesLoading ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>波形加载中...</div>
           ) : unitTimeseries && unitTimeseries.timestamps.length > 0 ? (
@@ -1002,8 +1028,41 @@ const IterativeLabelingReviewPage: React.FC = () => {
                   { xAxis: x1 },
                 ];
               });
+              const seqPredictionMarkAreas = (
+                unitTimeseries.prediction_overlay?.segment_predictions ?? []
+              ).map((segment) => {
+                const labelName = getLabelName(segment.label);
+                const startMs = new Date(segment.t_start).getTime();
+                const endMs = new Date(segment.t_end).getTime();
+                const startIdx = unitTimeseries.timestamps.findIndex(
+                  (timestamp) => new Date(timestamp).getTime() >= startMs,
+                );
+                const endIdx = [...unitTimeseries.timestamps]
+                  .map((timestamp, index) => ({ timestamp, index }))
+                  .reverse()
+                  .find(({ timestamp }) => new Date(timestamp).getTime() <= endMs)?.index;
+                const isNormalSegment = segment.label === 0;
+                return [
+                  {
+                    name: `逐点预测：${labelName}`,
+                    itemStyle: {
+                      color: isNormalSegment
+                        ? 'rgba(82, 196, 26, 0.07)'
+                        : 'rgba(255, 77, 79, 0.14)',
+                    },
+                    xAxis: axisLabels[Math.max(0, startIdx)],
+                  },
+                  {
+                    xAxis: axisLabels[endIdx ?? Math.max(0, startIdx)],
+                  },
+                ];
+              });
+              const predictedSegments = unitTimeseries.prediction_overlay?.segment_predictions ?? [];
+              const faultSegments = predictedSegments.filter((segment) => segment.label !== 0);
+              const displayedSegments = (faultSegments.length > 0 ? faultSegments : predictedSegments).slice(0, 12);
               return (
-                <ReactECharts
+                <>
+                  <ReactECharts
                   ref={chartRef}
                   style={{ height: 360 }}
                   onEvents={{ brushEnd: handleBrushEnd }}
@@ -1065,6 +1124,7 @@ const IterativeLabelingReviewPage: React.FC = () => {
                                   },
                                   { xAxis: 'max' },
                                 ],
+                                ...seqPredictionMarkAreas,
                                 ...freeformMarkAreas,
                               ],
                             },
@@ -1073,6 +1133,27 @@ const IterativeLabelingReviewPage: React.FC = () => {
                     })),
                   }}
                 />
+                  {unitTimeseries.prediction_overlay && (
+                    <div style={{ borderTop: '1px solid #f0f0f0', paddingTop: 10, marginTop: 4 }}>
+                      <Space wrap size={[6, 6]}>
+                        <Text strong style={{ fontSize: 12 }}>模型分段</Text>
+                        {displayedSegments.map((segment, index) => (
+                          <Tag
+                            key={`${segment.t_start}-${segment.label}-${index}`}
+                            color={segment.label === 0 ? 'success' : 'error'}
+                          >
+                            {getLabelName(segment.label)} · {segment.t_start.slice(11, 16)}–{segment.t_end.slice(11, 16)} · {segment.n_points}点
+                          </Tag>
+                        ))}
+                        {predictedSegments.length > displayedSegments.length && (
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            另有 {predictedSegments.length - displayedSegments.length} 段
+                          </Text>
+                        )}
+                      </Space>
+                    </div>
+                  )}
+                </>
               );
             })()
           ) : (

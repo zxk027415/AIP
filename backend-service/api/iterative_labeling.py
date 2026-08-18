@@ -36,12 +36,14 @@
 """
 
 # @AI_GENERATED: 正常光伏审核链路的 API 基础依赖
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 import asyncio
+import hashlib
+import json
 import logging
 import re
 import threading
@@ -55,6 +57,15 @@ from services.iterative_labeling.accuracy_evaluator import AccuracyEvaluator
 from services.iterative_labeling.backfill import BackfillService
 # @AI_GENERATED: 正常光伏累计训练集、不可变快照与重训请求服务
 from services.iterative_labeling.cumulative_training import CumulativeTrainingService
+from services.iterative_labeling.accuracy_gated_retrainer import (
+    AccuracyGatedRetrainer,
+    EvaluationContract,
+)
+from services.iterative_labeling.pv_model_registry import PVModelRegistry
+from services.iterative_labeling.pv_governance_events import (
+    PathSwitchEventStore,
+    PromotionEventStore,
+)
 from services.iterative_labeling.freeform_labeling import FreeformLabelingService
 from services.iterative_labeling.pending_label_queue import PendingLabelQueueService
 from services.iterative_labeling.point_label_service import PointLabelService, PointLabelValidationError
@@ -488,6 +499,7 @@ _accuracy_evaluators: Dict[Tuple[str, str], AccuracyEvaluator] = {}
 
 # @AI_GENERATED: 默认累计训练账本、重训编排和 slot 隔离服务
 _cumulative_training_services: Dict[str, CumulativeTrainingService] = {}
+_pv_model_registry = PVModelRegistry()
 _orchestrators_by_slot: Dict[str, LoopOrchestrator] = {"default": _orchestrator}
 _SLOT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
@@ -517,7 +529,11 @@ def _review_service_for_slot(slot: str) -> ReviewSessionService:
 def _cumulative_training_for_slot(slot: str) -> CumulativeTrainingService:
     service = _cumulative_training_services.get(slot)
     if service is None:
-        service = CumulativeTrainingService(slot=slot, review_repo=_review_repo)
+        service = CumulativeTrainingService(
+            slot=slot,
+            review_repo=_review_repo,
+            pv_model_registry=_pv_model_registry,
+        )
         _cumulative_training_services[slot] = service
     return service
 
@@ -558,12 +574,11 @@ def _spawn_auto_retrain_if_requested(payload: Dict[str, Any], slot: str) -> None
     threading.Thread(target=_worker, daemon=True, name=f"auto-retrain-{request_id}").start()
 
 
-# @AI_GENERATED
 _manual_retrain_inflight: set[str] = set()
 
 
 def _spawn_manual_retrain(request_id: str, slot: str) -> None:
-    """后台执行「冻结快照 → 训练评估 → 切换生产模型」，同一 request_id 只调度一次。
+    """后台执行「冻结快照 → 训练评估 → 登记并门控 Challenger」，同一 request_id 只调度一次。
 
     必须后台化：快照冻结实测约 660s、训练评估还要数分钟，两者都远超前端 axios
     的 120s 超时。原同步实现下浏览器在 120s 中断，``/run`` 再也不会被调用，
@@ -602,14 +617,26 @@ def _spawn_manual_retrain(request_id: str, slot: str) -> None:
                 _manual_retrain_inflight.discard(request_id)
 
     threading.Thread(target=_worker, daemon=True, name=f"manual-retrain-{request_id}").start()
-# @AI_GENERATED: end
+
+
+def _stable_governance_digest(payload: Dict[str, Any]) -> str:
+    """把评测/生产契约规范化为稳定 SHA-256，不写入任何机器绝对路径。"""
+
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 async def _execute_cumulative_retrain(
     request_id: str,
     slot: str,
 ) -> Dict[str, Any]:
-    """执行累计训练重训并在成功后切换生产模型。"""
+    """执行累计重训；Legacy/Seq 产物均先登记 Challenger，再做同路径严格精度门控。"""
     resolved_slot = _normalize_slot(slot)
     service = _cumulative_training_for_slot(resolved_slot)
 
@@ -627,19 +654,63 @@ async def _execute_cumulative_retrain(
         message="正在校验不可变训练快照",
     )
     try:
-        orchestrator = _orchestrator_for_slot(resolved_slot)
-        loop = orchestrator.create_loop(base_dataset_version=retrain_request["dataset_path"])
-        service.update_retrain_progress(
-            request_id,
-            stage="training_and_evaluation",
-            percent=25,
-            message="正在训练模型并执行分层交叉验证",
-        )
-        train_result = await asyncio.to_thread(
-            orchestrator.trigger_train_eval,
-            loop_id=loop["loop_id"],
-            dataset_version=retrain_request["dataset_path"],
-        )
+        target_modeling_path = _infer_modeling_path(None, retrain_request)
+        if target_modeling_path == "seq_annotation":
+            from services.iterative_labeling.seq_annotation.trainer import (
+                SeqAnnotationTrainer,
+            )
+
+            service.update_retrain_progress(
+                request_id,
+                stage="training_and_evaluation",
+                percent=25,
+                message="正在训练全天逐点序列标注模型并执行设备隔离评估",
+            )
+            # @AI_GENERATED
+            # 实验室可通过重训请求的 overrides.epochs 覆盖训练轮数，无需重启后端。
+            # 不传则使用 SEQ_ANNOTATION_EPOCHS 环境变量（默认 100）。
+            _overrides = retrain_request.get("overrides") if isinstance(retrain_request.get("overrides"), dict) else {}
+            _epochs = int(_overrides.get("epochs") or _os.getenv("SEQ_ANNOTATION_EPOCHS", "100"))
+            trainer = SeqAnnotationTrainer(
+                model_name=_os.getenv("SEQ_ANNOTATION_MODEL_NAME", "bilstm_attn"),
+                epochs=_epochs,
+                batch_size=int(_overrides.get("batch_size") or _os.getenv("SEQ_ANNOTATION_BATCH_SIZE", "32")),
+                segment_boundary_weight=float(
+                    _os.getenv("SEQ_ANNOTATION_SEGMENT_BOUNDARY_WEIGHT", "4.0")
+                ),
+                postprocessing_enabled=(
+                    _os.getenv("SEQ_ANNOTATION_POSTPROCESSING_ENABLED", "true")
+                    .strip()
+                    .lower()
+                    not in {"0", "false", "no", "off"}
+                ),
+                postprocess_min_fault_segment_points=int(
+                    _os.getenv("SEQ_ANNOTATION_MIN_FAULT_SEGMENT_POINTS", "3")
+                ),
+            )
+            # @AI_GENERATED: end
+            train_result = await asyncio.to_thread(
+                trainer.train,
+                retrain_request["dataset_path"],
+            )
+            loop_id = f"seq-annotation-{request_id}"
+        else:
+            orchestrator = _orchestrator_for_slot(resolved_slot)
+            loop = orchestrator.create_loop(
+                base_dataset_version=retrain_request["dataset_path"]
+            )
+            loop_id = loop["loop_id"]
+            service.update_retrain_progress(
+                request_id,
+                stage="training_and_evaluation",
+                percent=25,
+                message="正在训练模型并执行分层交叉验证",
+            )
+            train_result = await asyncio.to_thread(
+                orchestrator.trigger_train_eval,
+                loop_id=loop_id,
+                dataset_version=retrain_request["dataset_path"],
+            )
         service.update_retrain_progress(
             request_id,
             stage="registering_model",
@@ -659,19 +730,128 @@ async def _execute_cumulative_retrain(
                     "artifact_path": train_result.get("model_path"),
                 }
             )
-        service.update_retrain_progress(
-            request_id,
-            stage="promoting_model",
-            percent=94,
-            message="正在原子切换生产模型",
-        )
-        # @AI_GENERATED: train_summary 必须带上 sample_strategy 与 modeling_path。
-        # 修复前二者缺失，导致 state.json 的 train_summary.sample_strategy 恒为 None、
-        # path_models 永不登记，进而出现「production_path=legacy_day 但生产模型实际由
-        # by_day_night 产出」的自相矛盾（review 问题 2）。
-        # sample_strategy 来源是快照 .meta.json，由 orchestrator 注入 train_result。
         _sample_strategy = train_result.get("sample_strategy")
         _modeling_path = _infer_modeling_path(_sample_strategy, retrain_request)
+        service.update_retrain_progress(
+            request_id,
+            stage="registering_challenger",
+            percent=94,
+            message="正在登记同路径 Challenger 并执行严格同口径精度守门",
+        )
+        accuracy_record = train_result.get("accuracy_record") or {}
+        sequence_contract = train_result.get("sequence_contract") or {}
+        metric_name = (
+            "point_macro_f1" if _modeling_path == "seq_annotation" else "macro_f1_mean"
+        )
+        metric_raw = accuracy_record.get(metric_name)
+        if metric_raw is None and _modeling_path == "legacy_day":
+            metric_raw = accuracy_record.get("accuracy_mean")
+            if metric_raw is not None:
+                metric_name = "accuracy_mean"
+        governance_publication = "registered_challenger"
+        governance_result: Optional[Dict[str, Any]] = None
+        if resolved_slot == "pv_fault":
+            evaluation_payload = dict(train_result.get("evaluation_contract") or {})
+            sample_digest = str(
+                evaluation_payload.get("sample_digest")
+                or train_result.get("label_snapshot_hash")
+                or retrain_request.get("snapshot_id")
+                or ""
+            ).strip()
+            default_seed = 42 if _modeling_path == "seq_annotation" else 90
+            seed_raw = evaluation_payload.get(
+                "random_seed",
+                train_result.get("random_seed", accuracy_record.get("random_seed", default_seed)),
+            )
+            try:
+                random_seed = int(seed_raw)
+            except (TypeError, ValueError):
+                random_seed = -1
+            split_policy = {
+                "modeling_path": _modeling_path,
+                "split_mode": (
+                    "device_isolated_group_shuffle"
+                    if _modeling_path == "seq_annotation"
+                    else "repeated_stratified_holdout"
+                ),
+                "test_ratio": 0.3 if _modeling_path == "seq_annotation" else 0.2,
+                "n_repeats": 1 if _modeling_path == "seq_annotation" else 10,
+                "random_seed": random_seed,
+            }
+            split_digest = str(
+                evaluation_payload.get("split_digest")
+                or train_result.get("split_digest")
+                or _stable_governance_digest(split_policy)
+            ).strip()
+            if _modeling_path == "seq_annotation":
+                seq_len = int(sequence_contract.get("seq_len") or 0) or None
+                trained_full_day = sequence_contract.get("trained_full_day")
+                production_contract_valid = bool(
+                    trained_full_day is True
+                    and seq_len == 288
+                    and sequence_contract.get("full_day_grid_validated") is True
+                )
+                production_contract_payload = sequence_contract
+            else:
+                seq_len = None
+                trained_full_day = None
+                model_path = str(train_result.get("model_path") or "").strip()
+                production_contract_valid = bool(
+                    train_result.get("production_contract_valid", model_path.endswith(".pkl"))
+                )
+                production_contract_payload = {
+                    "modeling_path": "legacy_day",
+                    "artifact_format": train_result.get("artifact_format") or "pickle",
+                    "sample_strategy": _sample_strategy or {"split_mode": "legacy_day"},
+                }
+            production_contract_digest = str(
+                evaluation_payload.get("production_contract_digest")
+                or train_result.get("production_contract_digest")
+                or sequence_contract.get("contract_digest")
+                or _stable_governance_digest(production_contract_payload)
+            ).strip()
+            contract = EvaluationContract(
+                sample_digest=sample_digest,
+                split_digest=split_digest,
+                random_seed=random_seed,
+                metric_name=metric_name,
+                production_contract_digest=production_contract_digest,
+                production_contract_valid=(
+                    production_contract_valid and metric_raw is not None
+                ),
+                seq_len=seq_len,
+                trained_full_day=trained_full_day,
+            )
+            gate = AccuracyGatedRetrainer(
+                _pv_model_registry,
+                retrain_change_threshold=int(
+                    _os.getenv("PV_RETRAIN_CHANGE_THRESHOLD", "200")
+                ),
+                retrain_period_days=int(_os.getenv("PV_RETRAIN_PERIOD_DAYS", "7")),
+                promotion_margin=float(_os.getenv("PV_PROMOTION_MARGIN", "0")),
+            )
+            lifecycle = gate.register_and_evaluate(
+                _modeling_path,
+                slot=resolved_slot,
+                model_ref=train_result["model_ref"],
+                evaluation_id=request_id,
+                gate_metric_value=float(metric_raw or 0.0),
+                contract=contract,
+                metadata={
+                    "request_id": request_id,
+                    "dataset_path": retrain_request.get("dataset_path"),
+                },
+            )
+            governance_result = {
+                "registration_status": lifecycle["registration"].status,
+                "promotion_status": lifecycle["promotion"].status,
+                "reason": lifecycle["promotion"].reason,
+            }
+            governance_publication = (
+                "promoted_within_path"
+                if lifecycle["promotion"].status == "promoted"
+                else "registered_challenger"
+            )
         completed = service.mark_retrain_request(
             request_id,
             "completed",
@@ -679,15 +859,22 @@ async def _execute_cumulative_retrain(
             train_summary={
                 "model_ref": train_result.get("model_ref"),
                 "model_path": train_result.get("model_path"),
-                "accuracy_record": train_result.get("accuracy_record"),
+                "artifact_format": train_result.get("artifact_format"),
+                "accuracy_record": accuracy_record,
                 "label_space_snapshot": train_result.get("label_space_snapshot"),
                 "sample_strategy": _sample_strategy,
+                "sequence_contract": sequence_contract,
+                # 保留真实 JSON boolean，由生产契约严格校验，禁止 "false" fail-open
+                "trained_full_day": sequence_contract.get("trained_full_day"),
                 "label_snapshot_hash": train_result.get("label_snapshot_hash"),
                 "modeling_path": _modeling_path,
-                "macro_f1_mean": ((train_result.get("accuracy_record") or {}).get("macro_f1_mean")),
-                "accuracy_mean": ((train_result.get("accuracy_record") or {}).get("accuracy_mean")),
-                "n_samples": ((train_result.get("accuracy_record") or {}).get("n_samples")),
+                "macro_f1_mean": accuracy_record.get("macro_f1_mean"),
+                "accuracy_mean": accuracy_record.get("accuracy_mean"),
+                "n_samples": accuracy_record.get("n_samples"),
+                "pv_registry_governance": governance_result,
             },
+            # Legacy 与 Seq 一律先进入 PVModelRegistry Challenger；此旧状态服务不再自动晋升。
+            promote_to_production=False,
         )
         # @AI_GENERATED: end
         _spawn_auto_retrain_if_requested(completed, resolved_slot)
@@ -697,10 +884,11 @@ async def _execute_cumulative_retrain(
 
     return {
         "request": completed,
-        "loop_id": loop["loop_id"],
+        "loop_id": loop_id,
         "train_result": train_result,
-        "publication": "auto_promoted",
-        "production_model_ref": completed.get("model_ref"),
+        "publication": governance_publication,
+        "governance": governance_result,
+        "production_model_ref": service.get_production_model_ref(),
     }
 
 
@@ -709,24 +897,19 @@ def _infer_modeling_path(
     sample_strategy: Optional[Dict[str, Any]],
     retrain_request: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """从 sample_strategy 推断本次重训属于哪条建模路径（K7 双路径登记用）。
+    """返回本次重训所属的两条业务路径之一。
 
-    有 `split_mode` 说明走的是逐点标签快照（新路径），按 split_mode 映射；
-    没有则是老路径（legacy 快照 + 按值 day/night 切分）。
-
-    返回值须落在 `_ALLOWED_MODELING_PATHS` 内，否则 `mark_retrain_request`
-    不会写 `path_models`，就会重现 production_path 与实际模型不一致的问题。
+    ``by_day`` / ``by_day_night`` 只是传统模型工件内部的采样策略，不再登记为
+    独立建模路径；只有全天 288 点序列训练登记为 ``seq_annotation``。
     """
-    split_mode = ""
-    if isinstance(sample_strategy, dict):
-        split_mode = str(sample_strategy.get("split_mode") or "").strip()
-    if split_mode == "by_day":
-        return "point_label_by_day"
-    if split_mode == "by_day_night":
-        return "point_label_by_day_night"
+    explicit_path = str((retrain_request or {}).get("target_modeling_path") or "").strip()
+    if explicit_path == "seq_annotation":
+        return "seq_annotation"
     return "legacy_day"
 # @AI_GENERATED: end
 
+
+# @AI_GENERATED: slot 隔离的编排器与精度缓存键
 
 def _orchestrator_for_slot(slot: str) -> LoopOrchestrator:
     orchestrator = _orchestrators_by_slot.get(slot)
@@ -993,6 +1176,8 @@ async def create_review_session(request: CreateReviewSessionRequest):
                 "label_map": registry_service.get_current().get("label_map", {}),
                 "model_ref": batch.get("model_ref"),
                 "model_path": batch.get("model_path"),
+                "modeling_path": batch.get("modeling_path") or "legacy_day",
+                "prediction_granularity": batch.get("prediction_granularity") or "day",
                 "feature_list": batch.get("feature_list") or [],
                 "has_unit_features": bool(batch.get("unit_features")),
             },
@@ -1548,12 +1733,51 @@ async def get_unit_timeseries(review_id: str, unit_key: str, slot: str = "defaul
             if col in sub.columns:
                 series[col] = [None if pd.isna(v) else float(v) for v in sub[col].tolist()]
 
+        prediction_overlay = None
+        if ctx.get("modeling_path") == "seq_annotation":
+            from services.iterative_labeling.review_explanations import (
+                resolve_batch_for_session,
+            )
+
+            batch = resolve_batch_for_session(session, resolved_slot) or {}
+            for prediction in batch.get("predictions") or []:
+                prediction_key = (
+                    f"{_nid(prediction.get('site_id'))}|"
+                    f"{_nid(prediction.get('device_id'))}|"
+                    f"{_nid(prediction.get('branch_id'))}|"
+                    f"{_ntw(prediction.get('time_window'))}"
+                )
+                if prediction_key != target:
+                    continue
+                detail = prediction.get("prediction_detail") or {}
+                trained_full_day = detail.get("trained_full_day")
+                if trained_full_day is not None and not isinstance(
+                    trained_full_day, bool
+                ):
+                    raise ValueError(
+                        "prediction_detail.trained_full_day 必须为 JSON boolean"
+                    )
+                prediction_overlay = {
+                    "granularity": "point",
+                    "timestamps": detail.get("timestamps") or [],
+                    "point_predictions": detail.get("point_predictions") or [],
+                    "raw_point_predictions": detail.get("raw_point_predictions") or [],
+                    "point_confidences": detail.get("point_confidences") or [],
+                    "segment_predictions": detail.get("segment_predictions") or [],
+                    "postprocessing": detail.get("postprocessing") or {},
+                    "model_name": detail.get("model_name"),
+                    "seq_len_used": detail.get("seq_len_used"),
+                    "trained_full_day": trained_full_day,
+                }
+                break
+
         return {
             'unit_key': unit_key,
             'time_window': str(unit.get('time_window')),
             'timestamps': timestamps,
             'series': series,
             'point_count': len(sub),
+            'prediction_overlay': prediction_overlay,
         }
     except HTTPException:
         raise
@@ -1648,13 +1872,17 @@ async def create_freeform_label(
             unit_key=record["unit_key"],
             time_window=record["time_window"],
             verdict_label=int(record["verdict_label"]),
-            dataset_path=record["dataset_path"],
+            dataset_path=str(record.get("dataset_path") or ""),
             row_count=record.get("row_count"),
             cumulative_training=record.get("cumulative_training") or {},
             record=record,
         )
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"审核会话 {review_id} 不存在")
+    except KeyError as exc:
+        missing = str(exc).strip("'\"")
+        if missing == review_id:
+            raise HTTPException(status_code=404, detail=f"审核会话 {review_id} 不存在")
+        logger.error("create freeform label KeyError review_id=%s: %s", review_id, exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建自由窗标注失败: {exc}")
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except FileNotFoundError as e:
@@ -1729,9 +1957,18 @@ async def submit_verdict(review_id: str, request: SubmitVerdictRequest, slot: st
 
         try:
             verdict = result["verdict"]
+            prediction_context = (
+                result.get("session_state", {}).get("prediction_context") or {}
+            )
+            is_seq_annotation_review = (
+                prediction_context.get("modeling_path") == "seq_annotation"
+            )
             if resolved_slot == "pv_fault" and _pv_repo_instance is not None and unit is not None:
                 point_result = None
-                if verdict.get("action_type") in {"confirm", "correct", "new_label"}:
+                if (
+                    verdict.get("action_type") in {"confirm", "correct", "new_label"}
+                    and not is_seq_annotation_review
+                ):
                     point_result = submit_review_verdict_as_point_label(
                         _point_label_service_for_slot(resolved_slot),
                         _pv_repo_instance,
@@ -1744,7 +1981,17 @@ async def submit_verdict(review_id: str, request: SubmitVerdictRequest, slot: st
                         review_id=review_id,
                         op_id=point_result["op_id"],
                         verdict=verdict,
+                        label_source="human_day",
                     )
+                elif is_seq_annotation_review:
+                    # 天级字段只是 288 点结果的兼容摘要；确认摘要不等于确认整天每个点。
+                    # 真正进入 seq 累计集的人工真值必须由波形框选产生 human_range。
+                    cumulative_training = {
+                        "admitted": False,
+                        "reason": "seq_day_summary_not_point_ground_truth",
+                        "snapshot_mode": "seq_annotation",
+                        "action_required": "请在波形上框选故障段，生成 human_range 逐点真值",
+                    }
                 elif verdict.get("action_type") == "skip":
                     cumulative_training = _cumulative_training_for_slot(resolved_slot).admit_point_label_op(
                         review_id=review_id,
@@ -2273,166 +2520,67 @@ async def update_cumulative_split_config(
     )
 
 
-class SplitModeCompareRequest(BaseModel):
-    modes: Optional[List[Optional[str]]] = Field(
-        None,
-        description="要对比的切分模式列表；默认六种全跑。空字符串表示关闭日照切分",
-    )
-    n_repeats: int = Field(3, ge=1, le=10, description="每种模式的重复留出次数（越小越快）")
-    test_ratio: float = Field(0.2, ge=0.05, le=0.5)
-    dataset_path: Optional[str] = Field(
-        None,
-        description="可选：指定快照相对路径；默认用累计训练集最新快照",
-    )
-
-
-@router.get("/cumulative-training/split-mode-compare")
-async def get_split_mode_compare(slot: str = "pv_fault"):
-    """读取切分对比状态（running 含进度）与最近完成结果。"""
-    try:
-        from services.iterative_labeling.split_mode_compare import (
-            load_compare_status,
-            load_latest_compare,
-        )
-
-        resolved = _normalize_slot(slot)
-        status = load_compare_status(resolved)
-        latest = load_latest_compare(resolved)
-        if status.get("status") == "running":
-            return {
-                **status,
-                "results": status.get("partial_results") or [],
-                "latest": latest,
-            }
-        if latest is not None:
-            return {
-                **latest,
-                "status": status.get("status") or "completed",
-                "message": status.get("message") or "已完成",
-            }
-        return {"slot": resolved, "status": "idle", "results": [], "message": "尚无对比结果"}
-    except Exception as exc:
-        logger.error("get split-mode-compare failed: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"读取切分对比失败: {exc}")
-
-
-@router.post("/cumulative-training/split-mode-compare")
-async def run_split_mode_compare(request: SplitModeCompareRequest, slot: str = "pv_fault"):
-    """后台启动切分模式对比（可离开页面，状态与结果落盘持久化）。"""
-    from services.iterative_labeling.split_mode_compare import start_compare_job
-
-    resolved = _normalize_slot(slot)
-    service = _cumulative_training_for_slot(resolved)
-    try:
-        dataset_path = (request.dataset_path or "").strip()
-        if not dataset_path:
-            state = service.get_state()
-            snap = state.get("latest_snapshot") or {}
-            dataset_path = str(snap.get("dataset_path") or "").strip()
-        if not dataset_path:
-            raise HTTPException(status_code=422, detail="没有可用的训练快照，无法对比切分模式")
-
-        return start_compare_job(
-            slot=resolved,
-            dataset_path=dataset_path,
-            modes=request.modes,
-            n_repeats=request.n_repeats,
-            test_ratio=request.test_ratio,
-        )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("run split-mode-compare failed: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"切分模式对比失败: {exc}")
-
-
-class ModelingPathCompareRequest(BaseModel):
-    paths: Optional[List[str]] = Field(
-        None,
-        description="要对比的建模路径；默认 legacy_day + point_label_by_day + point_label_by_day_night",
-    )
-    n_repeats: int = Field(3, ge=1, le=10)
-    test_ratio: float = Field(0.2, ge=0.05, le=0.5)
-    random_state: int = Field(90, ge=0)
-    legacy_dataset_path: Optional[str] = Field(
-        None,
-        description="老路径 merged parquet 相对路径；默认自动搜索",
-    )
-    site_id: Optional[str] = Field(None, description="可选：仅对指定站点构建新路径快照")
-
-
 class SetModelingPathsRequest(BaseModel):
-    production_path: str = Field(..., description="生产主线路径 key")
-    fallback_path: Optional[str] = Field(None, description="备选路径 key")
+    modeling_path: Optional[str] = Field(None, description="目标建模路径；缺省回退 production_path")
+    production_path: Optional[str] = Field(None, description="兼容旧字段，等同 modeling_path")
+    slot: Optional[str] = Field(None, description="槽位，默认请求参数 slot")
+    note: Optional[str] = Field(None, max_length=500, description="可选备注")
+    comparison_id: Optional[str] = None
+    activation_mode: Optional[str] = None
+    confirm: Optional[Any] = None
+    operator: Optional[str] = None
+    reason: Optional[str] = None
+    backfill_days: Optional[int] = None
+    device_scope: Optional[List[Dict[str, Any]]] = None
+    fallback_path: Optional[str] = Field(None, description="非 pv_fault 槽位兼容字段")
+    is_fallback: bool = False
+    switch_mode: Optional[str] = Field(
+        None,
+        description="simple/lab=实验室简化切换；缺省仍走九项准入",
+    )
 
 
-class RegisterPathModelRequest(BaseModel):
-    path_key: str
+class RegisterChallengerRequest(BaseModel):
+    slot: str = "pv_fault"
     model_ref: str
-    request_id: Optional[str] = None
-    metrics: Optional[Dict[str, Any]] = None
+    evaluation_id: str
+    gate_metric_value: float
+
+
+class PromoteWithinPathRequest(BaseModel):
+    candidate_id: str
+    set_as_production: bool = False
+    production_slot: str = "pv_fault"
+    operator: Optional[str] = None
+    reason: Optional[str] = None
 
 
 class SwitchFallbackPathRequest(BaseModel):
     reason: str = Field(..., min_length=1, description="回退原因，记入审计")
-
-
-@router.get("/cumulative-training/modeling-path-compare")
-async def get_modeling_path_compare(slot: str = "pv_fault"):
-    """读取新旧建模路径 A/B 对比状态与最近结果（K7）。"""
-    try:
-        from services.iterative_labeling.modeling_path_compare import (
-            load_compare_status,
-            load_latest_compare,
-        )
-
-        resolved = _normalize_slot(slot)
-        status = load_compare_status(resolved)
-        latest = load_latest_compare(resolved)
-        if status.get("status") == "running":
-            return {
-                **status,
-                "results": status.get("partial_results") or [],
-                "latest": latest,
-            }
-        if latest is not None:
-            return {
-                **latest,
-                "status": status.get("status") or "completed",
-                "message": status.get("message") or "已完成",
-            }
-        return {"slot": resolved, "status": "idle", "results": [], "message": "尚无路径对比结果"}
-    except Exception as exc:
-        logger.error("get modeling-path-compare failed: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"读取路径对比失败: {exc}")
-
-
-@router.post("/cumulative-training/modeling-path-compare")
-async def run_modeling_path_compare(request: ModelingPathCompareRequest, slot: str = "pv_fault"):
-    """后台启动新旧建模路径 A/B 对比。"""
-    from services.iterative_labeling.modeling_path_compare import start_compare_job
-
-    resolved = _normalize_slot(slot)
-    try:
-        return start_compare_job(
-            slot=resolved,
-            paths=request.paths,
-            n_repeats=request.n_repeats,
-            test_ratio=request.test_ratio,
-            random_state=request.random_state,
-            legacy_dataset_path=request.legacy_dataset_path,
-            site_id=request.site_id,
-        )
-    except Exception as exc:
-        logger.error("run modeling-path-compare failed: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"路径对比启动失败: {exc}")
+    comparison_id: Optional[str] = None
+    activation_mode: Optional[str] = None
+    confirm: Optional[Any] = None
+    operator: Optional[str] = None
+    modeling_path: Optional[str] = None
+    backfill_days: Optional[int] = None
+    device_scope: Optional[List[Dict[str, Any]]] = None
+    note: Optional[str] = None
 
 
 @router.get("/cumulative-training/modeling-paths")
 async def get_modeling_paths(slot: str = "pv_fault"):
-    """读取生产主线/备选路径指针与各路径模型登记。"""
+    """读取生产主线/备选路径指针与各路径模型登记。无写副作用。"""
     try:
-        return _cumulative_training_for_slot(_normalize_slot(slot)).get_modeling_paths()
+        summary = _cumulative_training_for_slot(_normalize_slot(slot)).get_modeling_paths()
+        if str(slot or "pv_fault") == "pv_fault":
+            registry = PVModelRegistry()
+            state = registry.get_slot(slot)
+            summary["active_activation_epoch"] = {
+                "activation_epoch_id": state.active_activation_epoch_id,
+            }
+            summary["updated_at"] = state.updated_at
+            summary["note"] = state.note
+        return summary
     except Exception as exc:
         logger.error("get modeling-paths failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"读取建模路径配置失败: {exc}")
@@ -2440,17 +2588,238 @@ async def get_modeling_paths(slot: str = "pv_fault"):
 
 @router.put("/cumulative-training/modeling-paths")
 async def set_modeling_paths(request: SetModelingPathsRequest, slot: str = "pv_fault"):
-    """设置生产主线与备选路径。"""
+    """同路径只覆盖备注；跨路径经九项门控原子切换。"""
+    # TODO P0 鉴权：PUT modeling-paths 上线前必须鉴权（Req10.9/10.10）。本任务不实施。
+    target_slot = _normalize_slot(request.slot or slot)
+    target_path = str(request.modeling_path or request.production_path or "").strip()
+    if target_slot != "pv_fault":
+        try:
+            return _cumulative_training_for_slot(target_slot).set_modeling_paths(
+                target_path,
+                request.fallback_path,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        except Exception as exc:
+            logger.error("set modeling-paths failed: %s", exc, exc_info=True)
+            raise HTTPException(status_code=500, detail=f"设置建模路径失败: {exc}")
     try:
-        return _cumulative_training_for_slot(_normalize_slot(slot)).set_modeling_paths(
-            request.production_path,
-            request.fallback_path,
+        from services.db.adapter import DBAdapter
+        from services.db.config import DBConfig
+        from services.scheduler.pv_dual_path.config import load_dual_path_config
+        from services.scheduler.pv_dual_path.cross_path_switch_coordinator import (
+            CrossPathSwitchCoordinator,
+            PathSwitchRequest,
         )
+        from services.scheduler.pv_dual_path.path_activation import PathActivationService
+
+        adapter = DBAdapter(DBConfig())
+        try:
+            coordinator = CrossPathSwitchCoordinator(
+                registry=PVModelRegistry(),
+                activation=PathActivationService(adapter, load_dual_path_config()),
+            )
+            result = coordinator.apply(
+                PathSwitchRequest(
+                    modeling_path=target_path,
+                    slot=target_slot,
+                    note=request.note,
+                    comparison_id=request.comparison_id,
+                    activation_mode=request.activation_mode,
+                    confirm=request.confirm,
+                    operator=request.operator,
+                    reason=request.reason,
+                    backfill_days=request.backfill_days,
+                    device_scope=request.device_scope,
+                    is_fallback=bool(request.is_fallback),
+                    switch_mode=request.switch_mode,
+                )
+            )
+        finally:
+            dispose = getattr(adapter, "dispose", None)
+            if callable(dispose):
+                dispose()
+        if result.status == "rejected":
+            raise HTTPException(status_code=409, detail=result.to_dict())
+        return result.to_dict()
+    except HTTPException:
+        raise
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:
         logger.error("set modeling-paths failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"设置建模路径失败: {exc}")
+
+
+@router.post("/cumulative-training/modeling-paths/{modeling_path}/challengers")
+async def register_challenger(modeling_path: str, request: RegisterChallengerRequest):
+    # TODO P0 鉴权：Challenger 登记入口上线前必须鉴权。
+    from datetime import datetime as _dt
+
+    from services.iterative_labeling.pv_model_registry import ModelRegistration
+
+    try:
+        result = PVModelRegistry().register_challenger(
+            modeling_path,
+            ModelRegistration(
+                request.model_ref,
+                request.evaluation_id,
+                float(request.gate_metric_value),
+                _dt.utcnow().isoformat(),
+            ),
+            slot=request.slot,
+        )
+        return {
+            "status": result.status,
+            "changed": result.changed,
+            "reason": result.reason,
+            "candidate_id": result.registration.candidate_id if result.registration else None,
+            "registration": result.registration.to_dict() if result.registration else None,
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.post("/cumulative-training/modeling-paths/{modeling_path}/promote")
+async def promote_within_path(modeling_path: str, request: PromoteWithinPathRequest):
+    # TODO P0 鉴权：路径内 Promote 入口上线前必须鉴权。
+    registry = PVModelRegistry()
+    state = registry.get_slot(request.production_slot)
+    lifecycle = state.path_models.get(modeling_path)
+    candidate = None
+    if lifecycle is not None:
+        for item in lifecycle.challengers:
+            if item.candidate_id == request.candidate_id or item.evaluation_id == request.candidate_id:
+                candidate = item
+                break
+    if candidate is None:
+        raise HTTPException(status_code=422, detail="candidate_id 不是该路径当前 Challenger")
+    if request.set_as_production is not True:
+        return {
+            "status": "evaluated",
+            "changed": False,
+            "candidate_id": candidate.candidate_id,
+            "set_as_production": False,
+        }
+    result = registry.promote_within_path(
+        modeling_path,
+        candidate.evaluation_id,
+        slot=request.production_slot,
+    )
+    after = registry.get_slot(request.production_slot)
+    return {
+        "status": result.status,
+        "changed": result.changed,
+        "reason": result.reason,
+        "production_path": after.production_path,
+        "event": result.event.to_dict() if result.event else None,
+        "registration": result.registration.to_dict() if result.registration else None,
+    }
+
+
+@router.post("/cumulative-training/modeling-paths/switch-fallback")
+async def switch_fallback_path(request: SwitchFallbackPathRequest, slot: str = "pv_fault"):
+    """整路径不可用只允许进入评估；fallback 仍须九项门控与 confirm=true。"""
+    # TODO P0 鉴权：fallback 切换入口上线前必须鉴权。
+    if slot != "pv_fault":
+        try:
+            return _cumulative_training_for_slot(_normalize_slot(slot)).switch_to_fallback_path(
+                request.reason
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+    registry = PVModelRegistry()
+    state = registry.get_slot(slot)
+    target = str(request.modeling_path or state.fallback_path).strip()
+    try:
+        from services.db.adapter import DBAdapter
+        from services.db.config import DBConfig
+        from services.scheduler.pv_dual_path.config import load_dual_path_config
+        from services.scheduler.pv_dual_path.cross_path_switch_coordinator import (
+            CrossPathSwitchCoordinator,
+            PathSwitchRequest,
+        )
+        from services.scheduler.pv_dual_path.path_activation import PathActivationService
+
+        adapter = DBAdapter(DBConfig())
+        try:
+            result = CrossPathSwitchCoordinator(
+                registry=registry,
+                activation=PathActivationService(adapter, load_dual_path_config()),
+            ).apply(
+                PathSwitchRequest(
+                    modeling_path=target,
+                    slot=slot,
+                    note=request.note,
+                    comparison_id=request.comparison_id,
+                    activation_mode=request.activation_mode,
+                    confirm=request.confirm,
+                    operator=request.operator,
+                    reason=request.reason,
+                    backfill_days=request.backfill_days,
+                    device_scope=request.device_scope,
+                    is_fallback=True,
+                )
+            )
+        finally:
+            dispose = getattr(adapter, "dispose", None)
+            if callable(dispose):
+                dispose()
+        if result.status == "rejected":
+            raise HTTPException(status_code=409, detail=result.to_dict())
+        return result.to_dict()
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.get("/cumulative-training/promotion-events")
+async def get_promotion_events(
+    slot: str = "pv_fault",
+    modeling_path: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
+):
+    events = PromotionEventStore(slot=slot).list_recent(limit=10000, modeling_path=modeling_path)
+    start = max(0, (max(1, page) - 1) * max(1, page_size))
+    page_items = events[start : start + max(1, page_size)]
+    return {
+        "page": page,
+        "page_size": page_size,
+        "total": len(events),
+        "items": [item.to_dict() for item in page_items],
+    }
+
+
+@router.get("/cumulative-training/path-switch-events")
+async def get_path_switch_events(
+    slot: str = "pv_fault",
+    modeling_path: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
+):
+    events = PathSwitchEventStore(slot=slot).list_recent(limit=10000)
+    if modeling_path:
+        events = [
+            item for item in events
+            if item.from_path == modeling_path or item.to_path == modeling_path
+        ]
+    start = max(0, (max(1, page) - 1) * max(1, page_size))
+    page_items = events[start : start + max(1, page_size)]
+    return {
+        "page": page,
+        "page_size": page_size,
+        "total": len(events),
+        "items": [item.to_dict() for item in page_items],
+    }
+
+
+class RegisterPathModelRequest(BaseModel):
+    path_key: str
+    model_ref: str
+    request_id: Optional[str] = None
+    metrics: Optional[Dict[str, Any]] = None
 
 
 @router.post("/cumulative-training/modeling-paths/register-model")
@@ -2470,36 +2839,16 @@ async def register_path_model(request: RegisterPathModelRequest, slot: str = "pv
         raise HTTPException(status_code=500, detail=f"登记路径模型失败: {exc}")
 
 
-@router.post("/cumulative-training/modeling-paths/switch-fallback")
-async def switch_modeling_fallback(request: SwitchFallbackPathRequest, slot: str = "pv_fault"):
-    """回退到备选路径最近可用模型。"""
-    try:
-        return _cumulative_training_for_slot(_normalize_slot(slot)).switch_to_fallback_path(
-            request.reason
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
-    except Exception as exc:
-        logger.error("switch modeling fallback failed: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"路径回退失败: {exc}")
-
-
 @router.post("/cumulative-training/retrain-requests/manual")
-async def create_manual_cumulative_retrain_request(slot: str = "default", split_mode: Optional[str] = None):
-    """基于当前累计训练集创建手动重训请求（不依赖 20 次变更阈值）。
-
-    Args:
-        split_mode: 可选，指定本次重训使用的切分策略（by_day / by_day_night）。
-            前端策略选择器在触发重训前传入，写进 state.json 供快照构建读取。
-    """
+async def create_manual_cumulative_retrain_request(
+    slot: str = "default",
+    modeling_path: Optional[str] = None,
+):
+    """基于当前累计训练集创建指定天级或点级路径的手动重训请求。"""
     try:
         resolved = _normalize_slot(slot)
         service = _cumulative_training_for_slot(resolved)
-        # @AI_GENERATED: 前端策略选择器传入 split_mode 时，先更新 state 再创建请求
-        if split_mode and str(split_mode).strip():
-            service.set_split_mode(str(split_mode).strip())
-        # @AI_GENERATED: end
-        return service.request_manual_retrain()
+        return service.request_manual_retrain(modeling_path)
     except HTTPException:
         raise
     except ValueError as exc:
@@ -2513,25 +2862,23 @@ async def create_manual_cumulative_retrain_request(slot: str = "default", split_
 @router.post("/cumulative-training/retrain-requests/manual-run")
 async def start_manual_cumulative_retrain(
     slot: str = "default",
-    split_mode: Optional[str] = None,
+    modeling_path: Optional[str] = None,
+    body: Dict[str, Any] = Body(default=None),
 ):
-    """立即返回，并在后台完成「冻结快照 → 训练评估 → 切换生产模型」。
+    """立即返回，并在后台完成「冻结快照 → 训练评估 → 登记模型」。
 
-    前端应改调本接口而非 ``manual`` + ``{id}/run`` 两步同步调用：后者两步都会
-    超过 axios 的 120s 超时，导致重训请求创建后无人执行、永久停在 queued。
-    启动后用 ``GET /cumulative-training/state`` 轮询 ``latest_retrain_request.progress``
-    获取阶段与百分比。
+    ``modeling_path`` 只接受 ``legacy_day``（天级）或 ``seq_annotation``
+    （全天 288 点）；昼夜切分不再作为独立训练选项。
 
-    Args:
-        split_mode: 可选，本次重训的切分策略（by_day / by_day_night），
-            先写入 state.json 再登记请求，供后台快照构建读取。
+    可选请求体：
+      overrides — 训练超参覆盖 {epochs?: number, batch_size?: number}。
+          不传使用环境变量默认值（epochs=100, batch_size=32）。
     """
     try:
         resolved = _normalize_slot(slot)
         service = _cumulative_training_for_slot(resolved)
-        if split_mode and str(split_mode).strip():
-            service.set_split_mode(str(split_mode).strip())
-        summary = service.reserve_manual_retrain_request()
+        overrides = (body or {}).get("overrides") if isinstance(body, dict) else None
+        summary = service.reserve_manual_retrain_request(modeling_path, overrides=overrides)
         request_id = str((summary.get("retrain_request") or {}).get("request_id") or "").strip()
         if not request_id:
             raise RuntimeError("手动重训请求登记失败，未取得 request_id")
@@ -2556,7 +2903,7 @@ async def run_cumulative_retrain_request(
     slot: str = "default",
     background: bool = False,
 ):
-    """使用不可变累计快照训练；成功后原子切换为该槽位生产模型。
+    """使用不可变累计快照训练；产物先登记 Challenger，再按同路径精度门控。
 
     Args:
         background: 为 true 时立即返回并在后台执行，避免训练耗时打爆前端超时；
@@ -2564,7 +2911,6 @@ async def run_cumulative_retrain_request(
     """
     try:
         resolved_slot = _normalize_slot(slot)
-        # @AI_GENERATED: 后台执行分支，供前端避开 120s HTTP 超时
         if background:
             service = _cumulative_training_for_slot(resolved_slot)
             existing = service.get_retrain_request(request_id)
@@ -2575,7 +2921,6 @@ async def run_cumulative_retrain_request(
                 )
             _spawn_manual_retrain(request_id, resolved_slot)
             return {"request": existing, "started": True, "request_id": request_id}
-        # @AI_GENERATED: end
         return await _execute_cumulative_retrain(request_id, resolved_slot)
     except HTTPException:
         raise
@@ -2954,7 +3299,7 @@ async def get_prediction_batch(batch_id: str, slot: str = "pv_fault"):
 
 
 # ---------------------------------------------------------------------------
-# @AI_GENERATED: TSC 时序分类对比实验端点
+# TSC 时序分类对比实验端点
 # ---------------------------------------------------------------------------
 
 

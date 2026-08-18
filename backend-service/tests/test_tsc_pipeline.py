@@ -4,7 +4,7 @@
 
 验证：
 - Pipeline 跑通：切分→训练→评估→输出指标
-- 输出字段与 split_mode_compare 格式一致
+- 输出统一分类评测字段
 - 多模型对比输出 ranking 正确
 - 按设备划分不泄漏
 - 异步 job 启动与状态查询
@@ -103,7 +103,7 @@ class TestTSCPipeline:
         assert result["model_name"] == "minirocket"
         assert result["n_samples"] > 0
         assert result["n_classes"] >= 2
-        # split_mode_compare 对齐字段
+        # 统一分类评测字段
         assert "macro_f1_mean" in result
         assert "macro_f1_std" in result
         assert "accuracy_mean" in result

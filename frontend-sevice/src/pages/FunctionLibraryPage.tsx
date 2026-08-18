@@ -30,6 +30,10 @@ import type { FunctionDefinition } from '../types/function';
 // @AI_GENERATED
 import useBackendReadyOperators from '../hooks/useBackendReadyOperators';
 // @AI_GENERATED: end
+// @AI_GENERATED: operator detail modal
+import OperatorDetailModal from '../components/OperatorDetailModal';
+import { FileSearchOutlined } from '@ant-design/icons';
+// @AI_GENERATED: end
 
 const { Text, Paragraph } = Typography;
 const { useBreakpoint } = Grid;
@@ -114,6 +118,12 @@ const FunctionLibraryPage: React.FC = () => {
   // 执行模态框状态
   const [executeModalVisible, setExecuteModalVisible] = useState(false);
   const [selectedFunction, setSelectedFunction] = useState<BasicModuleFunction | null>(null);
+  // @AI_GENERATED: end
+
+  // @AI_GENERATED: operator detail modal
+  // 详情模态框状态
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [detailFunction, setDetailFunction] = useState<BasicModuleFunction | null>(null);
   // @AI_GENERATED: end
 
   // @AI_GENERATED
@@ -525,6 +535,15 @@ const FunctionLibraryPage: React.FC = () => {
                                 {t('functions.execute')}
                               </Button>
                               {/* @AI_GENERATED: end */}
+                              {/* @AI_GENERATED: operator detail modal */}
+                              <Button
+                                size="small"
+                                icon={<FileSearchOutlined />}
+                                onClick={e => { e.stopPropagation(); setDetailFunction(fn); setDetailModalVisible(true); }}
+                              >
+                                详情
+                              </Button>
+                              {/* @AI_GENERATED: end */}
                             </Space>
                           </div>
                         </Card>
@@ -647,6 +666,18 @@ const FunctionLibraryPage: React.FC = () => {
           />
         )}
       </Modal>
+      {/* @AI_GENERATED: end */}
+
+      {/* @AI_GENERATED: operator detail modal */}
+      {/* 算子详情模态框 */}
+      {detailFunction && (
+        <OperatorDetailModal
+          operatorId={detailFunction.id}
+          operatorName={displayFunctionName(detailFunction)}
+          open={detailModalVisible}
+          onClose={() => { setDetailModalVisible(false); setDetailFunction(null); }}
+        />
+      )}
       {/* @AI_GENERATED: end */}
     </div>
   );

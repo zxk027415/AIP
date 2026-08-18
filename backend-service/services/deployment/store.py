@@ -151,12 +151,20 @@ class DeploymentSlotStore:
     读取影子列表时自动按 accuracy_score 降序排列。
     """
 
-    def __init__(self, slots_path: Optional[Path] = None) -> None:
+    def __init__(
+        self,
+        slots_path: Optional[Path] = None,
+        pv_adapter: Optional[Any] = None,
+    ) -> None:
         """
         :param slots_path: 可选，覆盖默认的 slots.json 路径（主要用于测试）
+        :param pv_adapter: 可选，注入 PVDeploymentReadAdapter（测试用临时 Registry）
         """
         self._path: Path = slots_path if slots_path is not None else SLOTS_FILE
         self._lock = threading.Lock()
+        # @AI_GENERATED: pv_fault 只读适配，默认惰性构造，测试可注入
+        self._pv_adapter = pv_adapter
+        # @AI_GENERATED: end
 
     # -------- 读取 --------
 
@@ -174,7 +182,7 @@ class DeploymentSlotStore:
                 "deployment.store: slots.json 顶层结构应为 dict，实际为 %s，忽略",
                 type(raw).__name__,
             )
-            return {}
+            return self._overlay_pv_fault({})
 
         result: Dict[str, DeploymentSlot] = {}
         for slot_name, slot_data in raw.items():
@@ -195,7 +203,9 @@ class DeploymentSlotStore:
             # 保证影子模型返回时按精度评分降序
             slot_obj.shadow_models = sort_shadow_models_by_accuracy(slot_obj.shadow_models)
             result[slot_name] = slot_obj
-        return result
+        # @AI_GENERATED: pv_fault 展示映射 Registry，丢弃 slots.json 中的可写副本
+        return self._overlay_pv_fault(result)
+        # @AI_GENERATED: end
 
     def get(self, slot: str) -> Optional[DeploymentSlot]:
         """
@@ -205,6 +215,31 @@ class DeploymentSlotStore:
         :return: DeploymentSlot 对象或 None
         """
         return self.load_all().get(slot)
+
+    # @AI_GENERATED: pv_fault 只读 overlay / 写拒绝
+    def _adapter(self):
+        if self._pv_adapter is None:
+            from services.deployment.pv_read_adapter import PVDeploymentReadAdapter
+
+            self._pv_adapter = PVDeploymentReadAdapter()
+        return self._pv_adapter
+
+    def _overlay_pv_fault(self, result: Dict[str, DeploymentSlot]) -> Dict[str, DeploymentSlot]:
+        """读路径丢弃 slots.json 里的 pv_fault，改映射 Registry；写失败不影响其他槽位。"""
+        from services.deployment.pv_read_adapter import PV_FAULT_SLOT
+
+        result.pop(PV_FAULT_SLOT, None)
+        try:
+            slot_obj = self._adapter().get_slot(PV_FAULT_SLOT)
+            slot_obj.shadow_models = sort_shadow_models_by_accuracy(slot_obj.shadow_models)
+            result[PV_FAULT_SLOT] = slot_obj
+        except Exception as exc:
+            logger.warning(
+                "deployment.store: pv_fault 只读适配失败，跳过展示 overlay: %s",
+                exc,
+            )
+        return result
+    # @AI_GENERATED: end
 
     # -------- 写入 --------
 
@@ -217,6 +252,14 @@ class DeploymentSlotStore:
 
         :param slots: 完整的槽位字典
         """
+        # @AI_GENERATED: 拒绝把 pv_fault 写进 slots.json
+        from services.deployment.pv_read_adapter import reject_pv_fault_write
+
+        for name, slot in slots.items():
+            reject_pv_fault_write(name)
+            if slot is not None:
+                reject_pv_fault_write(slot.slot)
+        # @AI_GENERATED: end
         with self._lock:
             _ensure_base_dir()
             serialized: Dict[str, Dict[str, Any]] = {}
@@ -236,6 +279,11 @@ class DeploymentSlotStore:
 
         :param slot: 要写入的 DeploymentSlot 对象
         """
+        # @AI_GENERATED: 拒绝 Arena 写 pv_fault
+        from services.deployment.pv_read_adapter import reject_pv_fault_write
+
+        reject_pv_fault_write(slot.slot)
+        # @AI_GENERATED: end
         with self._lock:
             _ensure_base_dir()
             # 直接读取原始 dict，避免 load_all → save_all 造成的双重排序开销
@@ -267,6 +315,11 @@ class DeploymentSlotStore:
         Returns:
             True — 找到并成功转换；False — 未找到目标（静默失败，调用方判断）
         """
+        # @AI_GENERATED: 拒绝 Arena 写 pv_fault
+        from services.deployment.pv_read_adapter import reject_pv_fault_write
+
+        reject_pv_fault_write(slot_name)
+        # @AI_GENERATED: end
         with self._lock:
             _ensure_base_dir()
             raw = _load_json_safe(self._path, default={})
@@ -349,6 +402,11 @@ class DeploymentSlotStore:
         Returns:
             True — 成功；False — 未找到目标
         """
+        # @AI_GENERATED: 拒绝 Arena 写 pv_fault
+        from services.deployment.pv_read_adapter import reject_pv_fault_write
+
+        reject_pv_fault_write(slot_name)
+        # @AI_GENERATED: end
         with self._lock:
             _ensure_base_dir()
             raw = _load_json_safe(self._path, default={})
@@ -491,6 +549,11 @@ class SwitchEventLog:
         :param event: 要追加的 SwitchEvent 对象
         :return: 传入的 event（未做任何修改，便于链式调用）
         """
+        # @AI_GENERATED: 拒绝为 pv_fault 追加 Arena 切换审计
+        from services.deployment.pv_read_adapter import reject_pv_fault_write
+
+        reject_pv_fault_write(event.slot)
+        # @AI_GENERATED: end
         with self._lock:
             _ensure_base_dir()
             raw = _load_json_safe(self._path, default=[])

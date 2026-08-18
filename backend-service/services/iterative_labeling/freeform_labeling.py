@@ -197,6 +197,7 @@ class FreeformLabelingService:
             label_id=label_id,
             reviewer=reviewer,
         )
+        # @AI_GENERATED: point label 回流显式携带逐点来源，避免误计纯天级 Seq 水位
         cumulative_training = self.cumulative.admit_point_label_op(
             review_id=review_id,
             op_id=pl_result["op_id"],
@@ -206,7 +207,9 @@ class FreeformLabelingService:
                 "verdict_label": label_id,
                 "reviewer": reviewer,
             },
+            label_source="human_range",
         )
+        # @AI_GENERATED: end
 
         record = {
             "unit_key": unit_key,
@@ -228,6 +231,8 @@ class FreeformLabelingService:
             "materialized": pl_result.get("materialized"),
             "cumulative_training": cumulative_training,
             "label_backend": "point_label",
+            "dataset_path": "",
+            "row_count": (pl_result.get("materialized") or {}).get("row_count"),
         }
         existing = list(session.get("freeform_labels") or [])
         existing.append(record)
@@ -342,11 +347,14 @@ class FreeformLabelingService:
         ):
             try:
                 revoke_result = self.point_label_service.revoke_op(str(target["op_id"]))
+                # @AI_GENERATED: 撤销逐点事实时沿用原投影来源，只推进对应路径变更计数
                 self.cumulative.admit_point_label_op(
                     review_id=review_id,
                     op_id=str(target["op_id"]),
                     verdict={"is_ground_truth": False, "action_type": "skip"},
+                    label_source="human_range",
                 )
+                # @AI_GENERATED: end
             except PointLabelValidationError as exc:
                 raise ValueError(str(exc)) from exc
 

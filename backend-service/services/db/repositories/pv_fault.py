@@ -197,6 +197,60 @@ class PVFaultRepository:
             # expire_on_commit=False 已在 adapter 设置，commit+close 后属性仍可访问
         return record
 
+    # @AI_GENERATED: scheduler 预测记录整批单事务写入，防止中途失败形成部分提交
+    def insert_prediction_records(
+        self,
+        records_data: List[dict],
+    ) -> List[PredictionRecord]:
+        """原子写入一批预测记录；任一记录失败时整批回滚。"""
+        payloads = [dict(item) for item in records_data]
+        if not payloads:
+            return []
+        for index, payload in enumerate(payloads):
+            confidence = payload.get("confidence")
+            if confidence is not None and not (0.0 <= float(confidence) <= 1.0):
+                raise ValueError(
+                    "confidence 必须在 [0.0, 1.0] 范围内，"
+                    f"第 {index} 条当前值：{confidence}"
+                )
+
+        records = [PredictionRecord(**payload) for payload in payloads]
+        with self._adapter.get_sync_session() as session:
+            session.add_all(records)
+            session.flush()
+            for record in records:
+                session.refresh(record)
+        return records
+    # @AI_GENERATED: end
+
+    def find_prediction_record(
+        self,
+        *,
+        site_id: str,
+        device_id: str,
+        branch_id: str,
+        business_date,
+        sample_id: Optional[str] = None,
+    ) -> Optional[PredictionRecord]:
+        """按业务唯一键查找已有预测记录，用于失败重试时的幂等去重。
+
+        ``business_date`` 对应预测针对的哪个业务日；``sample_id`` 可选，
+        进一步把结果对齐到训练快照的样本粒度。返回 None 表示尚未写入。
+        """
+        stmt = select(PredictionRecord).where(
+            PredictionRecord.site_id == site_id,
+            PredictionRecord.device_id == device_id,
+            PredictionRecord.branch_id == branch_id,
+            PredictionRecord.business_date == business_date,
+        )
+        if sample_id is not None:
+            stmt = stmt.where(PredictionRecord.sample_id == sample_id)
+        with self._adapter.get_sync_session() as session:
+            row = session.execute(stmt.limit(1)).scalars().first()
+            if row is not None:
+                session.expunge(row)
+        return row
+
     # ------------------------------------------------------------------
     # 诊断结果
     # ------------------------------------------------------------------
@@ -267,12 +321,10 @@ class PVFaultRepository:
     def query_unlabeled_training_samples(
         self,
         after_time: Optional[datetime] = None,
-        # @AI_GENERATED: 点粒度时间窗口改造 — 新增 before_time 和设备过滤参数（全部可选，向后兼容）
         before_time: Optional[datetime] = None,
         site_id: Optional[str] = None,
         device_id: Optional[str] = None,
         branch_id: Optional[str] = None,
-        # @AI_GENERATED: end
     ) -> List[Dict[str, object]]:
         """读取 ``label IS NULL OR label < 0`` 的观测，按复合业务键稳定排序。
 
@@ -295,7 +347,6 @@ class PVFaultRepository:
         )
         if after_time is not None:
             stmt = stmt.where(TrainingSample.time > after_time)
-        # @AI_GENERATED: 点粒度时间窗口改造 — before_time 上界和设备过滤
         if before_time is not None:
             stmt = stmt.where(TrainingSample.time <= before_time)
         if site_id is not None:
@@ -304,7 +355,6 @@ class PVFaultRepository:
             stmt = stmt.where(TrainingSample.device_id == device_id)
         if branch_id is not None:
             stmt = stmt.where(TrainingSample.branch_id == branch_id)
-        # @AI_GENERATED: end
         stmt = stmt.order_by(
             TrainingSample.time.asc(),
             TrainingSample.site_id.asc(),
@@ -321,12 +371,10 @@ class PVFaultRepository:
     def query_unlabeled_by_point_labels(
         self,
         after_time: Optional[datetime] = None,
-        # @AI_GENERATED: 点粒度时间窗口改造 — 新增 before_time 和设备过滤参数（全部可选，向后兼容）
         before_time: Optional[datetime] = None,
         site_id: Optional[str] = None,
         device_id: Optional[str] = None,
         branch_id: Optional[str] = None,
-        # @AI_GENERATED: end
     ) -> List[Dict[str, object]]:
         """读取 ``point_labels`` 中没有有效标签的观测（逐点标签路径口径）。
 
@@ -366,7 +414,6 @@ class PVFaultRepository:
         stmt = select(*columns).where(~labeled_exists)
         if after_time is not None:
             stmt = stmt.where(TrainingSample.time > after_time)
-        # @AI_GENERATED: 点粒度时间窗口改造 — before_time 上界和设备过滤
         if before_time is not None:
             stmt = stmt.where(TrainingSample.time <= before_time)
         if site_id is not None:
@@ -375,13 +422,48 @@ class PVFaultRepository:
             stmt = stmt.where(TrainingSample.device_id == device_id)
         if branch_id is not None:
             stmt = stmt.where(TrainingSample.branch_id == branch_id)
-        # @AI_GENERATED: end
         stmt = stmt.order_by(
             TrainingSample.time.asc(),
             TrainingSample.site_id.asc(),
             TrainingSample.device_id.asc(),
             TrainingSample.branch_id.asc(),
             TrainingSample.id.asc(),
+        )
+        with self._adapter.get_sync_session() as session:
+            rows = session.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+    # @AI_GENERATED: end
+
+    # @AI_GENERATED: 序列模型按候选日回查完整测量，人工标签不能被误当成物理缺测
+    def query_device_measurements(
+        self,
+        *,
+        site_id: str,
+        device_id: str,
+        branch_id: str,
+        time_start: datetime,
+        time_end: datetime,
+    ) -> List[Dict[str, object]]:
+        """读取设备在 ``[time_start, time_end)`` 内的全部测量点，不过滤标签状态。"""
+        columns = (
+            TrainingSample.time,
+            TrainingSample.site_id,
+            TrainingSample.device_id,
+            TrainingSample.branch_id,
+            TrainingSample.value,
+            TrainingSample.i_cal,
+            TrainingSample.label,
+        )
+        stmt = (
+            select(*columns)
+            .where(
+                TrainingSample.site_id == site_id,
+                TrainingSample.device_id == device_id,
+                TrainingSample.branch_id == branch_id,
+                TrainingSample.time >= time_start,
+                TrainingSample.time < time_end,
+            )
+            .order_by(TrainingSample.time.asc(), TrainingSample.id.asc())
         )
         with self._adapter.get_sync_session() as session:
             rows = session.execute(stmt).mappings().all()

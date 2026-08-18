@@ -15,6 +15,7 @@ from datetime import datetime
 import hashlib
 import json
 import logging
+import math
 import os
 from pathlib import Path
 import threading
@@ -24,13 +25,8 @@ import uuid
 import pandas as pd
 
 from .backfill import BackfillService
-from .snapshot_builder import SnapshotBuilder
-from .sample_builder import SampleStrategy
-from services.db.config import DBConfig
-from services.db.adapter import DBAdapter
-from services.db.repositories.point_label import PointLabelRepository
-from services.db.repositories.pv_fault import PVFaultRepository
-from services.iterative_labeling.daylight_window import DaylightWindowResolver
+from .accuracy_gated_retrainer import AccuracyGatedRetrainer, EvaluationContract
+from .pv_model_registry import LifecycleOperationResult, PVModelRegistry
 from .storage.file_backend import (
     FileGroundTruthRepository,
     FileReviewResultRepository,
@@ -40,12 +36,171 @@ from .storage.file_backend import (
 
 
 _VALID_GROUND_TRUTH_ACTIONS = frozenset({"confirm", "correct", "new_label"})
-_DEFAULT_RETRAIN_LABEL_THRESHOLD = 20
-_ALLOWED_MODELING_PATHS = frozenset(
-    {"legacy_day", "point_label_by_day", "point_label_by_day_night"}
+_DEFAULT_RETRAIN_LABEL_THRESHOLD = 200
+_DEFAULT_RETRAIN_PERIOD_DAYS = 7
+# 建模路径只保留两条：天级传统模型与全天逐点序列模型。
+_ALLOWED_MODELING_PATHS = frozenset({"legacy_day", "seq_annotation"})
+_LEGACY_DAY_PATH_ALIASES = frozenset(
+    {"point_label_by_day", "point_label_by_day_night"}
 )
 _DEFAULT_PRODUCTION_PATH = "legacy_day"
-_DEFAULT_FALLBACK_PATH = "point_label_by_day_night"
+_DEFAULT_FALLBACK_PATH = "seq_annotation"
+_MODELING_PATH_SCHEMA_VERSION = 3
+
+
+def _canonical_modeling_path(value: Any) -> str:
+    """把历史 RF 切分路径归并到天级路径；切分策略不再充当业务路径。"""
+    key = str(value or "").strip()
+    return "legacy_day" if key in _LEGACY_DAY_PATH_ALIASES else key
+
+
+def _normalize_modeling_path_state(state: Dict[str, Any]) -> bool:
+    """将旧三路径状态迁移为 legacy_day / seq_annotation 两路径状态。"""
+    changed = False
+    raw_production = str(state.get("production_path") or _DEFAULT_PRODUCTION_PATH).strip()
+    production_path = _canonical_modeling_path(raw_production)
+    if production_path not in _ALLOWED_MODELING_PATHS:
+        production_path = _DEFAULT_PRODUCTION_PATH
+
+    path_models = dict(state.get("path_models") or {})
+    alias_entries = {
+        key: dict(path_models[key])
+        for key in _LEGACY_DAY_PATH_ALIASES
+        if isinstance(path_models.get(key), dict)
+    }
+    if alias_entries:
+        preferred_key: Optional[str] = None
+        if raw_production in alias_entries:
+            preferred_key = raw_production
+        elif "legacy_day" not in path_models:
+            preferred_key = max(
+                alias_entries,
+                key=lambda key: str(alias_entries[key].get("updated_at") or ""),
+            )
+        if preferred_key is not None and path_models.get("legacy_day") != alias_entries[preferred_key]:
+            path_models["legacy_day"] = alias_entries[preferred_key]
+            changed = True
+    for alias in _LEGACY_DAY_PATH_ALIASES:
+        if path_models.pop(alias, None) is not None:
+            changed = True
+
+    fallback_path = _canonical_modeling_path(state.get("fallback_path"))
+    if fallback_path not in _ALLOWED_MODELING_PATHS or fallback_path == production_path:
+        fallback_path = "seq_annotation" if production_path == "legacy_day" else "legacy_day"
+
+    for key, value in (
+        ("production_path", production_path),
+        ("fallback_path", fallback_path),
+        ("path_models", path_models),
+    ):
+        if state.get(key) != value:
+            state[key] = value
+            changed = True
+
+    model_path_key = _canonical_modeling_path(state.get("production_model_path_key"))
+    if model_path_key in _ALLOWED_MODELING_PATHS and state.get("production_model_path_key") != model_path_key:
+        state["production_model_path_key"] = model_path_key
+        changed = True
+
+    for request in (state.get("retrain_requests") or {}).values():
+        target = _canonical_modeling_path(request.get("target_modeling_path"))
+        if target in _ALLOWED_MODELING_PATHS and request.get("target_modeling_path") != target:
+            request["target_modeling_path"] = target
+            changed = True
+        train_summary = request.get("train_summary")
+        if isinstance(train_summary, dict):
+            result_path = _canonical_modeling_path(train_summary.get("modeling_path"))
+            if result_path in _ALLOWED_MODELING_PATHS and train_summary.get("modeling_path") != result_path:
+                train_summary["modeling_path"] = result_path
+                changed = True
+
+    for audit in state.get("path_switch_audit") or []:
+        for field in ("from_path", "to_path", "path"):
+            canonical = _canonical_modeling_path(audit.get(field))
+            if canonical in _ALLOWED_MODELING_PATHS and audit.get(field) != canonical:
+                audit[field] = canonical
+                changed = True
+    for history in state.get("production_path_history") or []:
+        for field in ("from", "to"):
+            canonical = _canonical_modeling_path(history.get(field))
+            if canonical in _ALLOWED_MODELING_PATHS and history.get(field) != canonical:
+                history[field] = canonical
+                changed = True
+
+    if int(state.get("schema_version") or 1) < _MODELING_PATH_SCHEMA_VERSION:
+        state["schema_version"] = _MODELING_PATH_SCHEMA_VERSION
+        changed = True
+    return changed
+
+
+def _ensure_retrain_watermarks(state: Dict[str, Any]) -> bool:
+    """为旧状态补按路径消费水位，保留全局 pending 字段供旧 UI 兼容。"""
+
+    changed = False
+    raw = state.get("retrain_watermarks")
+    if not isinstance(raw, dict):
+        raw = {}
+        state["retrain_watermarks"] = raw
+        changed = True
+    legacy_pending = max(0, int(state.get("pending_change_count") or 0))
+    production_path = _canonical_modeling_path(
+        state.get("production_path") or _DEFAULT_PRODUCTION_PATH
+    )
+    now = datetime.utcnow().isoformat()
+    for path in sorted(_ALLOWED_MODELING_PATHS):
+        item = raw.get(path)
+        if not isinstance(item, dict):
+            item = {
+                "consumed_sequence": 0,
+                "pending_change_count": legacy_pending if path == production_path else 0,
+                "last_consumed_at": None,
+                "last_failed_sequence": 0,
+                "last_failed_pending_count": 0,
+                "updated_at": now,
+            }
+            raw[path] = item
+            changed = True
+        else:
+            defaults = {
+                "consumed_sequence": 0,
+                "pending_change_count": 0,
+                "last_consumed_at": None,
+                "last_failed_sequence": 0,
+                "last_failed_pending_count": 0,
+                "updated_at": now,
+            }
+            for field, default in defaults.items():
+                if field not in item:
+                    item[field] = default
+                    changed = True
+            item["consumed_sequence"] = max(0, int(item.get("consumed_sequence") or 0))
+            item["pending_change_count"] = max(
+                0, int(item.get("pending_change_count") or 0)
+            )
+    return changed
+
+
+def _record_path_change(
+    state: Dict[str, Any],
+    modeling_paths: List[str],
+    units: int = 1,
+) -> None:
+    """把一次共享标签事实变更投影到可消费该粒度的路径计数。"""
+
+    _ensure_retrain_watermarks(state)
+    delta = max(0, int(units))
+    now = datetime.utcnow().isoformat()
+    for raw_path in modeling_paths:
+        path = _canonical_modeling_path(raw_path)
+        if path not in _ALLOWED_MODELING_PATHS:
+            raise ValueError(f"不支持的建模路径: {path}")
+        watermark = state["retrain_watermarks"][path]
+        watermark["pending_change_count"] = int(
+            watermark.get("pending_change_count") or 0
+        ) + delta
+        watermark["updated_at"] = now
+
+
 _STATE_LOCKS: Dict[str, threading.RLock] = defaultdict(threading.RLock)
 logger = logging.getLogger(__name__)
 
@@ -67,6 +222,8 @@ class CumulativeTrainingService:
         review_repo: Optional[FileReviewResultRepository] = None,
         data_root: Optional[Path] = None,
         retrain_label_threshold: Optional[int] = None,
+        retrain_period_days: Optional[int] = None,
+        pv_model_registry: Optional[PVModelRegistry] = None,
     ) -> None:
         self.slot = str(slot or "default")
         self.review_repo = review_repo or FileReviewResultRepository()
@@ -74,6 +231,9 @@ class CumulativeTrainingService:
         self.project_root = Path(__file__).resolve().parents[3]
         self.root = self.data_root / "cumulative_training" / self.slot
         self.state_path = self.root / "state.json"
+        # Registry 是新模型治理真相；仅在对应 slot 文件真实存在时优先读取，缺文件继续
+        # 使用旧 state.json，避免兼容期把 Registry 的内置默认态误当成已迁移数据。
+        self._pv_model_registry = pv_model_registry or PVModelRegistry()
         configured_threshold = (
             retrain_label_threshold
             if retrain_label_threshold is not None
@@ -83,6 +243,15 @@ class CumulativeTrainingService:
             self.retrain_label_threshold = max(1, int(configured_threshold))
         except (TypeError, ValueError):
             self.retrain_label_threshold = _DEFAULT_RETRAIN_LABEL_THRESHOLD
+        configured_period = (
+            retrain_period_days
+            if retrain_period_days is not None
+            else os.getenv("PV_RETRAIN_PERIOD_DAYS", _DEFAULT_RETRAIN_PERIOD_DAYS)
+        )
+        try:
+            self.retrain_period_days = max(1, int(configured_period))
+        except (TypeError, ValueError):
+            self.retrain_period_days = _DEFAULT_RETRAIN_PERIOD_DAYS
         self._lock = _STATE_LOCKS[str(self.state_path)]
 
     def get_state(self) -> Dict[str, Any]:
@@ -96,20 +265,11 @@ class CumulativeTrainingService:
                 summary["_auto_retrain_request_id"] = auto_request["request_id"]
             return summary
 
-    # @AI_GENERATED
-    def set_split_mode(self, split_mode: str) -> None:
-        """设置下次重训使用的切分策略，写入 state.json。
-
-        前端策略选择器在触发重训前调用此方法，使快照构建读到正确的 split_mode。
-        """
-        with self._lock:
-            state = self._load_state()
-            state["split_mode"] = str(split_mode).strip()
-            self._save_state(state)
-    # @AI_GENERATED: end
-
-    def request_manual_retrain(self) -> Dict[str, Any]:
-        """基于当前累计训练集立即创建手动重训请求（不依赖变更阈值）。"""
+    def request_manual_retrain(
+        self,
+        target_modeling_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """基于当前累计训练集立即创建指定建模路径的手动重训请求。"""
         with self._lock:
             state = self._load_state()
             active_running = next(
@@ -125,7 +285,7 @@ class CumulativeTrainingService:
             request = self._create_retrain_request(
                 state,
                 trigger_reason="manual",
-                reset_pending_count=False,
+                target_modeling_path=target_modeling_path,
             )
             if request is None:
                 blocker = state.get("last_retrain_blocker") or "累计训练集不满足重训条件"
@@ -135,8 +295,12 @@ class CumulativeTrainingService:
             summary["retrain_request"] = request
             return summary
 
-    # @AI_GENERATED
-    def reserve_manual_retrain_request(self) -> Dict[str, Any]:
+    def reserve_manual_retrain_request(
+        self,
+        target_modeling_path: Optional[str] = None,
+        *,
+        overrides: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """登记一条「待冻结快照」的手动重训请求，本身不做任何重活，立即返回。
 
         与 ``request_manual_retrain`` 的唯一区别是**不在调用线程里构建快照**。
@@ -148,10 +312,17 @@ class CumulativeTrainingService:
         Returns:
             ``_summarize_state`` 结果，并附 ``retrain_request`` 为新建请求。
         Raises:
-            ValueError: 已有重训在执行或正在准备快照。
+            ValueError: 已有重训在执行、正在准备快照或路径无效。
         """
+        requested_path = str(target_modeling_path or "").strip() or None
+        if requested_path is not None and requested_path not in _ALLOWED_MODELING_PATHS:
+            raise ValueError(f"不支持的建模路径: {requested_path}")
         with self._lock:
             state = self._load_state()
+            requested_path = requested_path or _canonical_modeling_path(
+                state.get("production_path") or _DEFAULT_PRODUCTION_PATH
+            )
+            _ensure_retrain_watermarks(state)
             running = next(
                 (
                     request
@@ -193,9 +364,15 @@ class CumulativeTrainingService:
                 "dataset_path": None,
                 "sample_count": None,
                 "label_count": None,
+                "target_modeling_path": requested_path,
+                "overrides": overrides if isinstance(overrides, dict) else None,
                 "trigger_reason": "manual",
                 "auto_execute": False,
-                "triggered_change_count": int(state["pending_change_count"]),
+                "triggered_change_count": int(
+                    state["retrain_watermarks"][requested_path].get("pending_change_count") or 0
+                ),
+                "consumed_through_sequence": int(state.get("next_sequence") or 0),
+                "pending_reset_on_create": False,
                 "threshold": self.retrain_label_threshold,
                 "created_at": now,
                 "updated_at": now,
@@ -230,9 +407,13 @@ class CumulativeTrainingService:
                 return dict(request)
             if request.get("status") != "queued":
                 raise ValueError(f"状态 {request.get('status')} 不允许冻结快照")
+            target_modeling_path = request.get("target_modeling_path")
 
         scratch = self._load_state()
-        snapshot = self._create_snapshot(scratch)
+        snapshot = self._create_snapshot(
+            scratch,
+            target_modeling_path=target_modeling_path,
+        )
 
         with self._lock:
             state = self._load_state()
@@ -274,7 +455,6 @@ class CumulativeTrainingService:
                 return
             if request.pop("active_job", None) is not None:
                 self._save_state(state)
-    # @AI_GENERATED: end
 
     def admit_verdict(
         self,
@@ -302,6 +482,7 @@ class CumulativeTrainingService:
                 removed = state["verdict_entries"].pop(entry_key, None) is not None
                 if removed:
                     state["pending_change_count"] += 1
+                    _record_path_change(state, ["legacy_day"], 1)
                 request = self._maybe_create_auto_retrain_request(state)
                 self._save_state(state)
                 summary = self._summarize_state(state)
@@ -353,6 +534,7 @@ class CumulativeTrainingService:
                 normalized["sequence"] = state["next_sequence"]
                 state["verdict_entries"][entry_key] = normalized
                 state["pending_change_count"] += 1
+                _record_path_change(state, ["legacy_day"], 1)
 
             request = self._maybe_create_auto_retrain_request(state)
             self._save_state(state)
@@ -373,10 +555,18 @@ class CumulativeTrainingService:
         review_id: str,
         op_id: str,
         verdict: Dict[str, Any],
+        *,
+        label_source: str = "human_range",
     ) -> Dict[str, Any]:
-        """point_labels 主链路：按 review_id + op_id 幂等计入重训阈值。"""
+        """point_labels 主链路：只保存幂等索引，并按来源投影可消费路径水位。"""
         if not review_id or not op_id:
             raise ValueError("review_id 和 op_id 不能为空")
+        source = str(label_source or "").strip()
+        consumable_paths = (
+            ["legacy_day"]
+            if source in {"day_label", "human_day", "parquet_day_label"}
+            else ["legacy_day", "seq_annotation"]
+        )
         entry_key = f"{review_id}|{op_id}"
         is_ground_truth = (
             bool(verdict.get("is_ground_truth"))
@@ -387,9 +577,17 @@ class CumulativeTrainingService:
             with self._lock:
                 state = self._load_state()
                 state.setdefault("point_label_ops", {})
-                removed = state["point_label_ops"].pop(entry_key, None) is not None
+                previous = state["point_label_ops"].pop(entry_key, None)
+                removed = previous is not None
                 if removed:
                     state["pending_change_count"] += 1
+                    previous_source = str((previous or {}).get("source") or source)
+                    previous_paths = (
+                        ["legacy_day"]
+                        if previous_source in {"day_label", "human_day", "parquet_day_label"}
+                        else ["legacy_day", "seq_annotation"]
+                    )
+                    _record_path_change(state, previous_paths, 1)
                 request = self._maybe_create_auto_retrain_request(state)
                 self._save_state(state)
                 summary = self._summarize_state(state)
@@ -416,13 +614,16 @@ class CumulativeTrainingService:
             "action_type": verdict["action_type"],
             "reviewer": verdict.get("reviewer"),
             "reviewed_at": verdict.get("reviewed_at") or datetime.utcnow().isoformat(),
+            "source": source,
         }
 
         with self._lock:
             state = self._load_state()
             state.setdefault("point_label_ops", {})
             previous = state["point_label_ops"].get(entry_key)
-            comparison_keys = {"review_id", "op_id", "verdict_label", "action_type", "reviewer"}
+            comparison_keys = {
+                "review_id", "op_id", "verdict_label", "action_type", "reviewer", "source"
+            }
             previous_comparable = (
                 {key: previous.get(key) for key in comparison_keys}
                 if previous
@@ -435,6 +636,7 @@ class CumulativeTrainingService:
                 normalized["sequence"] = state["next_sequence"]
                 state["point_label_ops"][entry_key] = normalized
                 state["pending_change_count"] += 1
+                _record_path_change(state, consumable_paths, 1)
 
             request = self._maybe_create_auto_retrain_request(state)
             self._save_state(state)
@@ -496,6 +698,7 @@ class CumulativeTrainingService:
                     "registered_at": datetime.utcnow().isoformat(),
                 }
                 state["pending_change_count"] += delta
+                _record_path_change(state, ["legacy_day"], delta)
 
             request = self._maybe_create_auto_retrain_request(state)
             self._save_state(state)
@@ -522,13 +725,18 @@ class CumulativeTrainingService:
             return dict(request)
 
     def get_production_model_ref(self) -> Optional[str]:
-        """返回本 slot 当前生产模型；兼容读取自动切模上线前的历史状态。"""
+        """返回当前生产路径 Champion；Registry 未迁移时才回退旧 state。"""
         with self._lock:
+            if self.slot == "pv_fault" and self._pv_model_registry.has_slot(self.slot):
+                registry_state = self._pv_model_registry.get_slot(self.slot)
+                path_state = registry_state.path_models.get(registry_state.production_path)
+                champion = path_state.champion if path_state else None
+                return str(champion.model_ref).strip() if champion else None
             state = self._load_state()
             production_ref = str(state.get("production_model_ref") or "").strip()
             if production_ref:
                 return production_ref
-            latest = self._latest_completed_request(state)
+            latest = self._latest_promoted_request(state)
             return str(latest["model_ref"]).strip() if latest else None
 
     def get_latest_completed_model_ref(self) -> Optional[str]:
@@ -536,10 +744,199 @@ class CumulativeTrainingService:
         return self.get_production_model_ref()
 
     def get_modeling_paths(self) -> Dict[str, Any]:
-        """返回生产主线路径、备选路径及各路径最近模型登记。"""
+        """返回生产路径与模型生命周期；pv_fault 有 Registry 后以其为唯一读真相。"""
         with self._lock:
+            if self.slot == "pv_fault" and self._pv_model_registry.has_slot(self.slot):
+                registry_state = self._pv_model_registry.get_slot(self.slot)
+                path_models: Dict[str, Dict[str, Any]] = {}
+                for path, lifecycle in registry_state.path_models.items():
+                    lifecycle_payload = lifecycle.to_dict()
+                    champion = lifecycle.champion
+                    path_models[path] = {
+                        **lifecycle_payload,
+                        "model_ref": champion.model_ref if champion else None,
+                        "metrics": (
+                            {
+                                "metric_name": champion.metric_name,
+                                "gate_metric_value": champion.gate_metric_value,
+                            }
+                            if champion
+                            else {}
+                        ),
+                    }
+                production_lifecycle = registry_state.path_models.get(
+                    registry_state.production_path
+                )
+                production_champion = (
+                    production_lifecycle.champion if production_lifecycle else None
+                )
+                return {
+                    "available_paths": ["legacy_day", "seq_annotation"],
+                    "production_path": registry_state.production_path,
+                    "fallback_path": registry_state.fallback_path,
+                    "active_activation_epoch_id": registry_state.active_activation_epoch_id,
+                    "path_models": path_models,
+                    "production_model_ref": (
+                        production_champion.model_ref if production_champion else None
+                    ),
+                    "registry_source": "pv_model_registry",
+                    "updated_at": registry_state.updated_at,
+                    "note": registry_state.note,
+                }
             state = self._load_state()
             return self._summarize_modeling_paths(state)
+
+    # seq_annotation 生产登记、显式 Promote 与契约准入门控
+    @staticmethod
+    def _assert_seq_production_ready(path_entry: Dict[str, Any]) -> None:
+        """校验登记项是否完整复现最终 BiLSTM 生产方案。"""
+        from services.iterative_labeling.seq_annotation.production_contract import (
+            assert_final_sequence_contract,
+        )
+
+        raw_contract = path_entry.get("sequence_contract")
+        assert_final_sequence_contract(raw_contract)
+        contract = dict(raw_contract or {})
+        contract["trained_full_day"] = path_entry.get("trained_full_day")
+        assert_final_sequence_contract(contract)
+
+    def _gate_metric_from_summary(
+        self,
+        modeling_path: str,
+        summary: Dict[str, Any],
+    ) -> float:
+        """从重训摘要取守门指标；缺失时记 0，由合同判定阻断而不是猜一个高分。"""
+
+        accuracy = dict(summary.get("accuracy_record") or {})
+        if modeling_path == "seq_annotation":
+            raw = accuracy.get("point_macro_f1", accuracy.get("macro_f1_mean", summary.get("macro_f1_mean")))
+        else:
+            raw = accuracy.get("macro_f1_mean", summary.get("macro_f1_mean"))
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return 0.0
+        return value if math.isfinite(value) else 0.0
+
+    def _evaluation_contract_from_summary(
+        self,
+        modeling_path: str,
+        summary: Dict[str, Any],
+        request_id: str,
+    ) -> EvaluationContract:
+        """把训练摘要投影为同口径评测合同；字段不足时让 validator 阻断晋升。"""
+
+        accuracy = dict(summary.get("accuracy_record") or {})
+        sequence_contract = dict(summary.get("sequence_contract") or {})
+        sample_digest = str(
+            summary.get("sample_digest")
+            or summary.get("label_snapshot_hash")
+            or request_id
+        ).strip()
+        split_digest = str(summary.get("split_digest") or sample_digest).strip()
+        seed_raw = summary.get(
+            "random_seed",
+            accuracy.get("random_seed", 42 if modeling_path == "seq_annotation" else 90),
+        )
+        try:
+            random_seed = int(seed_raw)
+        except (TypeError, ValueError):
+            random_seed = -1
+        if modeling_path == "seq_annotation":
+            metric_name = "point_macro_f1"
+            try:
+                seq_len = int(sequence_contract.get("seq_len") or 0) or None
+            except (TypeError, ValueError):
+                seq_len = None
+            trained_full_day = sequence_contract.get(
+                "trained_full_day", summary.get("trained_full_day")
+            )
+            if not isinstance(trained_full_day, bool):
+                trained_full_day = None
+            production_contract_valid = trained_full_day is True and seq_len == 288
+            production_contract_digest = str(
+                summary.get("production_contract_digest")
+                or f"seq:{seq_len}:{trained_full_day}"
+            ).strip()
+        else:
+            metric_name = "macro_f1_mean"
+            seq_len = None
+            trained_full_day = None
+            production_contract_valid = True
+            production_contract_digest = str(
+                summary.get("production_contract_digest")
+                or f"legacy:{summary.get('artifact_format') or 'pickle'}"
+            ).strip()
+        return EvaluationContract(
+            sample_digest=sample_digest,
+            split_digest=split_digest,
+            random_seed=random_seed,
+            metric_name=metric_name,
+            production_contract_digest=production_contract_digest,
+            production_contract_valid=production_contract_valid,
+            seq_len=seq_len,
+            trained_full_day=trained_full_day,
+        )
+
+    def _publish_pv_fault_retrain_to_registry(
+        self,
+        *,
+        request_id: str,
+        modeling_path: str,
+        model_ref: str,
+        summary: Dict[str, Any],
+        try_promote: bool,
+    ) -> Dict[str, Any]:
+        """pv_fault 重训产物只进 Registry：先 Challenger，可选同路径守门，绝不切路径。"""
+
+        production_path_before = self._pv_model_registry.get_slot(self.slot).production_path
+        retrainer = AccuracyGatedRetrainer(
+            self._pv_model_registry,
+            retrain_change_threshold=self.retrain_label_threshold,
+            retrain_period_days=self.retrain_period_days,
+        )
+        contract = self._evaluation_contract_from_summary(modeling_path, summary, request_id)
+        metric_value = self._gate_metric_from_summary(modeling_path, summary)
+        if try_promote:
+            lifecycle = retrainer.register_and_evaluate(
+                modeling_path,
+                slot=self.slot,
+                model_ref=model_ref,
+                evaluation_id=request_id,
+                gate_metric_value=metric_value,
+                contract=contract,
+                metadata={"request_id": request_id, "source": "mark_retrain_request"},
+            )
+        else:
+            registered = retrainer.register_challenger(
+                modeling_path,
+                slot=self.slot,
+                model_ref=model_ref,
+                evaluation_id=request_id,
+                gate_metric_value=metric_value,
+                contract=contract,
+                metadata={"request_id": request_id, "source": "mark_retrain_request"},
+            )
+            lifecycle = {
+                "registration": registered,
+                "promotion": LifecycleOperationResult(
+                    status="skipped",
+                    changed=False,
+                    reason="promote_not_requested",
+                    registration=registered.registration,
+                ),
+            }
+        production_path_after = self._pv_model_registry.get_slot(self.slot).production_path
+        if production_path_before != production_path_after:
+            raise AssertionError("pv_fault Registry 发布不得修改 production_path")
+        registration = lifecycle["registration"]
+        promotion = lifecycle["promotion"]
+        return {
+            "registration_status": registration.status,
+            "promotion_status": promotion.status,
+            "reason": promotion.reason or registration.reason,
+            "production_path": production_path_after,
+        }
 
     def set_modeling_paths(
         self,
@@ -553,15 +950,40 @@ class CumulativeTrainingService:
         with self._lock:
             state = self._load_state()
             if fallback_path is None:
-                fb = str(state.get("fallback_path") or _DEFAULT_FALLBACK_PATH).strip()
+                fb = "seq_annotation" if prod == "legacy_day" else "legacy_day"
             else:
-                fb = str(fallback_path or "").strip() or _DEFAULT_FALLBACK_PATH
+                fb = str(fallback_path or "").strip()
+                if not fb:
+                    fb = "seq_annotation" if prod == "legacy_day" else "legacy_day"
             if fb not in _ALLOWED_MODELING_PATHS:
                 raise ValueError(f"不支持的备选路径: {fb}")
             if fb == prod:
                 raise ValueError("生产主线与备选路径不能相同")
+            current_path = str(state.get("production_path") or _DEFAULT_PRODUCTION_PATH)
+            path_entry = dict((state.get("path_models") or {}).get(prod) or {})
+            if prod != current_path and not str(path_entry.get("model_ref") or "").strip():
+                raise ValueError(f"建模路径 {prod} 尚无已登记模型，不能设为生产主线")
+            if prod == "seq_annotation":
+                self._assert_seq_production_ready(path_entry)
+
             state["production_path"] = prod
             state["fallback_path"] = fb
+            registered_ref = str(path_entry.get("model_ref") or "").strip()
+            if registered_ref:
+                state["production_model_ref"] = registered_ref
+                state["production_model_path_key"] = prod
+                if path_entry.get("request_id"):
+                    state["production_retrain_request_id"] = path_entry["request_id"]
+            if prod != current_path:
+                state.setdefault("path_switch_audit", []).append(
+                    {
+                        "action": "explicit_path_switch",
+                        "from_path": current_path,
+                        "to_path": prod,
+                        "model_ref": registered_ref or None,
+                        "at": datetime.utcnow().isoformat(),
+                    }
+                )
             self._save_state(state)
             return self._summarize_modeling_paths(state)
 
@@ -573,13 +995,17 @@ class CumulativeTrainingService:
         request_id: Optional[str] = None,
         metrics: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """登记某建模路径的最近可用模型。"""
+        """登记候选模型；生产指针只能通过显式 Promote/路径切换更新。"""
         key = str(path_key or "").strip()
         ref = str(model_ref or "").strip()
         if key not in _ALLOWED_MODELING_PATHS:
             raise ValueError(f"不支持的建模路径: {key}")
         if not ref:
             raise ValueError("model_ref 不能为空")
+        if key == "seq_annotation":
+            raise ValueError(
+                "seq_annotation 只能通过正式重训登记，并在完整生产契约校验后显式 Promote"
+            )
         with self._lock:
             state = self._load_state()
             path_models = state.setdefault("path_models", {})
@@ -589,10 +1015,16 @@ class CumulativeTrainingService:
                 "metrics": metrics or {},
                 "updated_at": datetime.utcnow().isoformat(),
             }
-            if key == str(state.get("production_path") or _DEFAULT_PRODUCTION_PATH):
-                state["production_model_ref"] = ref
-                if request_id:
-                    state["production_retrain_request_id"] = request_id
+            state.setdefault("path_switch_audit", []).append(
+                {
+                    "action": "path_model_registered",
+                    "path": key,
+                    "model_ref": ref,
+                    "request_id": request_id,
+                    "promoted": False,
+                    "at": datetime.utcnow().isoformat(),
+                }
+            )
             self._save_state(state)
             return self._summarize_modeling_paths(state)
 
@@ -610,6 +1042,8 @@ class CumulativeTrainingService:
             fb_ref = str(fb_entry.get("model_ref") or "").strip()
             if not fb_ref:
                 raise ValueError(f"备选路径 {fb} 尚无可用模型，无法回退")
+            if fb == "seq_annotation":
+                self._assert_seq_production_ready(dict(fb_entry))
 
             state["production_path"] = fb
             state["fallback_path"] = prod
@@ -635,9 +1069,14 @@ class CumulativeTrainingService:
     def _summarize_modeling_paths(state: Dict[str, Any]) -> Dict[str, Any]:
         production_path = str(state.get("production_path") or _DEFAULT_PRODUCTION_PATH)
         fallback_path = str(state.get("fallback_path") or _DEFAULT_FALLBACK_PATH)
-        path_models = dict(state.get("path_models") or {})
+        path_models = {
+            key: dict(value)
+            for key, value in (state.get("path_models") or {}).items()
+            if key in _ALLOWED_MODELING_PATHS and isinstance(value, dict)
+        }
         active_ref = str(state.get("production_model_ref") or "").strip()
         return {
+            "available_paths": ["legacy_day", "seq_annotation"],
             "production_path": production_path,
             "fallback_path": fallback_path,
             "path_models": path_models,
@@ -653,11 +1092,19 @@ class CumulativeTrainingService:
         model_ref: Optional[str] = None,
         error: Optional[str] = None,
         train_summary: Optional[Dict[str, Any]] = None,
+        promote_to_production: bool = True,
     ) -> Dict[str, Any]:
-        """更新重训请求状态；只有训练调用方可将 queued 变为 running/completed/failed。"""
+        """更新重训请求状态。
+
+        ``pv_fault`` 完成时只把产物交给 PVModelRegistry：默认登记 Challenger；
+        ``promote_to_production=True`` 只允许同路径精度守门，不得改 ``production_path``。
+        其他 slot 保留旧自动晋升语义。
+        """
         allowed_statuses = {"queued", "running", "completed", "failed", "cancelled"}
         if status not in allowed_statuses:
             raise ValueError(f"不支持的重训请求状态: {status}")
+        if not isinstance(promote_to_production, bool):
+            raise ValueError("promote_to_production 必须为 JSON boolean")
         with self._lock:
             state = self._load_state()
             request = state["retrain_requests"].get(request_id)
@@ -677,57 +1124,144 @@ class CumulativeTrainingService:
                 request["train_summary"] = train_summary
             pending_auto_request: Optional[Dict[str, Any]] = None
             if status == "completed":
-                request["progress"] = {
-                    "stage": "completed",
-                    "percent": 100,
-                    "message": "训练完成，生产模型已切换",
-                    "updated_at": request["updated_at"],
-                }
                 production_ref = str(request.get("model_ref") or "").strip()
                 if not production_ref:
-                    raise ValueError("重训完成时必须提供有效 model_ref，生产模型未切换")
-                promoted_at = request["updated_at"]
-                request["promoted_to_production_at"] = promoted_at
-                state["production_model_ref"] = production_ref
-                state["production_retrain_request_id"] = request_id
-                state["production_promoted_at"] = promoted_at
-                modeling_path = str((train_summary or {}).get("modeling_path") or "").strip()
-                if modeling_path in _ALLOWED_MODELING_PATHS:
-                    path_models = state.setdefault("path_models", {})
-                    path_models[modeling_path] = {
-                        "model_ref": production_ref,
-                        "request_id": request_id,
-                        "metrics": {
-                            k: (train_summary or {}).get(k)
-                            for k in ("macro_f1_mean", "accuracy_mean", "n_samples")
-                            if (train_summary or {}).get(k) is not None
+                    raise ValueError("重训完成时必须提供有效 model_ref")
+                completed_at = request["updated_at"]
+                summary = train_summary or {}
+                modeling_path = str(summary.get("modeling_path") or "").strip()
+                if modeling_path not in _ALLOWED_MODELING_PATHS:
+                    raise ValueError(f"重训结果缺少有效 modeling_path: {modeling_path}")
+
+                path_entry = {
+                    "model_ref": production_ref,
+                    "model_path": summary.get("model_path"),
+                    "artifact_format": summary.get("artifact_format"),
+                    "trained_full_day": summary.get("trained_full_day"),
+                    "sequence_contract": summary.get("sequence_contract"),
+                    "request_id": request_id,
+                    "metrics": {
+                        **dict(summary.get("accuracy_record") or {}),
+                        **{
+                            key: summary.get(key)
+                            for key in ("macro_f1_mean", "accuracy_mean", "n_samples")
+                            if summary.get(key) is not None
                         },
-                        "updated_at": promoted_at,
+                    },
+                    "updated_at": completed_at,
+                }
+                pv_fault_slot = self.slot == "pv_fault"
+                if modeling_path == "seq_annotation" and promote_to_production and not pv_fault_slot:
+                    self._assert_seq_production_ready(path_entry)
+
+                path_models = state.setdefault("path_models", {})
+                path_models[modeling_path] = path_entry
+                production_path_before = str(
+                    state.get("production_path") or _DEFAULT_PRODUCTION_PATH
+                )
+
+                if pv_fault_slot:
+                    governance = self._publish_pv_fault_retrain_to_registry(
+                        request_id=request_id,
+                        modeling_path=modeling_path,
+                        model_ref=production_ref,
+                        summary=summary,
+                        try_promote=promote_to_production,
+                    )
+                    request["promote_to_production"] = False
+                    request["pv_registry_governance"] = governance
+                    promotion_status = str(governance.get("promotion_status") or "")
+                    request["progress"] = {
+                        "stage": "completed",
+                        "percent": 100,
+                        "message": (
+                            "训练完成，路径内已换将"
+                            if promotion_status == "promoted"
+                            else "训练完成，已登记 Challenger（未改生产路径）"
+                        ),
+                        "updated_at": completed_at,
                     }
-                    # @AI_GENERATED: 生产登记一致性（需求 23.5）。
-                    # 修复前 production_path 与 production_model_ref 各自独立更新，
-                    # 出现过「production_path=legacy_day 但生产模型由 by_day_night
-                    # 产出」的矛盾。这里把实际产出该模型的路径同步为主线，并把原
-                    # 主线降为备选，使两个指针恒一致、可审计。
-                    prev_path = str(state.get("production_path") or _DEFAULT_PRODUCTION_PATH)
-                    if modeling_path != prev_path:
-                        state["production_path"] = modeling_path
-                        state["fallback_path"] = prev_path
-                        state.setdefault("production_path_history", []).append({
-                            "from": prev_path,
-                            "to": modeling_path,
-                            "reason": "retrain_completed",
+                    state.setdefault("path_switch_audit", []).append(
+                        {
+                            "action": "experimental_model_registered",
+                            "path": modeling_path,
                             "model_ref": production_ref,
                             "request_id": request_id,
-                            "at": promoted_at,
-                        })
-                        logger.info(
-                            "生产主线路径随重训切换: %s -> %s (model=%s)",
-                            prev_path, modeling_path, production_ref,
+                            "at": completed_at,
+                            "promotion_status": promotion_status or None,
+                        }
+                    )
+                    if str(state.get("production_path") or "") != production_path_before:
+                        raise AssertionError("pv_fault 重训完成不得修改 production_path")
+                elif promote_to_production:
+                    request["promote_to_production"] = True
+                    request["promoted_to_production_at"] = completed_at
+                    request["progress"] = {
+                        "stage": "completed",
+                        "percent": 100,
+                        "message": "训练完成，生产模型已切换",
+                        "updated_at": completed_at,
+                    }
+                    state["production_model_ref"] = production_ref
+                    state["production_retrain_request_id"] = request_id
+                    state["production_promoted_at"] = completed_at
+                    previous_path = production_path_before
+                    if modeling_path != previous_path:
+                        state["production_path"] = modeling_path
+                        state["fallback_path"] = previous_path
+                        state.setdefault("production_path_history", []).append(
+                            {
+                                "from": previous_path,
+                                "to": modeling_path,
+                                "reason": "retrain_completed",
+                                "model_ref": production_ref,
+                                "request_id": request_id,
+                                "at": completed_at,
+                            }
                         )
                     state["production_model_path_key"] = modeling_path
-                    # @AI_GENERATED: end
-                # 若登记/审核在 running 期间继续累积变更，完成后自动排队下一次全量快照。
+                else:
+                    request["promote_to_production"] = False
+                    request["progress"] = {
+                        "stage": "completed",
+                        "percent": 100,
+                        "message": "训练完成，实验模型已登记（未切生产）",
+                        "updated_at": completed_at,
+                    }
+                    state.setdefault("path_switch_audit", []).append(
+                        {
+                            "action": "experimental_model_registered",
+                            "path": modeling_path,
+                            "model_ref": production_ref,
+                            "request_id": request_id,
+                            "at": completed_at,
+                        }
+                    )
+
+                _ensure_retrain_watermarks(state)
+                watermark = state["retrain_watermarks"][modeling_path]
+                consumed_units = int(request.get("triggered_change_count") or 0)
+                if not bool(request.get("pending_reset_on_create")):
+                    watermark["pending_change_count"] = max(
+                        0,
+                        int(watermark.get("pending_change_count") or 0) - consumed_units,
+                    )
+                    if modeling_path == _canonical_modeling_path(
+                        state.get("production_path")
+                    ):
+                        state["pending_change_count"] = max(
+                            0, int(state.get("pending_change_count") or 0) - consumed_units
+                        )
+                watermark["consumed_sequence"] = max(
+                    int(watermark.get("consumed_sequence") or 0),
+                    int(request.get("consumed_through_sequence") or 0),
+                )
+                watermark["last_consumed_at"] = completed_at
+                watermark["last_failed_sequence"] = 0
+                watermark["last_failed_pending_count"] = 0
+                watermark["updated_at"] = completed_at
+
+                # 若训练期间继续累积变更，完成后按当前生产路径排队下一次快照。
                 pending_auto_request = self._maybe_create_auto_retrain_request(state)
             elif status == "failed":
                 previous_progress = request.get("progress") or {}
@@ -737,6 +1271,18 @@ class CumulativeTrainingService:
                     "message": error or "重训失败",
                     "updated_at": request["updated_at"],
                 }
+                failed_path = _canonical_modeling_path(request.get("target_modeling_path"))
+                if failed_path in _ALLOWED_MODELING_PATHS:
+                    _ensure_retrain_watermarks(state)
+                    failed_watermark = state["retrain_watermarks"][failed_path]
+                    failed_watermark["last_failed_sequence"] = max(
+                        int(failed_watermark.get("last_failed_sequence") or 0),
+                        int(request.get("consumed_through_sequence") or 0),
+                    )
+                    failed_watermark["last_failed_pending_count"] = int(
+                        failed_watermark.get("pending_change_count") or 0
+                    )
+                    failed_watermark["updated_at"] = request["updated_at"]
             self._save_state(state)
             result = dict(request)
             if pending_auto_request and pending_auto_request.get("auto_execute"):
@@ -771,21 +1317,54 @@ class CumulativeTrainingService:
             return dict(request)
 
     def _maybe_create_auto_retrain_request(self, state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        if state["pending_change_count"] < self.retrain_label_threshold:
-            return None
-        return self._create_retrain_request(
-            state,
-            trigger_reason="auto_threshold",
-            reset_pending_count=True,
+        """按路径检查“变更阈值 AND 重训周期”，一次只排队一条 Challenger 重训。"""
+
+        _ensure_retrain_watermarks(state)
+        production_path = _canonical_modeling_path(
+            state.get("production_path") or _DEFAULT_PRODUCTION_PATH
         )
+        ordered_paths = [production_path] + sorted(
+            path for path in _ALLOWED_MODELING_PATHS if path != production_path
+        )
+        trigger = AccuracyGatedRetrainer(
+            self._pv_model_registry,
+            retrain_change_threshold=self.retrain_label_threshold,
+            retrain_period_days=self.retrain_period_days,
+        )
+        for target_path in ordered_paths:
+            watermark = state["retrain_watermarks"][target_path]
+            pending_count = int(watermark.get("pending_change_count") or 0)
+            if pending_count <= int(watermark.get("last_failed_pending_count") or 0):
+                continue
+            raw_last = watermark.get("last_consumed_at")
+            try:
+                last_retrained_at = datetime.fromisoformat(str(raw_last)) if raw_last else None
+            except ValueError:
+                last_retrained_at = None
+            decision = trigger.maybe_trigger(
+                pending_change_count=pending_count,
+                last_retrained_at=last_retrained_at,
+            )
+            if decision.should_trigger:
+                return self._create_retrain_request(
+                    state,
+                    trigger_reason=str(decision.trigger_reason),
+                    target_modeling_path=target_path,
+                )
+        return None
 
     def _create_retrain_request(
         self,
         state: Dict[str, Any],
         *,
         trigger_reason: str,
-        reset_pending_count: bool,
+        target_modeling_path: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
+        requested_path = str(target_modeling_path or "").strip() or str(
+            state.get("production_path") or _DEFAULT_PRODUCTION_PATH
+        )
+        if requested_path not in _ALLOWED_MODELING_PATHS:
+            raise ValueError(f"不支持的建模路径: {requested_path}")
         active = next(
             (
                 request
@@ -797,27 +1376,32 @@ class CumulativeTrainingService:
         if active is not None:
             if active.get("status") == "running":
                 return None
-            # @AI_GENERATED: 带 active_job 的 queued 请求正由后台线程冻结快照（数分钟），
+            # 带 active_job 的 queued 请求正由后台线程冻结快照（数分钟），
             # 不能当成陈旧排队请求取代掉：否则既会中断正在跑的重训，又会让本函数
             # 在 get_state 轮询里同步重建快照，把状态接口堵死数分钟。
             if active.get("active_job"):
                 return None
-            # @AI_GENERATED: end
             active["status"] = "cancelled"
             active["cancelled_reason"] = "superseded_by_newer_snapshot"
             active["updated_at"] = datetime.utcnow().isoformat()
             active["finished_at"] = active["updated_at"]
 
         try:
-            snapshot = self._create_snapshot(state)
+            snapshot = self._create_snapshot(
+                state,
+                target_modeling_path=requested_path,
+            )
         except ValueError as exc:
             # 审核裁决已经可靠落账；若当前样本不满足训练条件，只阻断重训申请，不能丢失标签。
             state["last_retrain_blocker"] = str(exc)
             return None
         state.pop("last_retrain_blocker", None)
-        pending_before_reset = int(state["pending_change_count"])
+        _ensure_retrain_watermarks(state)
+        target_watermark = state["retrain_watermarks"][requested_path]
+        pending_before_reset = int(target_watermark.get("pending_change_count") or 0)
+        consumed_through_sequence = int(state.get("next_sequence") or 0)
         request_id = f"retrain-{uuid.uuid4().hex[:12]}"
-        is_auto = trigger_reason == "auto_threshold"
+        is_auto = trigger_reason.startswith("auto_")
         request = {
             "request_id": request_id,
             "status": "queued",
@@ -825,9 +1409,12 @@ class CumulativeTrainingService:
             "dataset_path": snapshot["dataset_path"],
             "sample_count": snapshot["sample_count"],
             "label_count": snapshot["label_count"],
+            "target_modeling_path": requested_path,
             "trigger_reason": trigger_reason,
             "auto_execute": is_auto,
             "triggered_change_count": pending_before_reset,
+            "consumed_through_sequence": consumed_through_sequence,
+            "pending_reset_on_create": False,
             "threshold": self.retrain_label_threshold,
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
@@ -843,19 +1430,78 @@ class CumulativeTrainingService:
             },
         }
         state["retrain_requests"][request_id] = request
-        if reset_pending_count:
-            state["pending_change_count"] = 0
+        # 请求创建只冻结消费边界；失败/取消不得提前推进水位或清零待消费变更。
         return dict(request)
 
-    def _create_snapshot(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        mode = str(state.get("snapshot_mode") or os.getenv("PV_SNAPSHOT_MODE", "point_label")).strip().lower()
-        if mode == "legacy":
+    def _create_snapshot(
+        self,
+        state: Dict[str, Any],
+        *,
+        target_modeling_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        modeling_path = str(target_modeling_path or _DEFAULT_PRODUCTION_PATH).strip()
+        if modeling_path == "seq_annotation":
+            return self._create_snapshot_seq_annotation(state)
+        if modeling_path == "legacy_day":
             return self._create_snapshot_legacy(state)
-        try:
-            return self._create_snapshot_point_label(state)
-        except Exception as exc:
-            logger.warning("point_label 快照构建失败，回退 legacy: %s", exc)
-            return self._create_snapshot_legacy(state)
+        raise ValueError(f"不支持的建模路径: {modeling_path}")
+
+    def _create_snapshot_seq_annotation(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """构建全天 288 点不可变 NPZ 快照，供序列标注专用训练器使用。"""
+        from services.iterative_labeling.seq_annotation.dataset_builder import build_dataset
+        from services.iterative_labeling.seq_annotation.trainer import (
+            _is_full_day_grid_validated,
+        )
+
+        # 采用构建器默认的网格覆盖门槛（min_occupied_slots=173 等）。
+        # 不要再传旧的 min_points：那个参数卡的是原始行数，会把「夜间 10 分钟采样、
+        # 物理完整」的自然日整批误杀，实测会让点粒度金标从 196 天掉到 30 天。
+        result = build_dataset(seq_len=288)
+        report = dict(result["report"])
+        dataset_path = str(result["output_dir"])
+        dataset_dir = self.project_root / "backend-service" / dataset_path
+        grid_contract = dict(report.get("grid_contract") or {})
+        # 与 trainer 共用同一套严格判定：全天资格必须由网格结构（288 槽 / 5 分钟 /
+        # 24 小时覆盖门控 / is_measured 通道）加真实覆盖证据共同成立。只看布尔值会让
+        # 半天或旧口径快照冒充全天，进而拿到夜间诊断与生产切换资格。
+        full_day_grid_validated = _is_full_day_grid_validated(
+            report=report,
+            grid_contract=grid_contract,
+            channels=list(report.get("channels") or []),
+            seq_len=int(report["seq_len"]),
+        )
+        trained_full_day = bool(
+            int(report["seq_len"]) == 288
+            and list(report.get("daylight_hours") or []) == [0, 24]
+            and full_day_grid_validated
+        )
+        snapshot = {
+            "snapshot_id": str(result["version"]),
+            "dataset_path": dataset_path,
+            "sample_count": int(report["n_sequences"]),
+            "row_count": int(report["n_sequences"]) * int(report["seq_len"]),
+            "label_count": int(report["n_classes"]),
+            "content_sha256": self._sha256_file(dataset_dir / "dataset.npz"),
+            "label_snapshot_hash": report.get("label_snapshot_hash"),
+            "sample_strategy": {
+                "split_mode": "seq_annotation",
+                "seq_len": int(report["seq_len"]),
+                "channels": list(report.get("channels") or ["value", "i_cal"]),
+                "trained_full_day": trained_full_day,
+                "full_day_grid_validated": full_day_grid_validated,
+            },
+            "snapshot_mode": "seq_annotation",
+            "grid_contract": grid_contract or None,
+            "sources": [
+                {
+                    "kind": "point_labels_and_measurements",
+                    "night_label_policy": report.get("night_label_policy"),
+                }
+            ],
+            "created_at": datetime.utcnow().isoformat(),
+        }
+        state["snapshots"][snapshot["snapshot_id"]] = snapshot
+        return snapshot
 
     def _create_snapshot_legacy(self, state: Dict[str, Any]) -> Dict[str, Any]:
         frames: List[pd.DataFrame] = []
@@ -943,59 +1589,25 @@ class CumulativeTrainingService:
         state["snapshots"][snapshot_id] = snapshot
         return snapshot
 
-    def _create_snapshot_point_label(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """从 point_labels + training_samples 构建新路径快照（含 sample_id）。"""
-        adapter = DBAdapter(DBConfig())
-        point_repo = PointLabelRepository(adapter)
-        sample_repo = PVFaultRepository(adapter)
-        builder = SnapshotBuilder(point_repo, sample_repo)
-
-        split_mode = str(state.get("split_mode") or os.getenv("PV_SPLIT_MODE", "by_day"))
-        measurements = builder._load_measurements(None)
-        resolver = DaylightWindowResolver()
-        daylight_table = resolver.build_table(measurements)
-
-        strategy = SampleStrategy(
-            split_mode=split_mode,
-            min_points=int(state.get("min_points") or 12),
-            daylight_windows=daylight_table,
-        )
-        combined, meta = builder.build(strategy, measurements_df=measurements)
-
-        if combined["label"].nunique() < 2:
-            raise ValueError("point_label 快照至少需要两个有效标签类别")
-
-        snapshot_id = f"snapshot-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6]}"
-        snapshot_path = self.root / "snapshots" / f"{snapshot_id}.parquet"
-        rel_path = builder.write_parquet(combined, meta, snapshot_path)
-        dataset_path = self._to_project_relative(Path(rel_path))
-
-        snapshot = {
-            "snapshot_id": snapshot_id,
-            "dataset_path": dataset_path,
-            "sample_count": int(meta.get("sample_count", 0)),
-            "row_count": int(meta.get("row_count", len(combined))),
-            "label_count": int(combined["label"].nunique()),
-            "content_sha256": hashlib.sha256(
-                combined.to_csv(index=False).encode("utf-8")
-            ).hexdigest(),
-            "label_snapshot_hash": meta.get("label_snapshot_hash"),
-            "sample_strategy": meta.get("sample_strategy"),
-            "snapshot_mode": "point_label",
-            "sources": [{"kind": "point_labels", "split_mode": split_mode}],
-            "created_at": datetime.utcnow().isoformat(),
-        }
-        state["snapshots"][snapshot_id] = snapshot
-        return snapshot
-
     def _load_state(self) -> Dict[str, Any]:
         if not self.state_path.exists():
             return {
-                "schema_version": 1,
+                "schema_version": _MODELING_PATH_SCHEMA_VERSION,
                 "slot": self.slot,
                 "retrain_label_threshold": self.retrain_label_threshold,
                 "next_sequence": 0,
                 "pending_change_count": 0,
+                "retrain_watermarks": {
+                    path: {
+                        "consumed_sequence": 0,
+                        "pending_change_count": 0,
+                        "last_consumed_at": None,
+                        "last_failed_sequence": 0,
+                        "last_failed_pending_count": 0,
+                        "updated_at": datetime.utcnow().isoformat(),
+                    }
+                    for path in sorted(_ALLOWED_MODELING_PATHS)
+                },
                 "verdict_entries": {},
                 "labeled_imports": {},
                 "snapshots": {},
@@ -1024,6 +1636,11 @@ class CumulativeTrainingService:
         state.setdefault("path_models", {})
         state.setdefault("path_switch_audit", [])
         state["retrain_label_threshold"] = self.retrain_label_threshold
+        modeling_path_changed = _normalize_modeling_path_state(state)
+        watermark_changed = _ensure_retrain_watermarks(state)
+        if modeling_path_changed or watermark_changed:
+            # 一次性持久化迁移，后续接口和 UI 不再看到旧伪点路径或全局单水位。
+            _atomic_write_json(self.state_path, state)
         return state
 
     def _save_state(self, state: Dict[str, Any]) -> None:
@@ -1034,9 +1651,10 @@ class CumulativeTrainingService:
         production_request_id = str(state.get("production_retrain_request_id") or "").strip()
         production_model_ref = str(state.get("production_model_ref") or "").strip()
         latest_completed_raw = self._latest_completed_request(state)
-        if not production_model_ref and latest_completed_raw:
-            production_model_ref = str(latest_completed_raw.get("model_ref") or "").strip()
-            production_request_id = str(latest_completed_raw.get("request_id") or "").strip()
+        latest_promoted_raw = self._latest_promoted_request(state)
+        if not production_model_ref and latest_promoted_raw:
+            production_model_ref = str(latest_promoted_raw.get("model_ref") or "").strip()
+            production_request_id = str(latest_promoted_raw.get("request_id") or "").strip()
 
         requests = sorted(
             (
@@ -1075,32 +1693,56 @@ class CumulativeTrainingService:
             matched = state["snapshots"].get(str(production_request["snapshot_id"]))
             if isinstance(matched, dict):
                 display_snapshot = matched
+        modeling_paths_summary = self.get_modeling_paths()
+        registry_production_ref = str(
+            modeling_paths_summary.get("production_model_ref") or production_model_ref or ""
+        ).strip()
+        displayed_production_model: Optional[Dict[str, Any]] = production_request
+        if modeling_paths_summary.get("registry_source") == "pv_model_registry":
+            production_lifecycle = (
+                modeling_paths_summary.get("path_models") or {}
+            ).get(modeling_paths_summary.get("production_path")) or {}
+            champion_payload = production_lifecycle.get("champion")
+            if isinstance(champion_payload, dict):
+                displayed_production_model = {
+                    **champion_payload,
+                    "is_production": True,
+                    "source": "pv_model_registry",
+                }
         return {
             "slot": self.slot,
             "effective_labeled_unit_count": len(state["verdict_entries"]),
             "labeled_import_count": len(state["labeled_imports"]),
             "pending_change_count": int(state["pending_change_count"]),
+            "retrain_watermarks": {
+                path: {
+                    **dict(item),
+                    "next_retrain_in": max(
+                        0,
+                        self.retrain_label_threshold
+                        - int(item.get("pending_change_count") or 0),
+                    ),
+                }
+                for path, item in (state.get("retrain_watermarks") or {}).items()
+                if path in _ALLOWED_MODELING_PATHS and isinstance(item, dict)
+            },
             "retrain_label_threshold": self.retrain_label_threshold,
+            "retrain_period_days": self.retrain_period_days,
             "next_retrain_in": max(0, self.retrain_label_threshold - int(state["pending_change_count"])),
             "retrain_blocker": state.get("last_retrain_blocker"),
             "latest_snapshot": display_snapshot,
             "latest_retrain_request": requests[0] if requests else None,
             "latest_completed_retrain": latest_completed,
-            "production_model": production_request,
-            "production_model_ref": production_model_ref or None,
+            "production_model": displayed_production_model,
+            "production_model_ref": registry_production_ref or None,
             "production_promoted_at": (
                 state.get("production_promoted_at")
                 or (production_request or {}).get("promoted_to_production_at")
                 or (production_request or {}).get("finished_at")
             ),
             "retrain_history": requests,
-            "latest_completed_model_ref": production_model_ref or None,
-            "modeling_paths": self._summarize_modeling_paths(state),
-            # @AI_GENERATED: 暴露「下次重训使用的切分策略」。
-            # 前端策略选择器原先读 state.split_mode，但状态接口从未返回该字段，
-            # 导致刷新页面后选择器只能退回默认值、无法反映已持久化的选择。
-            "split_mode": state.get("split_mode") or os.getenv("PV_SPLIT_MODE", "by_day"),
-            # @AI_GENERATED: end
+            "latest_completed_model_ref": registry_production_ref or None,
+            "modeling_paths": modeling_paths_summary,
         }
 
     @staticmethod
@@ -1114,6 +1756,27 @@ class CumulativeTrainingService:
         return max(
             completed,
             key=lambda request: (
+                request.get("finished_at") or "",
+                request.get("updated_at") or "",
+                request.get("created_at") or "",
+            ),
+            default=None,
+        )
+
+    @staticmethod
+    def _latest_promoted_request(state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """返回最近已晋升请求；旧状态缺字段时按历史自动晋升语义兼容。"""
+        promoted = [
+            request
+            for request in state["retrain_requests"].values()
+            if request.get("status") == "completed"
+            and str(request.get("model_ref") or "").strip()
+            and request.get("promote_to_production") is not False
+        ]
+        return max(
+            promoted,
+            key=lambda request: (
+                request.get("promoted_to_production_at") or "",
                 request.get("finished_at") or "",
                 request.get("updated_at") or "",
                 request.get("created_at") or "",

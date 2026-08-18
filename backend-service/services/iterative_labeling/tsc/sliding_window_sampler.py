@@ -3,12 +3,23 @@
 滑动窗口切分器 — 把设备时序 + 逐点标签切成等长窗口样本。
 
 核心参数:
-  - window_length: 窗口点数（144=1天@10min采样）
+  - window_length: 窗口点数（288=1天@5min采样）
   - stride: 滑动步长
   - label_strategy: 窗口级标签聚合策略（majority / fault_priority / boundary_align）
   - purity_threshold: 众数占比低于此值的窗口丢弃
   - min_coverage: 窗口内非NaN比例最低要求
   - channels: 输入通道列名列表
+  - max_gap_multiplier: 时间缺口检测倍数，相邻点间隔超过
+    采样间隔 × max_gap_multiplier 则认定为连续段边界
+
+时间连续性修复（2026-08-04）：
+  切分器原本按行号滑窗，不检查相邻点的实际时间间隔。当同一条序列的数据
+  来自多个不连续的时间段（如累计训练快照把 5 月和 8 月的数据 concat 在一起），
+  窗口会静默跨过时间缺口，前半段和后半段来自不同月份，产出物理上不存在的样本。
+  实测：pv_cumulative_labeled_merged.parquet 中 66.98% 的窗口跨缝，最大缺口 92.4 天。
+  修复方案：transform() 在滑窗前先用 _split_by_time_gap() 把时间序列按缺口切成
+  连续段，只在段内滑窗，不跨段。dataset_combined（7 天单块）实测修复前后
+  macro F1 差异 +0.0114，在 std 噪声范围内，选型结论不变。
 
 设计文档: .kiro/specs/pv-fault-timeseries-diagnosis/design.md §一
 """
@@ -78,6 +89,18 @@ class SamplerConfig:
     normal_label: int = 0
     """正常类标签值。"""
 
+    # @AI_GENERATED: 时间连续性修复参数（2026-08-04）
+    max_gap_multiplier: float = 2.0
+    """
+    时间缺口检测倍数。相邻两点的时间间隔超过
+    「推断采样间隔 × max_gap_multiplier」时，认定为连续段边界，不跨段滑窗。
+
+    推断采样间隔 = 序列内相邻点时间差的中位数（对缺失点鲁棒）。
+    默认 2.0 = 允许一个点的抖动/偶发缺失；要拦截单点缺口可改为 1.5。
+    设为 0 或负数可关闭时间缺口检测（退化为旧行为，不推荐）。
+    """
+    # @AI_GENERATED: end
+
     def to_dict(self) -> dict:
         return asdict(self)
 
@@ -110,6 +133,64 @@ class SlidingWindowSampler:
     def get_config(self) -> dict:
         """返回当前配置字典（用于持久化）。"""
         return self.config.to_dict()
+
+    # @AI_GENERATED: 时间缺口切分（2026-08-04 修复跨缝窗口 bug）
+    @staticmethod
+    def _split_by_time_gap(
+        time_series: pd.Series,
+        max_gap_multiplier: float,
+    ) -> List[List[int]]:
+        """
+        把时间序列按缺口切成连续段，返回每段的行号列表。
+
+        Parameters
+        ----------
+        time_series : pd.Series
+            已按时间升序排列的 time 列（datetime64）。
+        max_gap_multiplier : float
+            缺口阈值倍数。相邻点间隔 > 中位采样间隔 × 倍数时断开。
+            <= 0 表示不检测缺口，整列视为一段。
+
+        Returns
+        -------
+        list of list[int]
+            每个子列表是一段内的行号（对应 DataFrame 的 iloc 索引）。
+
+        Notes
+        -----
+        用中位数而非固定常量推断采样间隔，对偶发缺失和不同采样频率的数据集
+        都有更好的鲁棒性（单个异常大间隔不会把中位数拉偏）。
+        """
+        n = len(time_series)
+        if n == 0:
+            return []
+        if max_gap_multiplier <= 0 or n == 1:
+            return [list(range(n))]
+
+        tv = time_series.to_numpy(dtype="datetime64[ns]")
+        diffs = np.diff(tv).astype("timedelta64[s]").astype(np.int64)  # 秒
+
+        if len(diffs) == 0:
+            return [[0]]
+
+        # 中位采样间隔（秒）；过滤掉 0 和负值（时间戳异常）
+        valid_diffs = diffs[diffs > 0]
+        if len(valid_diffs) == 0:
+            return [list(range(n))]
+        median_interval = float(np.median(valid_diffs))
+        threshold = median_interval * max_gap_multiplier
+
+        segments: List[List[int]] = []
+        current: List[int] = [0]
+        for i, gap in enumerate(diffs):
+            if gap > threshold:
+                segments.append(current)
+                current = [i + 1]
+            else:
+                current.append(i + 1)
+        segments.append(current)
+        return segments
+    # @AI_GENERATED: end
 
     def transform(
         self,
@@ -182,48 +263,61 @@ class SlidingWindowSampler:
             (device_id or "unknown").encode("utf-8"), digest_size=6
         ).hexdigest()
 
-        for start in range(0, n_points - cfg.window_length + 1, cfg.stride):
-            end = start + cfg.window_length
-            window = merged.iloc[start:end]
+        # @AI_GENERATED: 时间缺口切分（2026-08-04）
+        # 原来直接 range(0, n_points-window+1, stride) 全序列滑窗，
+        # 不检查相邻点时间间隔，导致跨缺口的假窗口（实测累计数据集 66.98% 跨缝）。
+        # 修复：先按时间缺口切成连续段，只在段内滑窗。
+        segments = self._split_by_time_gap(merged["time"], cfg.max_gap_multiplier)
 
-            # 1. 覆盖率检查
-            coverage = window[channels[0]].notna().mean()
-            if coverage < cfg.min_coverage:
+        for seg_indices in segments:
+            seg_len = len(seg_indices)
+            if seg_len < cfg.window_length:
+                # 该连续段太短，切不出完整窗口
                 continue
 
-            # 1b. 退化窗口过滤（常数/全零序列，见 SamplerConfig.min_std 说明）
-            if cfg.min_std > 0:
-                first_ch = window[channels[0]].to_numpy(dtype=np.float64)
-                if not np.isfinite(first_ch).any() or np.nanstd(first_ch) < cfg.min_std:
+            # 在段内滑窗；seg_start 是段内偏移，global_start 是全序列行号
+            for seg_start in range(0, seg_len - cfg.window_length + 1, cfg.stride):
+                global_start = seg_indices[seg_start]
+                global_end = seg_indices[seg_start + cfg.window_length - 1] + 1
+                window = merged.iloc[global_start:global_end]
+
+                # 1. 覆盖率检查
+                coverage = window[channels[0]].notna().mean()
+                if coverage < cfg.min_coverage:
                     continue
 
-            # 2. 标签聚合
-            result = self._aggregate_label(window["label"].values)
-            if result is None:
-                continue  # 跳过该窗口
+                # 1b. 退化窗口过滤（常数/全零序列，见 SamplerConfig.min_std 说明）
+                if cfg.min_std > 0:
+                    first_ch = window[channels[0]].to_numpy(dtype=np.float64)
+                    if not np.isfinite(first_ch).any() or np.nanstd(first_ch) < cfg.min_std:
+                        continue
 
-            label, purity = result
+                # 2. 标签聚合
+                result = self._aggregate_label(window["label"].values)
+                if result is None:
+                    continue  # 跳过该窗口
 
-            # 3. 提取数值矩阵
-            x = window[channels].values.astype(np.float32)  # [window_length, n_channels]
-            samples.append(x)
-            labels.append(label)
+                label, purity = result
 
-            t_start_val = window["time"].iloc[0]
-            t_end_val = window["time"].iloc[-1]
-            # 用完整 series_id 的稳定哈希，不能截断字符串：
-            # series_id 形如 "site|device|branch"，截前 16 字符只剩 site_id，
-            # 同站点下不同设备会撞 sample_id，导致按 sample_id 去重时静默丢窗口。
-            sample_id = f"tsc-{series_hash}-{start:06d}"
+                # 3. 提取数值矩阵
+                x = window[channels].values.astype(np.float32)  # [window_length, n_channels]
+                samples.append(x)
+                labels.append(label)
 
-            metas.append({
-                "sample_id": sample_id,
-                "t_start": t_start_val,
-                "t_end": t_end_val,
-                "purity": round(purity, 4),
-                "device_id": device_id,
-                "label_strategy": cfg.label_strategy,
-            })
+                t_start_val = window["time"].iloc[0]
+                t_end_val = window["time"].iloc[-1]
+                # sample_id 用全局行偏移保持跨段唯一性
+                sample_id = f"tsc-{series_hash}-{global_start:06d}"
+
+                metas.append({
+                    "sample_id": sample_id,
+                    "t_start": t_start_val,
+                    "t_end": t_end_val,
+                    "purity": round(purity, 4),
+                    "device_id": device_id,
+                    "label_strategy": cfg.label_strategy,
+                })
+        # @AI_GENERATED: end
 
         if not samples:
             return (

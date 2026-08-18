@@ -552,6 +552,7 @@ const SlotCard: React.FC<SlotCardProps> = ({
   onSwitchTo,
   onRollback,
 }) => {
+  const isPvReadOnly = slot.slot === 'pv_fault';
   const prod = slot.production_model;
   const hasEligibleShadow = slot.shadow_models.some((s) => isShadowEligibleForSwitch(s, slot));
   const activePrelaunches = (slot.prelaunch_models ?? []).filter((m) => m.status === 'prelaunch');
@@ -578,24 +579,36 @@ const SlotCard: React.FC<SlotCardProps> = ({
       }
       extra={
         <Space size={8}>
+          {isPvReadOnly && (
+            <Alert
+              type="info"
+              showIcon
+              message="只读，模型治理请到本页 pv_fault → 双路径治理"
+              style={{ padding: '2px 8px' }}
+            />
+          )}
           <Text type="secondary" style={{ fontSize: 12 }}>
             观察 {obsDays}天 · 训练 {slot.training_window_days ?? 30}天 · 冷却 {slot.cooldown_hours}h
           </Text>
-          <Tooltip title="启用后满足观察窗口条件时自动切换；关闭仅 UI 高亮">
+          <Tooltip title={isPvReadOnly ? 'pv_fault 只读，请到算法部署 pv_fault 槽位的双路径治理 Tab' : '启用后满足观察窗口条件时自动切换；关闭仅 UI 高亮'}>
             <Space size={4}>
               <Text style={{ fontSize: 12, color: '#64748b' }}>自动切换</Text>
               <Switch
                 size="small"
                 checked={slot.auto_switch_enabled}
                 loading={configSaving}
+                disabled={isPvReadOnly}
                 onChange={(checked) => onAutoSwitchChange(slot.slot, checked)}
               />
             </Space>
           </Tooltip>
           <Button size="small" href={`/accuracy-operations?slot=${encodeURIComponent(slot.slot)}`}>运营状态</Button>
-          <Button size="small" icon={<SettingOutlined />} onClick={onOpenConfig}>配置</Button>
+          {isPvReadOnly ? (
+            <Button size="small" href="/algorithm-deployment?slot=pv_fault&tab=governance">双路径治理</Button>
+          ) : null}
+          <Button size="small" icon={<SettingOutlined />} onClick={onOpenConfig} disabled={isPvReadOnly}>配置</Button>
           <Button size="small" icon={<HistoryOutlined />} onClick={onViewVersions}>版本历史</Button>
-          <Button size="small" danger icon={<RollbackOutlined />} onClick={onRollback} disabled={!prod}>回滚</Button>
+          <Button size="small" danger icon={<RollbackOutlined />} onClick={onRollback} disabled={!prod || isPvReadOnly}>回滚</Button>
         </Space>
       }
     >
@@ -659,6 +672,7 @@ const SlotCard: React.FC<SlotCardProps> = ({
                     size="small"
                     type={eligible ? 'primary' : 'default'}
                     icon={<SwapOutlined />}
+                    disabled={isPvReadOnly}
                     onClick={() => onSwitchTo(m)}
                   >
                     切换

@@ -9,7 +9,7 @@
  *   4. 预上线（?tab=prelaunch）  — 入池/观察进度/手动毕业
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, Col, Descriptions, Divider, Input, Modal, Progress, Row, Select, Space, Spin, Statistic, Table, Tabs, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Col, Collapse, Descriptions, Divider, Input, InputNumber, Modal, Progress, Row, Segmented, Select, Space, Spin, Statistic, Table, Tabs, Tag, Typography, message } from 'antd';
 import type { TableColumnsType } from 'antd';
 import {
   ApartmentOutlined,
@@ -17,6 +17,7 @@ import {
   DeploymentUnitOutlined,
   ExperimentOutlined,
   RocketOutlined,
+  SwapOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
@@ -24,9 +25,10 @@ import ModelManagementTab from './deployment/ModelManagementTab';
 import PipelineTab from './deployment/PipelineTab';
 import SchedulerTab from './deployment/SchedulerTab';
 import PrelaunchTab from './deployment/PrelaunchTab';
-import PvFaultClassificationMetrics from '../components/pv-fault/PvFaultClassificationMetrics';
+import PvRetrainResultMetrics from '../components/pv-fault/PvRetrainResultMetrics';
 import PvFaultWorkspaceShell from '../components/pv-fault/PvFaultWorkspaceShell';
 import PvFaultErrorBoundary from '../components/pv-fault/PvFaultErrorBoundary';
+import { PvDualPathGovernancePanel } from './PvDualPathConsole';
 import { PV_FAULT_PRIMARY } from '../theme/pvFaultTheme';
 import './deployment/algorithmDeploymentWorkspace.css';
 // @AI_GENERATED: pv_fault 专用部署视图依赖
@@ -49,6 +51,39 @@ interface LabelWaveform {
 const formatDeploymentTime = (value?: string) => formatBackendDateTime(value);
 // @AI_GENERATED: end
 
+const RETRAIN_PATH_OPTIONS = [
+  { value: 'legacy_day', label: '天级 · legacy_day（传统按天）' },
+  { value: 'seq_annotation', label: '点级 · seq_annotation（全天 288 点）' },
+];
+
+const retrainPathLabel = (path?: string) => {
+  if (path === 'seq_annotation') return '点级 · seq_annotation';
+  if (path === 'legacy_day') return '天级 · legacy_day';
+  return path || '—';
+};
+
+// @AI_GENERATED: 重训记录路径与治理原因统一解释
+type RetrainPath = 'legacy_day' | 'seq_annotation';
+
+const resolveRetrainPath = (record?: Record<string, any> | null): RetrainPath => {
+  const path = String(
+    record?.target_modeling_path
+      ?? record?.train_summary?.modeling_path
+      ?? record?.train_summary?.sample_strategy?.split_mode
+      ?? '',
+  );
+  return path === 'seq_annotation' ? 'seq_annotation' : 'legacy_day';
+};
+
+const governanceReasonLabel = (reason?: string | null) => {
+  if (reason === 'evaluation_contract_not_comparable') return '评测样本或口径与当前 Champion 不可直接比较';
+  if (reason === 'production_contract_failed') return '未通过全天 288 点生产契约';
+  if (reason === 'not_strictly_better') return '同口径指标未严格优于当前 Champion';
+  if (reason === 'promote_not_requested') return '本次只登记 Challenger，未请求晋升';
+  return reason || '未提供原因';
+};
+// @AI_GENERATED: end
+
 const retrainStatusTag = (status?: string) => {
   if (status === 'completed') return <Tag color="success">已完成</Tag>;
   if (status === 'queued') return <Tag color="processing">等待执行</Tag>;
@@ -58,9 +93,10 @@ const retrainStatusTag = (status?: string) => {
   return <Tag>{status || '未知'}</Tag>;
 };
 
-type TabKey = 'model' | 'pipeline' | 'scheduler' | 'prelaunch';
-const VALID_TABS: readonly TabKey[] = ['model', 'pipeline', 'scheduler', 'prelaunch'] as const;
+type TabKey = 'model' | 'pipeline' | 'scheduler' | 'prelaunch' | 'governance';
 const DEFAULT_TAB: TabKey = 'model';
+const PV_FAULT_TABS: readonly TabKey[] = ['model', 'pipeline', 'scheduler', 'governance'];
+const OTHER_SLOT_TABS: readonly TabKey[] = ['model', 'pipeline', 'scheduler', 'prelaunch'];
 
 // @AI_GENERATED: 部署页槽位选项和受控选择器
 const DEPLOYMENT_SLOT_OPTIONS = [
@@ -79,7 +115,11 @@ const AlgorithmDeploymentPage: React.FC = () => {
   const handleSlotChange = (value: string) => {
     const next = new URLSearchParams(searchParams);
     next.set('slot', value);
-    if (value === 'pv_fault' && next.get('tab') === 'prelaunch') {
+    const nextTab = next.get('tab');
+    if (value === 'pv_fault' && nextTab === 'prelaunch') {
+      next.set('tab', DEFAULT_TAB);
+    }
+    if (value !== 'pv_fault' && nextTab === 'governance') {
       next.set('tab', DEFAULT_TAB);
     }
     setSearchParams(next, { replace: true });
@@ -88,16 +128,17 @@ const AlgorithmDeploymentPage: React.FC = () => {
 
   const activeTab: TabKey = useMemo(() => {
     const raw = searchParams.get('tab');
-    const tab = raw && (VALID_TABS as readonly string[]).includes(raw) ? (raw as TabKey) : DEFAULT_TAB;
-    if (storySlot === 'pv_fault' && tab === 'prelaunch') {
-      return DEFAULT_TAB;
+    const allowed = storySlot === 'pv_fault' ? PV_FAULT_TABS : OTHER_SLOT_TABS;
+    if (raw && (allowed as readonly string[]).includes(raw)) {
+      return raw as TabKey;
     }
-    return tab;
+    return DEFAULT_TAB;
   }, [searchParams, storySlot]);
 
   useEffect(() => {
-    if (storySlot !== 'pv_fault') return;
-    if (searchParams.get('tab') === 'prelaunch') {
+    const raw = searchParams.get('tab');
+    const allowed = storySlot === 'pv_fault' ? PV_FAULT_TABS : OTHER_SLOT_TABS;
+    if (raw && !(allowed as readonly string[]).includes(raw)) {
       const next = new URLSearchParams(searchParams);
       next.set('tab', DEFAULT_TAB);
       setSearchParams(next, { replace: true });
@@ -141,7 +182,9 @@ const AlgorithmDeploymentPage: React.FC = () => {
                 {/* @AI_GENERATED: end */}
               </div>
               <Paragraph type="secondary" style={{ marginBottom: 0, maxWidth: 900 }}>
-                按槽位管理模型上线、生产/影子/预上线切换、数据管线和定时调度。
+                {isPvFault
+                  ? 'pv_fault 槽位：模型状态看累计训练产物；路径切换、换将、Epoch 与审计在「双路径治理」。通用 Arena 对该槽位只读。'
+                  : '按槽位管理模型上线、生产/影子/预上线切换、数据管线和定时调度。'}
               </Paragraph>
             </Space>
           </Card>
@@ -167,6 +210,11 @@ const AlgorithmDeploymentPage: React.FC = () => {
                   key: 'scheduler',
                   label: <Space size={6}><ClockCircleOutlined />定时调度</Space>,
                   children: <SchedulerTab storySlot={storySlot} />,
+                },
+                {
+                  key: 'governance',
+                  label: <Space size={6}><SwapOutlined />双路径治理</Space>,
+                  children: <PvDualPathGovernancePanel />,
                 },
               ] : [
                 {
@@ -217,16 +265,16 @@ const PvFaultDeploymentView: React.FC = () => {
   const [retrainRunning, setRetrainRunning] = useState(false);
   const [lastTrainResult, setLastTrainResult] = useState<Record<string, any> | null>(null);
   const [selectedRetrainId, setSelectedRetrainId] = useState<string | null>(null);
+  const [resultPath, setResultPath] = useState<RetrainPath>('seq_annotation');
   // @AI_GENERATED: 本次由本页启动的后台重训 request_id。
   // 重训改为后台执行后，需要它把轮询到的状态和「我刚点的那次」对应上，
   // 否则页面上残留的历史 completed 请求会被误判成本次已完成。
   const [retrainJobId, setRetrainJobId] = useState<string | null>(null);
-  // @AI_GENERATED: end
-  // @AI_GENERATED: 下次重训的切分策略选择器状态（默认 by_day，A/B 验证最优）。
-  // 惰性初始化时 state 恒为 null，取不到服务端值，故由 load() 回填一次；
-  // splitModeTouched 保证用户手动选过之后不再被服务端值覆盖。
-  const [nextSplitMode, setNextSplitMode] = useState<string>('by_day');
-  const splitModeTouched = React.useRef(false);
+  // 本次手动重训要训哪条路径；缺省跟当前生产主线，显式改成点级也不会改日滚指针。
+  const [retrainTargetPath, setRetrainTargetPath] = useState<string>('legacy_day');
+  // @AI_GENERATED: 高级选项——训练轮数 / 批次大小覆盖
+  const [retrainEpochs, setRetrainEpochs] = useState<number>(100);
+  const [retrainBatchSize, setRetrainBatchSize] = useState<number>(32);
   // @AI_GENERATED: end
   const [waveformOpen, setWaveformOpen] = useState(false);
   const [waveformLoading, setWaveformLoading] = useState(false);
@@ -246,12 +294,6 @@ const PvFaultDeploymentView: React.FC = () => {
       setState(ctState as Record<string, any>);
       setLabels(labelsResp?.labels ?? []);
       const statePayload = ctState as Record<string, any>;
-      // @AI_GENERATED: 用服务端持久化的 split_mode 回填选择器（仅在用户未手动改动时）
-      const serverSplitMode = String(statePayload.split_mode ?? '').trim();
-      if (!splitModeTouched.current && serverSplitMode) {
-        setNextSplitMode(serverSplitMode);
-      }
-      // @AI_GENERATED: end
       setSelectedRetrainId(current => current
         ?? statePayload.production_model?.request_id
         ?? statePayload.latest_completed_retrain?.request_id
@@ -309,18 +351,47 @@ const PvFaultDeploymentView: React.FC = () => {
     if (status === 'completed') {
       const summary = (request.train_summary ?? {}) as Record<string, any>;
       setLastTrainResult(summary);
+      const trainedPath = String(
+        request.target_modeling_path
+        ?? summary.modeling_path
+        ?? retrainTargetPath,
+      ) as RetrainPath;
       setSelectedRetrainId(retrainJobId);
-      messageApi.success(
-        `重训完成，生产模型已切换为 ${request.model_ref ?? '—'}：`
-        + `Macro-F1=${summary.macro_f1_mean ?? '—'}，Accuracy=${summary.accuracy_mean ?? '—'}`,
-      );
+      setResultPath(trainedPath === 'seq_annotation' ? 'seq_annotation' : 'legacy_day');
+      const productionPath = String(state?.modeling_paths?.production_path || 'legacy_day');
+      const accuracy = (summary.accuracy_record ?? {}) as Record<string, any>;
+      const governance = (summary.pv_registry_governance
+        ?? request.pv_registry_governance
+        ?? {}) as Record<string, any>;
+      const promoted = governance.promotion_status === 'promoted';
+      const metric = trainedPath === 'seq_annotation'
+        ? `Point-Macro-F1=${accuracy.point_macro_f1 ?? summary.macro_f1_mean ?? '—'}`
+        : `Macro-F1=${accuracy.macro_f1_mean ?? summary.macro_f1_mean ?? '—'}`;
+      if (trainedPath !== productionPath) {
+        messageApi.success(
+          `重训完成，已登记到 ${retrainPathLabel(trainedPath)}（${request.model_ref ?? '—'}，${metric}）。`
+          + `日滚预测仍走当前主线 ${retrainPathLabel(productionPath)}，不会自动切换；`
+          + '要用这条路径做日滚，请到「双路径治理」切主线。',
+        );
+      } else if (promoted) {
+        messageApi.success(
+          `重训完成，当前主线 Champion 已更新为 ${request.model_ref ?? '—'}：`
+          + `${metric}，Accuracy=${accuracy.point_accuracy ?? accuracy.accuracy_mean ?? summary.accuracy_mean ?? '—'}`,
+        );
+      } else {
+        messageApi.warning(
+          `重训完成，但 ${request.model_ref ?? '—'} 仅登记为 Challenger（${metric}）。`
+          + `Registry 治理结论：${governanceReasonLabel(String(governance.reason ?? '未晋升'))}；`
+          + '定时调度继续使用当前路径 Champion。',
+        );
+      }
     } else if (status === 'failed') {
       messageApi.error(`重训失败：${request.error ?? '未知原因'}`);
     } else {
       messageApi.warning('重训已被新的重训请求取代');
     }
     void load();
-  }, [retrainJobId, state?.latest_retrain_request, load, messageApi]);
+  }, [retrainJobId, state?.latest_retrain_request, state?.modeling_paths?.production_path, retrainTargetPath, load, messageApi]);
   // @AI_GENERATED: end
 
   // @AI_GENERATED: 改为「启动后台重训 + 轮询进度」。
@@ -335,7 +406,8 @@ const PvFaultDeploymentView: React.FC = () => {
     }
     setRetrainRunning(true);
     try {
-      const resp = await cumulativeTrainingApi.startManualRetrain('pv_fault', nextSplitMode);
+      const productionPath = String(state?.modeling_paths?.production_path || 'legacy_day');
+      const resp = await cumulativeTrainingApi.startManualRetrain('pv_fault', retrainTargetPath, { epochs: retrainEpochs, batch_size: retrainBatchSize });
       const requestId = String(
         (resp.request_id as string | undefined)
         ?? (resp.retrain_request as Record<string, any> | undefined)?.request_id
@@ -345,9 +417,14 @@ const PvFaultDeploymentView: React.FC = () => {
         throw new Error('启动重训失败：后端未返回 request_id');
       }
       setRetrainJobId(requestId);
+      const mismatch = retrainTargetPath !== productionPath;
       messageApi.info(
-        `已启动后台重训（切分=${nextSplitMode}）：先冻结累计训练快照再训练，`
-        + '耗时通常十几分钟，进度会自动刷新，可离开本页。',
+        `已启动「${retrainPathLabel(retrainTargetPath)}」后台重训：先冻结累计训练快照再训练，`
+        + '耗时通常十几分钟，进度会自动刷新，可离开本页。'
+        + `日滚预测仍走当前主线「${retrainPathLabel(productionPath)}」，不会因本次重训自动切换。`
+        + (mismatch
+          ? '训完后若要用所选路径做日滚，请到「双路径治理」切主线。'
+          : ''),
       );
       await refreshRetrainState();
     } catch (err: any) {
@@ -466,28 +543,50 @@ const PvFaultDeploymentView: React.FC = () => {
   );
   // @AI_GENERATED: end
   const latestCompleted = state?.latest_completed_retrain as Record<string, any> | undefined;
-  const productionModel = state?.production_model as Record<string, any> | undefined;
   const latestSnapshot = state?.latest_snapshot;
-  const modelRef = state?.production_model_ref ?? state?.latest_completed_model_ref;
+  // Registry 是双路径生产模型的唯一治理真相；仅在旧响应没有 modeling_paths 时兼容旧字段。
+  const modelingPaths = (state?.modeling_paths ?? {}) as Record<string, any>;
+  const registryConfigured = Boolean(modelingPaths.production_path);
+  const productionPath = String(modelingPaths.production_path || 'legacy_day') as RetrainPath;
+  const productionPathLifecycle = modelingPaths.path_models?.[productionPath] as Record<string, any> | undefined;
+  const productionChampion = productionPathLifecycle?.champion as Record<string, any> | undefined;
+  const registryProductionModelRef = String(productionChampion?.model_ref ?? productionPathLifecycle?.model_ref ?? '');
+  const modelRef = registryConfigured
+    ? registryProductionModelRef
+    : String(state?.production_model_ref ?? state?.latest_completed_model_ref ?? '');
   const trainSummary = (latestCompleted?.train_summary ?? lastTrainResult) as Record<string, any> | undefined;
   const accuracyRecord = trainSummary?.accuracy_record as Record<string, any> | undefined;
   const pendingCount = Number(state?.pending_change_count ?? 0);
   const retrainThreshold = Number(state?.retrain_label_threshold ?? 20);
   const retrainHistory = (state?.retrain_history ?? []) as Array<Record<string, any>>;
-  const completedRetrains = retrainHistory.filter(item => item.status === 'completed');
+  // @AI_GENERATED: 重训历史、相邻版本对照和选中详情都按 modeling_path 隔离
+  const pathRetrainHistory = retrainHistory.filter(item => resolveRetrainPath(item) === resultPath);
+  const completedRetrains = pathRetrainHistory.filter(item => item.status === 'completed');
   const newestCompleted = completedRetrains[0];
   const previousCompleted = completedRetrains[1];
-  const newestF1 = newestCompleted?.train_summary?.accuracy_record?.macro_f1_mean;
-  const previousF1 = previousCompleted?.train_summary?.accuracy_record?.macro_f1_mean;
+  const selectedMetricKey = resultPath === 'seq_annotation' ? 'point_macro_f1' : 'macro_f1_mean';
+  const selectedMetricLabel = resultPath === 'seq_annotation' ? 'Point Macro-F1' : 'Macro-F1';
+  const newestF1 = newestCompleted?.train_summary?.accuracy_record?.[selectedMetricKey];
+  const previousF1 = previousCompleted?.train_summary?.accuracy_record?.[selectedMetricKey];
   const f1Delta =
     newestF1 != null && previousF1 != null && !Number.isNaN(Number(newestF1)) && !Number.isNaN(Number(previousF1))
       ? Number(newestF1) - Number(previousF1)
       : null;
-  const selectedRetrain = retrainHistory.find(item => item.request_id === selectedRetrainId)
-    ?? productionModel
-    ?? latestCompleted
+  const selectedRetrain = pathRetrainHistory.find(item => item.request_id === selectedRetrainId)
+    ?? newestCompleted
+    ?? pathRetrainHistory[0]
     ?? null;
-  const selectedMetrics = selectedRetrain?.train_summary?.accuracy_record as Record<string, any> | undefined;
+  const selectedTrainSummary = selectedRetrain?.train_summary as Record<string, any> | undefined;
+  const pathLifecycle = modelingPaths.path_models?.[resultPath] as Record<string, any> | undefined;
+  const pathChampionRef = String(pathLifecycle?.champion?.model_ref ?? pathLifecycle?.model_ref ?? '');
+  const isSelectedPathProduction = resultPath === productionPath;
+  const selectedGovernance = (selectedRetrain?.train_summary?.pv_registry_governance
+    ?? selectedRetrain?.pv_registry_governance) as Record<string, any> | undefined;
+  const pathCounts: Record<RetrainPath, number> = {
+    legacy_day: retrainHistory.filter(item => resolveRetrainPath(item) === 'legacy_day').length,
+    seq_annotation: retrainHistory.filter(item => resolveRetrainPath(item) === 'seq_annotation').length,
+  };
+  // @AI_GENERATED: end
   const labelNameMap = Object.fromEntries(
     labels.map(item => [String(item.label_id), String(item.label_name ?? `类别 ${item.label_id}`)]),
   );
@@ -505,12 +604,16 @@ const PvFaultDeploymentView: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       width: 150,
-      render: (status, record) => (
-        <Space size={4} wrap>
-          {retrainStatusTag(status)}
-          {record.is_production && <Tag color="blue">当前生产</Tag>}
-        </Space>
-      ),
+      render: (status, record) => {
+        const isChampion = Boolean(pathChampionRef && record.model_ref === pathChampionRef);
+        return (
+          <Space size={4} wrap>
+            {retrainStatusTag(status)}
+            {isChampion && <Tag color="gold">路径 Champion</Tag>}
+            {isChampion && isSelectedPathProduction && <Tag color="blue">当前生产</Tag>}
+          </Space>
+        );
+      },
     },
     {
       title: '模型 ID',
@@ -532,16 +635,18 @@ const PvFaultDeploymentView: React.FC = () => {
       ),
     },
     {
-      title: 'Macro-F1',
+      title: selectedMetricLabel,
       key: 'macro_f1',
-      width: 110,
-      render: (_, record) => record.train_summary?.accuracy_record?.macro_f1_mean ?? '—',
+      width: 130,
+      render: (_, record) => record.train_summary?.accuracy_record?.[selectedMetricKey] ?? '—',
     },
     {
-      title: 'Accuracy',
+      title: resultPath === 'seq_annotation' ? 'Point Accuracy' : 'Accuracy',
       key: 'accuracy',
-      width: 110,
-      render: (_, record) => record.train_summary?.accuracy_record?.accuracy_mean ?? '—',
+      width: 130,
+      render: (_, record) => record.train_summary?.accuracy_record?.[
+        resultPath === 'seq_annotation' ? 'point_accuracy' : 'accuracy_mean'
+      ] ?? '—',
     },
     {
       title: '说明',
@@ -562,31 +667,29 @@ const PvFaultDeploymentView: React.FC = () => {
   return (
     <div>
       {contextHolder}
-      {productionModel?.status === 'completed' && modelRef && (
+      {modelRef && (
         <Alert
           type="success"
           showIcon
           style={{ marginBottom: 16 }}
-          message="当前生产模型已就绪"
+          message="Registry 当前生产 Champion 已就绪"
           description={(
             <Space direction="vertical" size={4}>
-              <span>模型：<Typography.Text code>{modelRef}</Typography.Text></span>
-              {accuracyRecord && (
+              <span>生产路径：<Tag color="blue">{retrainPathLabel(productionPath)}</Tag></span>
+              <span>模型：<Typography.Text code copyable>{modelRef}</Typography.Text></span>
+              {productionChampion?.gate_metric_value != null && (
                 <span>
-                  评估：Macro-F1={accuracyRecord.macro_f1_mean ?? '—'}
-                  {accuracyRecord.macro_f1_std != null ? ` ± ${accuracyRecord.macro_f1_std}` : ''}
-                  {' '}· Accuracy={accuracyRecord.accuracy_mean ?? '—'}
-                  {accuracyRecord.accuracy_std != null ? ` ± ${accuracyRecord.accuracy_std}` : ''}
+                  治理指标：{productionChampion.metric_name ?? 'gate_metric'}={productionChampion.gate_metric_value}
                 </span>
               )}
-              {productionModel.snapshot_id && (
-                <span>训练快照：<Typography.Text code style={{ fontSize: 11 }}>{productionModel.snapshot_id}</Typography.Text>
-                  {productionModel.sample_count != null ? `（${productionModel.sample_count} 样本）` : ''}
-                </span>
+              {modelingPaths.active_activation_epoch_id && (
+                <span>激活 Epoch：<Typography.Text code>{modelingPaths.active_activation_epoch_id}</Typography.Text></span>
               )}
-              <span>上线时间：{formatDeploymentTime(state?.production_promoted_at)}</span>
+              {productionChampion?.registered_at && (
+                <span>登记时间：{formatDeploymentTime(String(productionChampion.registered_at))}</span>
+              )}
               <Typography.Text type="secondary">
-                下一次定时预测将自动读取该生产模型，并在预测记录中保存模型 ID。
+                定时调度每次执行都会重新读取 PV Registry，并使用当前生产路径的 Champion；最新完成的 Challenger 不会自动替代它。
               </Typography.Text>
             </Space>
           )}
@@ -594,9 +697,9 @@ const PvFaultDeploymentView: React.FC = () => {
       )}
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
-          <Card size="small" title="当前模型与训练集" bordered>
+          <Card size="small" title="当前主线与最新训练集" bordered>
             <Descriptions column={1} size="small" labelStyle={{ width: 140, color: '#64748b' }}>
-              <Descriptions.Item label="生产模型">
+              <Descriptions.Item label="Registry 生产模型">
                 {modelRef ? <Tag color="success">{modelRef}</Tag> : <Tag>暂无模型</Tag>}
               </Descriptions.Item>
               <Descriptions.Item label="训练集快照">
@@ -616,24 +719,15 @@ const PvFaultDeploymentView: React.FC = () => {
                   （登记大数据集后若仍有 queued 旧请求，刷新后会自动换新快照）
                 </Typography.Text>
               </Descriptions.Item>
-              <Descriptions.Item label="样本策略">
+              <Descriptions.Item label="训练快照口径">
                 <Space direction="vertical" size={4}>
-                  <div>
-                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>当前模型：</Typography.Text>
-                    <Tag color="blue">
-                      {String(
-                        (latestSnapshot?.sample_strategy as Record<string, any> | undefined)?.split_mode
-                        ?? latestSnapshot?.snapshot_mode
-                        ?? '未知',
-                      )}
-                    </Tag>
-                  </div>
-                  <div>
-                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>下次重训：</Typography.Text>
-                    <Tag color="green">{nextSplitMode}</Tag>
-                  </div>
+                  <Tag color="blue">
+                    {String(latestSnapshot?.snapshot_mode ?? '') === 'seq_annotation'
+                      ? '点级路径 · 全天 288 点'
+                      : '天级路径 · 每天一个标签'}
+                  </Tag>
                   <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                    策略随模型 pickle 持久化；可在重训按钮旁切换下次策略。
+                    下次重训沿用当前生产路径；昼夜切分不再作为独立路径或手动选项。
                   </Typography.Text>
                   <Button
                     size="small"
@@ -675,7 +769,7 @@ const PvFaultDeploymentView: React.FC = () => {
             </div>
             <Divider style={{ margin: '12px 0' }} />
             <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>
-              当前生产模型训练快照实际类别（{snapshotLabelIds.length || latestSnapshot?.label_count || 0} 类）
+              最近完成重训快照实际类别（{snapshotLabelIds.length || latestSnapshot?.label_count || 0} 类）
             </Typography.Text>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {snapshotLabelIds.length > 0 ? snapshotLabelIds.map(labelId => (
@@ -697,6 +791,12 @@ const PvFaultDeploymentView: React.FC = () => {
 
           <Card size="small" title="重训控制" bordered style={{ marginTop: 12 }}>
             <Descriptions column={1} size="small" labelStyle={{ width: 120, color: '#64748b' }}>
+              <Descriptions.Item label="日滚主线">
+                {retrainPathLabel(String(state?.modeling_paths?.production_path || 'legacy_day'))}
+              </Descriptions.Item>
+              <Descriptions.Item label="最近一次重训路径">
+                {retrainPathLabel(String(latestRequest?.target_modeling_path || '—'))}
+              </Descriptions.Item>
               <Descriptions.Item label="重训请求">
                 {latestRequest?.request_id ? <Typography.Text code style={{ fontSize: 11 }}>{latestRequest.request_id}</Typography.Text> : '—'}
               </Descriptions.Item>
@@ -746,20 +846,32 @@ const PvFaultDeploymentView: React.FC = () => {
                 </Typography.Text>
               </div>
             )}
-            <div style={{ marginTop: 12, textAlign: 'right' }}>
-              <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
-                可随时手动重训（例如切换切分模式后）；累计 {retrainThreshold} 次标签变更将自动重训。
-              </Typography.Text>
-              <Space>
+            <div style={{ marginTop: 12 }}>
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginBottom: 12, textAlign: 'left' }}
+                message="日滚预测始终走当前主线，重训成功不会自动改路径。"
+                description={
+                  <span>
+                    这里只决定本次模型登记到天级还是点级。若所选路径与日滚主线不一致，训完后请到
+                    <Typography.Link
+                      onClick={() => navigate('/algorithm-deployment?slot=pv_fault&tab=governance')}
+                    >
+                      双路径治理
+                    </Typography.Link>
+                    做跨路径切换。累计 {retrainThreshold} 次标签变更仍会按各路径水位自动重训。
+                  </span>
+                }
+              />
+              <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
                 <Select
-                  size="small"
-                  value={nextSplitMode}
-                  onChange={(v: string) => { splitModeTouched.current = true; setNextSplitMode(v); }}
-                  style={{ width: 150 }}
-                  options={[
-                    { label: 'by_day（按天）', value: 'by_day' },
-                    { label: 'by_day_night（日夜）', value: 'by_day_night' },
-                  ]}
+                  value={retrainTargetPath}
+                  onChange={setRetrainTargetPath}
+                  disabled={retrainRunning || retrainInFlight}
+                  options={RETRAIN_PATH_OPTIONS}
+                  style={{ width: 280 }}
+                  aria-label="本次重训路径"
                 />
                 <Button
                   type="primary"
@@ -770,64 +882,156 @@ const PvFaultDeploymentView: React.FC = () => {
                   立即执行重训
                 </Button>
               </Space>
+              {/* @AI_GENERATED */}
+              <Collapse
+                size="small"
+                ghost
+                style={{ marginTop: 8 }}
+                items={[{
+                  key: 'advanced',
+                  label: <Typography.Text type="secondary" style={{ fontSize: 12 }}>高级选项</Typography.Text>,
+                  children: (
+                    <Space size={16} wrap>
+                      <Space size={4}>
+                        <Typography.Text style={{ fontSize: 12 }}>训练轮数 (epochs):</Typography.Text>
+                        <InputNumber
+                          size="small"
+                          min={1}
+                          max={1000}
+                          value={retrainEpochs}
+                          onChange={(v) => setRetrainEpochs(v ?? 100)}
+                          disabled={retrainRunning || retrainInFlight}
+                          style={{ width: 80 }}
+                        />
+                      </Space>
+                      <Space size={4}>
+                        <Typography.Text style={{ fontSize: 12 }}>批次大小 (batch_size):</Typography.Text>
+                        <InputNumber
+                          size="small"
+                          min={4}
+                          max={512}
+                          value={retrainBatchSize}
+                          onChange={(v) => setRetrainBatchSize(v ?? 32)}
+                          disabled={retrainRunning || retrainInFlight}
+                          style={{ width: 80 }}
+                        />
+                      </Space>
+                      <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                        实验室验证建议 epochs=2；生产默认 100。不改则使用服务端环境变量默认值。
+                      </Typography.Text>
+                    </Space>
+                  ),
+                }]}
+              />
+              {/* @AI_GENERATED: end */}
+              {retrainTargetPath !== String(state?.modeling_paths?.production_path || 'legacy_day') && (
+                <Typography.Text type="warning" style={{ display: 'block', marginTop: 8, fontSize: 12, textAlign: 'right' }}>
+                  当前选择与日滚主线不一致：训完后日滚仍走
+                  {retrainPathLabel(String(state?.modeling_paths?.production_path || 'legacy_day'))}。
+                </Typography.Text>
+              )}
             </div>
           </Card>
         </Col>
       </Row>
 
-      {previousCompleted && newestCompleted && (
-        <Card size="small" title="重训前后 Macro-F1 对照" bordered style={{ marginTop: 16 }}>
-          <Row gutter={16}>
-            <Col span={8}>
-              <Statistic
-                title={`上一版（${previousCompleted.request_id ?? '—'}）`}
-                value={previousF1 ?? '—'}
-                precision={typeof previousF1 === 'number' ? 4 : undefined}
-              />
-            </Col>
-            <Col span={8}>
-              <Statistic
-                title={`当前（${newestCompleted.request_id ?? '—'}）`}
-                value={newestF1 ?? '—'}
-                precision={typeof newestF1 === 'number' ? 4 : undefined}
-              />
-            </Col>
-            <Col span={8}>
-              <Statistic
-                title="Δ Macro-F1"
-                value={f1Delta ?? '—'}
-                precision={typeof f1Delta === 'number' ? 4 : undefined}
-                valueStyle={{
-                  color:
-                    f1Delta == null
-                      ? undefined
-                      : f1Delta > 0
-                        ? '#3f8600'
-                        : f1Delta < 0
-                          ? '#cf1322'
-                          : undefined,
-                }}
-              />
-            </Col>
-          </Row>
-          {(newestCompleted?.train_summary?.accuracy_record?.confusion_matrix
-            || previousCompleted?.train_summary?.accuracy_record?.confusion_matrix) && (
-            <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0, fontSize: 12 }}>
-              混淆矩阵细节见下方「选中重训」评估区；此处仅对照相邻两次 completed 重训的 Macro-F1。
-            </Typography.Paragraph>
-          )}
-        </Card>
-      )}
+      {/* @AI_GENERATED: 路径隔离工具栏、同路径对比和 Registry 治理状态 */}
+      <div className="pv-path-scope-toolbar">
+        <Segmented<RetrainPath>
+          value={resultPath}
+          options={[
+            { value: 'legacy_day', label: `天级 · legacy_day（${pathCounts.legacy_day}）` },
+            { value: 'seq_annotation', label: `点级 · seq_annotation（${pathCounts.seq_annotation}）` },
+          ]}
+          onChange={value => {
+            setResultPath(value);
+            setSelectedRetrainId(null);
+          }}
+          aria-label="重训结果建模路径"
+        />
+        <Space className="pv-path-scope-toolbar__context" size={8} wrap>
+          <Tag color={isSelectedPathProduction ? 'blue' : 'default'}>
+            {isSelectedPathProduction ? '当前生产路径' : '非生产路径'}
+          </Tag>
+          <Typography.Text type="secondary">路径 Champion</Typography.Text>
+          {pathChampionRef
+            ? <Typography.Text className="pv-path-scope-toolbar__model" code copyable>{pathChampionRef}</Typography.Text>
+            : <Typography.Text type="secondary">Registry 未登记 Champion</Typography.Text>}
+        </Space>
+      </div>
 
-      <Card size="small" title="重训历史" bordered style={{ marginTop: 16 }}>
+      <Card
+        size="small"
+        title={`${retrainPathLabel(resultPath)} · 同路径${selectedMetricLabel}对照`}
+        bordered
+        style={{ marginTop: 16 }}
+      >
+        {previousCompleted && newestCompleted ? (
+          <>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} md={8}>
+                <Statistic
+                  title={`上一版（${previousCompleted.request_id ?? '—'}）`}
+                  value={previousF1 ?? '—'}
+                  precision={typeof previousF1 === 'number' ? 4 : undefined}
+                />
+              </Col>
+              <Col xs={24} md={8}>
+                <Statistic
+                  title={`当前（${newestCompleted.request_id ?? '—'}）`}
+                  value={newestF1 ?? '—'}
+                  precision={typeof newestF1 === 'number' ? 4 : undefined}
+                />
+              </Col>
+              <Col xs={24} md={8}>
+                <Statistic
+                  title={`Δ ${selectedMetricLabel}`}
+                  value={f1Delta ?? '—'}
+                  precision={typeof f1Delta === 'number' ? 4 : undefined}
+                  valueStyle={{
+                    color:
+                      f1Delta == null
+                        ? undefined
+                        : f1Delta > 0
+                          ? '#3f8600'
+                          : f1Delta < 0
+                            ? '#cf1322'
+                            : undefined,
+                  }}
+                />
+              </Col>
+            </Row>
+            {(newestCompleted?.train_summary?.accuracy_record?.confusion_matrix
+              || previousCompleted?.train_summary?.accuracy_record?.confusion_matrix) && (
+              <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0, fontSize: 12 }}>
+                混淆矩阵细节见下方选中重训的评估区；此处只比较同一路径相邻两次 completed 重训的 {selectedMetricLabel}。
+              </Typography.Paragraph>
+            )}
+          </>
+        ) : (
+          <Alert
+            type="info"
+            showIcon
+            message="同路径历史不足，暂不能比较相邻版本"
+            description={`${retrainPathLabel(resultPath)} 至少需要两次带评估指标的已完成重训。系统不会拿另一条路径的指标补位比较。`}
+          />
+        )}
+      </Card>
+
+      <Card
+        size="small"
+        title={`${retrainPathLabel(resultPath)} · 重训历史`}
+        bordered
+        style={{ marginTop: 16 }}
+      >
         <Table
           rowKey="request_id"
           columns={historyColumns}
-          dataSource={retrainHistory}
+          dataSource={pathRetrainHistory}
           size="small"
           scroll={{ x: 1507 }}
-          pagination={{ pageSize: 8, showSizeChanger: false, showTotal: total => `共 ${total} 次重训请求` }}
-          locale={{ emptyText: '暂无重训记录；手动触发或达到自动重训阈值后会记录在这里。' }}
+          pagination={{ pageSize: 8, showSizeChanger: false, showTotal: total => `共 ${total} 次同路径重训请求` }}
+          locale={{ emptyText: `${retrainPathLabel(resultPath)} 暂无重训记录；切换上方路径或触发该路径重训后再查看。` }}
           rowClassName={record => record.request_id === selectedRetrain?.request_id ? 'ant-table-row-selected' : ''}
           onRow={record => ({
             onClick: () => setSelectedRetrainId(record.request_id),
@@ -837,26 +1041,53 @@ const PvFaultDeploymentView: React.FC = () => {
       </Card>
       <Card
         size="small"
-        title="重训结果详情"
+        title={`${retrainPathLabel(resultPath)} · 重训结果详情`}
         extra={selectedRetrain?.model_ref
           ? <Typography.Text code>{selectedRetrain.model_ref}</Typography.Text>
           : undefined}
         bordered
         style={{ marginTop: 16 }}
       >
+        {selectedRetrain?.status === 'completed' && selectedRetrain?.model_ref && (
+          selectedRetrain.model_ref === pathChampionRef ? (
+            <Alert
+              type="success"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message="当前记录是该路径的 Registry Champion"
+              description={isSelectedPathProduction
+                ? '定时调度读取当前生产路径时会使用此模型。'
+                : '该模型是本路径 Champion，但定时调度仍读取另一条生产路径。'}
+            />
+          ) : (
+            <Alert
+              type={selectedGovernance?.reason ? 'warning' : 'info'}
+              showIcon
+              style={{ marginBottom: 12 }}
+              message="当前记录不是该路径 Champion"
+              description={selectedGovernance?.reason
+                ? `Registry 治理结论：${governanceReasonLabel(String(selectedGovernance.reason))}。定时调度不会自动使用此 Challenger。`
+                : '该模型未被 Registry 选为本路径 Champion；定时调度不会自动使用它。'}
+            />
+          )
+        )}
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          点击上方历史记录切换结果。训练指标来自该次无泄漏重复分层评估，不与预测后的人工核对指标混用。
+          {resultPath === 'seq_annotation'
+            ? '点击上方同路径历史记录切换结果。点级指标来自设备隔离逐点评估，并同时展示生产后处理和设备日投影口径；不与天级 Macro-F1 混比。'
+            : '点击上方同路径历史记录切换结果。天级指标来自无泄漏重复分层评估，不与点级逐点评估或预测后的人工核对指标混用。'}
         </Typography.Paragraph>
-        <PvFaultClassificationMetrics
-          metrics={selectedMetrics}
+        <PvRetrainResultMetrics
+          modelingPath={resultPath}
+          trainSummary={selectedTrainSummary}
           labelNames={labelNameMap}
           emptyText={
             selectedRetrain?.status === 'completed'
               ? '该历史模型完成于指标持久化功能上线前，暂无可恢复的详细评估结果。'
-              : '该重训请求尚未成功完成，暂无模型评估结果。'
+              : '该路径的重训请求尚未成功完成，暂无模型评估结果。'
           }
         />
       </Card>
+      {/* @AI_GENERATED: end */}
       <Modal
         title={labelRegistrationMode
           ? `识别并登记缺失标签（${missingLabelIds.length} 类）`

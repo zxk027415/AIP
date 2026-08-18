@@ -142,6 +142,7 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
   const [pendingPredictable, setPendingPredictable] = useState<PvPendingPredictableItem[]>([]);
   const [pendingPredictableLoading, setPendingPredictableLoading] = useState(false);
   const [pendingPredictableError, setPendingPredictableError] = useState<string | null>(null);
+  const [pendingModelingPath, setPendingModelingPath] = useState<string | undefined>(undefined);
   // @AI_GENERATED: end
   const [loading, setLoading] = useState(false);
   const [rowActionLoading, setRowActionLoading] = useState<Record<string, boolean>>({});
@@ -235,8 +236,16 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
     try {
       const resp = await pvIngestionApi.getPendingPredictable();
       setPendingPredictable(resp.items);
+      setPendingModelingPath(resp.modeling_path);
     } catch (err: any) {
-      setPendingPredictableError(err?.response?.data?.detail || err?.message || '加载待预测设备-天失败');
+      const raw = err?.response?.data?.detail || err?.message || '加载待预测设备-天失败';
+      const text = typeof raw === 'string' ? raw : JSON.stringify(raw);
+      const unknownSlot = text.includes("Unknown column") && text.includes('slot');
+      setPendingPredictableError(
+        unknownSlot
+          ? '待预测列表失败：当前库的预测游标表还没有 slot 列。页面已按旧表结构兼容，请刷新；点级隔离需跑双路径迁移。'
+          : (text.length > 240 ? `${text.slice(0, 240)}…` : text),
+      );
       setPendingPredictable([]);
     } finally {
       setPendingPredictableLoading(false);
@@ -717,6 +726,7 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
                         setPvMockFeedPreviewError(null);
                         messageApi.success(resp.message || '喂数进度已重置');
                         await loadTasks();
+                        void loadPendingPredictable();
                       } catch (err: any) {
                         messageApi.error(err?.response?.data?.detail || err?.message || '重置喂数进度失败');
                       }
@@ -724,11 +734,16 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
                   >
                     重置喂数进度
                   </Button>
+                  {/* @AI_GENERATED */}
                   <Button
                     size="small"
                     onClick={async () => {
                       try {
-                        const resp = await schedulerTaskApi.resetPvPredictionCursor();
+                        // 只重置当前已喂入的设备（pendingPredictable），避免清掉全部两千多台历史游标
+                        const scope = pendingPredictable.length > 0
+                          ? pendingPredictable.map((d) => ({ site_id: d.site_id, device_id: d.device_id, branch_id: d.branch_id }))
+                          : undefined;
+                        const resp = await schedulerTaskApi.resetPvPredictionCursor(scope);
                         messageApi.success(resp.message || '预测进度已重置');
                       } catch (err: any) {
                         messageApi.error(err?.response?.data?.detail || err?.message || '重置预测进度失败');
@@ -737,6 +752,7 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
                   >
                     重置预测进度
                   </Button>
+                  {/* @AI_GENERATED: end */}
                 </Space>
               </Space>
             )}
@@ -749,7 +765,9 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
             <PvIngestionSiteOverview />
             <Card
               size="small"
-              title="投喂闸门（完整性版）— 已完整但尚未预测的设备-天"
+              title={pendingModelingPath === 'seq_annotation'
+                ? '点级占用闸门 — 已达 173 点、尚未预测的设备-天'
+                : '天级待预测 — 不走完整等待闸门'}
               extra={(
                 <Button size="small" icon={<ReloadOutlined />} loading={pendingPredictableLoading} onClick={() => void loadPendingPredictable()}>
                   刷新
@@ -759,8 +777,10 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
               <Alert
                 type="info"
                 showIcon
-                message="人工确认闸门"
-                description="以下设备-天已判定数据完整（默认按到达点数 ≥ 理论点数的 90% 判定），但尚未被对应设备的预测游标处理过。确认无误后前往「pv_prediction」任务手动触发，或等待下次自动预测。本列表仅展示，不会自动触发预测。"
+                message={pendingModelingPath === 'seq_annotation' ? '点级占用闸门' : '天级无完整闸门'}
+                description={pendingModelingPath === 'seq_annotation'
+                  ? '完整等待闸门只作用于点级日滚：占用 ≥173/288 才可检测。列表按点级游标过滤，与天级进度隔离。确认后触发「pv_prediction」。'
+                  : '当前日滚是天级。天级检测不要求白天数据到齐，此表只列出已到达、尚未被天级游标处理的设备-天，不是 90% 完整闸门。要验证点级，先切日滚主线到点级，才会启用 ≥173 占用闸门。'}
                 style={{ marginBottom: 12 }}
               />
               {pendingPredictableError ? <Alert type="error" showIcon message={pendingPredictableError} style={{ marginBottom: 12 }} /> : null}
@@ -770,7 +790,9 @@ const SchedulerTab: React.FC<SchedulerTabProps> = ({ storySlot }) => {
                 loading={pendingPredictableLoading}
                 dataSource={pendingPredictable}
                 pagination={{ pageSize: 10, size: 'small' }}
-                locale={{ emptyText: '暂无已完整待预测的设备-天' }}
+                locale={{ emptyText: pendingModelingPath === 'seq_annotation'
+                  ? '暂无达到点级占用门槛（≥173）且待预测的设备-天'
+                  : '暂无天级待预测的设备-天' }}
                 columns={[
                   { title: '站点', dataIndex: 'site_id', width: 160, ellipsis: true },
                   { title: '设备', dataIndex: 'device_id', width: 160, ellipsis: true },

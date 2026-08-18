@@ -18,6 +18,8 @@ interface PvDeviceIngestionDetailProps {
   siteId: string;
   /** businessDate — 可选，指定业务日；不传时每个设备取其最新业务日的一行。 */
   businessDate?: string;
+  /** modelingPath — 当前日滚路径，用来隔离明细状态：点级才显示占用闸门。 */
+  modelingPath?: string;
 }
 
 function formatDateTime(iso: string | null | undefined): string {
@@ -29,7 +31,7 @@ function formatDateTime(iso: string | null | undefined): string {
   }
 }
 
-const PvDeviceIngestionDetail: React.FC<PvDeviceIngestionDetailProps> = ({ siteId, businessDate }) => {
+const PvDeviceIngestionDetail: React.FC<PvDeviceIngestionDetailProps> = ({ siteId, businessDate, modelingPath }) => {
   const [devices, setDevices] = useState<PvDeviceIngestionDetailRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +67,11 @@ const PvDeviceIngestionDetail: React.FC<PvDeviceIngestionDetailProps> = ({ siteI
             percent={Math.min(100, Math.round(ratio * 100))}
             size="small"
             style={{ width: 140 }}
-            status={row.is_complete ? 'success' : 'active'}
+            status={
+              modelingPath === 'seq_annotation'
+                ? (row.is_seq_ready ? 'success' : 'active')
+                : (row.point_count > 0 ? 'success' : 'active')
+            }
             format={() => `${row.point_count}/${row.expected_point_count}`}
           />
         );
@@ -74,9 +80,14 @@ const PvDeviceIngestionDetail: React.FC<PvDeviceIngestionDetailProps> = ({ siteI
     {
       title: '状态',
       dataIndex: 'is_complete',
-      width: 100,
-      render: (isComplete: boolean) =>
-        isComplete ? <Tag color="green">完整</Tag> : <Tag color="orange">部分到达</Tag>,
+      width: 220,
+      render: (_isComplete: boolean, row) => (
+        modelingPath === 'seq_annotation' ? (
+          row.is_seq_ready ? <Tag color="blue">点级可检 ≥173</Tag> : <Tag>未达占用门槛</Tag>
+        ) : (
+          row.point_count > 0 ? <Tag color="green">已到达</Tag> : <Tag>无数据</Tag>
+        )
+      ),
     },
     { title: '首次收到', dataIndex: 'first_seen_at', width: 170, render: formatDateTime },
     { title: '判定完整时间', dataIndex: 'completed_at', width: 170, render: formatDateTime },

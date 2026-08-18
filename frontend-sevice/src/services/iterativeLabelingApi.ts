@@ -496,48 +496,6 @@ export const cumulativeTrainingApi = {
   // 保留会诱导调用已废弃接口，故删除。
   // 对齐：docs/specs/pv-fault-label-segment-redesign/tasks.md 任务 21。
 
-  getSplitModeCompare: (slot = 'pv_fault'): Promise<Record<string, unknown>> =>
-    api.get('/iterative-labeling/cumulative-training/split-mode-compare', { params: { slot } }),
-
-  runSplitModeCompare: (
-    body: {
-      modes?: Array<string | null>;
-      nRepeats?: number;
-      testRatio?: number;
-      datasetPath?: string;
-    } = {},
-    slot = 'pv_fault',
-  ): Promise<Record<string, unknown>> =>
-    api.post('/iterative-labeling/cumulative-training/split-mode-compare', {
-      modes: body.modes,
-      n_repeats: body.nRepeats ?? 3,
-      test_ratio: body.testRatio ?? 0.2,
-      dataset_path: body.datasetPath,
-    }, { params: { slot }, timeout: 60 * 1000 }),
-
-  getModelingPathCompare: (slot = 'pv_fault'): Promise<Record<string, unknown>> =>
-    api.get('/iterative-labeling/cumulative-training/modeling-path-compare', { params: { slot } }),
-
-  runModelingPathCompare: (
-    body: {
-      paths?: string[];
-      nRepeats?: number;
-      testRatio?: number;
-      randomState?: number;
-      legacyDatasetPath?: string;
-      siteId?: string;
-    } = {},
-    slot = 'pv_fault',
-  ): Promise<Record<string, unknown>> =>
-    api.post('/iterative-labeling/cumulative-training/modeling-path-compare', {
-      paths: body.paths,
-      n_repeats: body.nRepeats ?? 3,
-      test_ratio: body.testRatio ?? 0.2,
-      random_state: body.randomState ?? 90,
-      legacy_dataset_path: body.legacyDatasetPath,
-      site_id: body.siteId,
-    }, { params: { slot }, timeout: 60 * 1000 }),
-
   getModelingPaths: (slot = 'pv_fault'): Promise<Record<string, unknown>> =>
     api.get('/iterative-labeling/cumulative-training/modeling-paths', { params: { slot } }),
 
@@ -545,10 +503,14 @@ export const cumulativeTrainingApi = {
     productionPath: string,
     fallbackPath?: string,
     slot = 'pv_fault',
+    extra: Record<string, unknown> = {},
   ): Promise<Record<string, unknown>> =>
     api.put('/iterative-labeling/cumulative-training/modeling-paths', {
+      modeling_path: productionPath,
       production_path: productionPath,
       fallback_path: fallbackPath,
+      slot,
+      ...extra,
     }, { params: { slot } }),
 
   switchModelingFallback: (reason: string, slot = 'pv_fault'): Promise<Record<string, unknown>> =>
@@ -556,8 +518,16 @@ export const cumulativeTrainingApi = {
       reason,
     }, { params: { slot } }),
 
-  createManualRetrainRequest: (slot = 'pv_fault', splitMode?: string): Promise<Record<string, unknown>> =>
-    api.post('/iterative-labeling/cumulative-training/retrain-requests/manual', {}, { params: { slot, ...(splitMode ? { split_mode: splitMode } : {}) } }),
+  createManualRetrainRequest: (
+    slot = 'pv_fault',
+    modelingPath?: string,
+  ): Promise<Record<string, unknown>> =>
+    api.post('/iterative-labeling/cumulative-training/retrain-requests/manual', {}, {
+      params: {
+        slot,
+        ...(modelingPath ? { modeling_path: modelingPath } : {}),
+      },
+    }),
 
   runRetrainRequest: (
     requestId: string,
@@ -571,10 +541,20 @@ export const cumulativeTrainingApi = {
   // @AI_GENERATED: 一步启动手动重训并立即返回，进度改由 getState 轮询。
   // 旧的 createManualRetrainRequest + runRetrainRequest 两步同步调用会各自超过
   // axios 的 120s 超时（快照冻结实测 660s），导致请求创建后无人执行、永久 queued。
-  startManualRetrain: (slot = 'pv_fault', splitMode?: string): Promise<Record<string, unknown>> =>
-    api.post('/iterative-labeling/cumulative-training/retrain-requests/manual-run', {}, {
-      params: { slot, ...(splitMode ? { split_mode: splitMode } : {}) },
-    }),
+  // @AI_GENERATED
+  startManualRetrain: (
+    slot = 'pv_fault',
+    modelingPath?: string,
+    overrides?: { epochs?: number; batch_size?: number },
+  ): Promise<Record<string, unknown>> =>
+    api.post('/iterative-labeling/cumulative-training/retrain-requests/manual-run',
+      overrides ? { overrides } : {},
+      {
+        params: {
+          slot,
+          ...(modelingPath ? { modeling_path: modelingPath } : {}),
+        },
+      }),
   // @AI_GENERATED: end
 };
 

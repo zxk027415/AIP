@@ -226,3 +226,267 @@ def test_normalize_predictions_accepts_unknown_prefix_labels():
     normalized = pv_tasks._normalize_predictions(raw)
     assert len(normalized) == 1
     assert normalized[0]["predicted_label"] == 2
+
+# @AI_GENERATED: seq_annotation 逐点详情与审核上下文兼容测试
+def test_normalize_predictions_preserves_valid_point_detail():
+    timestamps = ["2026-08-01T00:00:00", "2026-08-01T00:05:00"]
+    normalized = pv_tasks._normalize_predictions(
+        [
+            {
+                "site_id": "s1",
+                "device_id": "d1",
+                "branch_id": "b1",
+                "time_window": "2026-08-01",
+                "predicted_label": 1,
+                "confidence": 0.75,
+                "prediction_detail": {
+                    "timestamps": timestamps,
+                    "point_predictions": [0, 1],
+                    "point_confidences": [0.8, 0.7],
+                    "segment_predictions": [
+                        {
+                            "t_start": timestamps[0],
+                            "t_end": timestamps[0],
+                            "label": 0,
+                            "n_points": 1,
+                        },
+                        {
+                            "t_start": timestamps[1],
+                            "t_end": timestamps[1],
+                            "label": 1,
+                            "n_points": 1,
+                        },
+                    ],
+                    "model_name": "bilstm_attn",
+                    "seq_len_used": 288,
+                    "trained_full_day": True,
+                },
+            }
+        ]
+    )
+    detail = normalized[0]["prediction_detail"]
+    assert detail["granularity"] == "point"
+    assert detail["point_predictions"] == [0, 1]
+    assert detail["n_points_predicted"] == 2
+    assert detail["trained_full_day"] is True
+
+
+def test_normalize_predictions_rejects_misaligned_point_detail():
+    import pytest
+
+    with pytest.raises(RuntimeError, match="逐点详情长度不一致"):
+        pv_tasks._normalize_predictions(
+            [
+                {
+                    "site_id": "s1",
+                    "device_id": "d1",
+                    "branch_id": "b1",
+                    "time_window": "2026-08-01",
+                    "predicted_label": 1,
+                    "confidence": 0.75,
+                    "prediction_detail": {
+                        "timestamps": ["2026-08-01T00:00:00"],
+                        "point_predictions": [0, 1],
+                        "point_confidences": [0.8],
+                        "segment_predictions": [],
+                    },
+                }
+            ]
+        )
+
+    with pytest.raises(RuntimeError, match="trained_full_day 必须为 JSON boolean"):
+        pv_tasks._normalize_predictions(
+            [
+                {
+                    "site_id": "s1",
+                    "device_id": "d1",
+                    "branch_id": "b1",
+                    "time_window": "2026-08-01",
+                    "predicted_label": 1,
+                    "confidence": 0.75,
+                    "prediction_detail": {
+                        "timestamps": ["2026-08-01T00:00:00"],
+                        "point_predictions": [1],
+                        "point_confidences": [0.8],
+                        "segment_predictions": [],
+                        "trained_full_day": "false",
+                    },
+                }
+            ]
+        )
+
+
+def test_seq_review_session_marks_point_granularity(monkeypatch):
+    captured = {}
+
+    class FakeRegistry:
+        def __init__(self, slot):
+            assert slot == "pv_fault"
+
+        def get_current(self):
+            return {"label_map": {"正常": 0}}
+
+    class FakeReviewService:
+        def __init__(self, slot, registry_service):
+            assert slot == "pv_fault"
+
+        def create_session(self, **kwargs):
+            captured.update(kwargs)
+            return {"review_id": "rev-seq"}
+
+    monkeypatch.setattr(pv_tasks, "LabelRegistryService", FakeRegistry)
+    monkeypatch.setattr(pv_tasks, "ReviewSessionService", FakeReviewService)
+    pv_tasks._create_prediction_review_session(
+        "pred-seq-test",
+        source_dataset_path="backend-service/data/seq-input.csv",
+        model_ref="seqann-test",
+        predictions=[
+            {
+                "site_id": "s1",
+                "device_id": "d1",
+                "branch_id": "b1",
+                "time_window": "2026-08-01",
+                "predicted_label": 1,
+                "confidence": 0.8,
+            }
+        ],
+        modeling_path="seq_annotation",
+    )
+    assert captured["prediction_context"]["modeling_path"] == "seq_annotation"
+    assert captured["prediction_context"]["prediction_granularity"] == "point"
+    assert len(captured["prediction_units"]) == 1
+
+
+# ============================================================================
+# 安全修复回归测试（2026-08-12）：缺口 1 — seq 预测幂等键
+# ============================================================================
+def test_seq_sample_key_parses_iso_date():
+    business_date, sample_id = pv_tasks._seq_sample_key("2026-08-12")
+    assert business_date.isoformat() == "2026-08-12"
+    assert sample_id == "2026-08-12#point"
+
+
+def test_seq_sample_key_deterministic_for_failure_retry(monkeypatch):
+    # 同一 time_window 重复解析必须得到完全一致的键，保证失败重试幂等。
+    first = pv_tasks._seq_sample_key("2026-08-12")
+    second = pv_tasks._seq_sample_key("2026-08-12")
+    assert first == second
+
+    predictions = [
+        {
+            "site_id": "site-a",
+            "device_id": "device-1",
+            "branch_id": "branch-1",
+            "time_window": "2026-08-12",
+            "predicted_label": 1,
+            "confidence": 0.8,
+        }
+    ]
+    batch_id = pv_tasks._seq_prediction_batch_id("seqann-v1", predictions)
+    assert batch_id == pv_tasks._seq_prediction_batch_id(
+        "seqann-v1", list(reversed(predictions))
+    )
+
+    import services.iterative_labeling.review_explanations as review_explanations
+
+    immutable_payload = {
+        "model_ref": "seqann-v1",
+        "modeling_path": "seq_annotation",
+        "dataset_version": "backend-service/data/immutable-source.csv",
+        "predictions": predictions,
+        "cursor_advance_times": [
+            {
+                "site_id": "site-a",
+                "device_id": "device-1",
+                "branch_id": "branch-1",
+                "last_predicted_time": "2026-08-12T23:55:00",
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        review_explanations,
+        "load_prediction_batch",
+        lambda slot, requested_batch_id: immutable_payload,
+    )
+    recovered, source_path, advances = pv_tasks._load_seq_recovery_batch(
+        batch_id, "seqann-v1"
+    )
+    assert recovered == predictions
+    assert source_path == "backend-service/data/immutable-source.csv"
+    assert advances[("site-a", "device-1", "branch-1")] == datetime(
+        2026, 8, 12, 23, 55
+    )
+
+    # 本轮集合从旧批次 A 扩展为 A+B 时，A 必须从数据库记录引用恢复，
+    # B 必须保留在新增集合中，不能用 A+B 的重算 batch ID 覆盖 A。
+    new_prediction = {
+        "site_id": "site-a",
+        "device_id": "device-2",
+        "branch_id": "branch-1",
+        "time_window": "2026-08-13",
+        "predicted_label": 0,
+        "confidence": 0.9,
+    }
+
+    class ExistingRecord:
+        input_feature_json = {
+            "prediction_batch_id": batch_id,
+            "model_ref": "seqann-v1",
+        }
+
+    class FakeRepo:
+        def find_prediction_record(self, **kwargs):
+            if kwargs["device_id"] == "device-1":
+                return ExistingRecord()
+            return None
+
+    new_only, recovery_ids = pv_tasks._partition_seq_predictions_for_recovery(
+        FakeRepo(), "seqann-v1", [predictions[0], new_prediction]
+    )
+    assert recovery_ids == {batch_id: "seqann-v1"}
+    assert new_only == [new_prediction]
+    assert pv_tasks._seq_prediction_batch_id(
+        "seqann-v1", [predictions[0], new_prediction]
+    ) != batch_id
+
+    # 即使 A 在本轮质量门控后没有进入 predictions，也必须通过候选设备日定位旧批次。
+    gated_new, gated_recovery_ids = pv_tasks._partition_seq_predictions_for_recovery(
+        FakeRepo(),
+        "seqann-v1",
+        [],
+        recovery_candidates=[predictions[0]],
+    )
+    assert gated_new == []
+    assert gated_recovery_ids == {batch_id: "seqann-v1"}
+
+    # 数据库提交 M1 后即使生产已切换到 M2，仍须用记录保存的 M1 恢复 A。
+    cross_model_new, cross_model_recovery = (
+        pv_tasks._partition_seq_predictions_for_recovery(
+            FakeRepo(),
+            "seqann-v2",
+            [],
+            recovery_candidates=[predictions[0]],
+        )
+    )
+    assert cross_model_new == []
+    assert cross_model_recovery == {batch_id: "seqann-v1"}
+
+
+def test_seq_sample_key_falls_back_deterministically_when_unparseable():
+    # 异常 time_window 不能导致幂等键随机化；仍应给出确定性键。
+    from datetime import date as _date
+    first = pv_tasks._seq_sample_key("not-a-date")
+    second = pv_tasks._seq_sample_key("not-a-date")
+    assert first == second
+    assert isinstance(first[0], _date)
+    assert first[1].endswith("#point")
+
+
+def test_seq_sample_key_unparseable_still_deterministic_and_point_suffixed():
+    # 不可解析输入不能导致幂等键随机化；同一次运行内解析结果必须稳定。
+    import services.scheduler.tasks.pv_fault_tasks as pv
+    first = pv._seq_sample_key("garbage::input")
+    second = pv._seq_sample_key("garbage::input")
+    assert first == second
+    assert first[1].endswith("#point")
+# @AI_GENERATED: end

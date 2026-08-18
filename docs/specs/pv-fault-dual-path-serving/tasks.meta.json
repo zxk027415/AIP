@@ -1,0 +1,439 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 ORM 增加 `modeling_path` 分区列与复合主键": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696914988
+      },
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696939021
+      },
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697219948
+      }
+    ],
+    "1.2 编写幂等迁移脚本": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696916616
+      },
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697231836
+      },
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697477692
+      }
+    ],
+    "2.1 实现 DualPathConfig（配置文件 + 环境变量覆盖 + 越界回退）": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696916679
+      },
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696940412
+      },
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697221342
+      }
+    ],
+    "2.2 实现 CompletenessGate": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696916745
+      },
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697233229
+      },
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697479107
+      }
+    ],
+    "3.1 实现设备数据到达水位计算": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696916819
+      },
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696941361
+      },
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697222335
+      }
+    ],
+    "4.1 定义策略抽象与上下文/结果契约": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696916864
+      },
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697556637
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786931610876
+      }
+    ],
+    "4.2 实现 DualPathScheduler.dispatch 分派与运行状态落账": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696916908
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786931614680
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932080125
+      }
+    ],
+    "4.3 保留调度外壳、内部改调 dispatch": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696916948
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932702035
+      }
+    ],
+    "5.1 搬迁并叠加事件时间游标与分区": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696916993
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932081586
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932697863
+      }
+    ],
+    "6.1 搬迁并叠加水位判定与分区": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917044
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932083047
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932699259
+      }
+    ],
+    "7.1 封装按 (slot, modeling_path) 分区的游标/记录/批次读写": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917083
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932084586
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932700643
+      }
+    ],
+    "8. Checkpoint - 主检测链路（分派 + 两策略 + 分区）就绪": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917126
+      }
+    ],
+    "9.1 实现覆盖写 + 只追加审计 + 校验": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917164
+      }
+    ],
+    "9.2 扩展 REST 只读/写接口": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917222
+      }
+    ],
+    "10.1 实现旁路只读双路检测与对比 JSON": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917257
+      }
+    ],
+    "10.2 扩展 shadow 对比 REST 接口": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917298
+      }
+    ],
+    "11.1 校准占比与确定性种子": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917337
+      },
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696942511
+      },
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697223679
+      }
+    ],
+    "12.1 实现共享标签池单份 + 按路径投影 + 按路径水位": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917377
+      }
+    ],
+    "13.1 实现冠军-挑战者门控与按路径独立触发": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917426
+      }
+    ],
+    "14. Checkpoint - 旁路能力（对比 + 回流 + 重训）就绪": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917465
+      }
+    ],
+    "16.1 扩展 deploymentApi 客户端": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917506
+      }
+    ],
+    "16.2 实现 PathSwitchCard 路径切换卡": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917548
+      }
+    ],
+    "16.3 实现 PathDetectionStatusCard 分路径状态卡": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917587
+      }
+    ],
+    "16.4 实现 ShadowCompareCard 与看板闸门标识": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917627
+      }
+    ],
+    "16.5 聚合容器页并接入": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917665
+      }
+    ],
+    "18. Final checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786696917704
+      }
+    ],
+    "3. 实现 DataWatermarkService（两策略共用时间基准）": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697222378
+      }
+    ],
+    "11. Mock 到达模拟器确定性对齐（Req8）": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697223728
+      }
+    ],
+    "1. 数据模型与迁移：为登记增加 `modeling_path` 分区维度": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697477765
+      }
+    ],
+    "2. 配置与完整性闸门": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697479164
+      }
+    ],
+    "1.3 编写迁移与 ORM 幂等性单元测试": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697558012
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932078687
+      }
+    ],
+    "2.3 属性测试：完整性比例判定与阈值回退": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697559014
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786931612250
+      }
+    ],
+    "2.4 属性测试：首达完整幂等": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697560425
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786931613226
+      }
+    ],
+    "3.2 编写水位计算单元测试": [
+      {
+        "executionId": "e0de2500-a24e-488f-af0f-ab9c5418e240",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786697561818
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932076317
+      }
+    ],
+    "11.2 属性测试：Mock 释放计划确定性": [
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786931616223
+      },
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932077817
+      }
+    ],
+    "5. 实现 LegacyDayStrategy（传统按天，修复墙钟漏诊）": [
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932697915
+      }
+    ],
+    "6. 实现 SeqDailyStrategy（全天序列，只检测完整历史整天）": [
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932699336
+      }
+    ],
+    "7. 实现 PathIsolationRegistry 分区读写封装": [
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932700708
+      }
+    ],
+    "4.4 属性测试：分派正确且互斥": [
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932703501
+      }
+    ],
+    "4.5 属性测试：非法路径一律跳过": [
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932704901
+      }
+    ],
+    "4.6 属性测试：周期结果条数守恒": [
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932705884
+      }
+    ],
+    "7.2 属性测试：分区写入隔离": [
+      {
+        "executionId": "6b67a848-cafe-48c0-8739-52e85b2f208f",
+        "chatSessionId": "sess_c15ee8aa-cd60-4fd3-b9b0-281c886b1540",
+        "timestamp": 1786932707133
+      }
+    ]
+  }
+}

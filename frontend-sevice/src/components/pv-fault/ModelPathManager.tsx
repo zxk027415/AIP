@@ -14,6 +14,11 @@ interface ModelPathManagerProps {
   slot?: string;
 }
 
+const PATH_LABELS: Record<string, string> = {
+  legacy_day: '天级路径 · 每天一个标签',
+  seq_annotation: '点级路径 · 全天 288 点',
+};
+
 const ModelPathManager: React.FC<ModelPathManagerProps> = ({ slot = 'pv_fault' }) => {
   const [paths, setPaths] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
@@ -55,8 +60,14 @@ const ModelPathManager: React.FC<ModelPathManagerProps> = ({ slot = 'pv_fault' }
     }
   };
 
-  const productionPath = (paths as any)?.production_path || '未配置';
-  const fallbackPath = (paths as any)?.fallback_path || '未配置';
+  const productionPath = String((paths as any)?.production_path || '');
+  const fallbackPath = String((paths as any)?.fallback_path || '');
+  const pathModels = ((paths as any)?.path_models ?? {}) as Record<string, Record<string, unknown>>;
+  const fallbackEntry = pathModels[fallbackPath];
+  const fallbackReady = Boolean(fallbackEntry?.model_ref)
+    && (fallbackPath !== 'seq_annotation' || Boolean(fallbackEntry?.trained_full_day));
+  const productionLabel = PATH_LABELS[productionPath] ?? '未配置';
+  const fallbackLabel = PATH_LABELS[fallbackPath] ?? '未配置';
 
   return (
     <Card
@@ -67,10 +78,10 @@ const ModelPathManager: React.FC<ModelPathManagerProps> = ({ slot = 'pv_fault' }
     >
       <Descriptions size="small" column={2} bordered>
         <Descriptions.Item label="生产路径">
-          <Tag color="green">{productionPath}</Tag>
+          <Tag color="green">{productionLabel}</Tag>
         </Descriptions.Item>
         <Descriptions.Item label="备用路径">
-          <Tag color="orange">{fallbackPath}</Tag>
+          <Tag color="orange">{fallbackLabel}</Tag>
         </Descriptions.Item>
       </Descriptions>
 
@@ -78,7 +89,7 @@ const ModelPathManager: React.FC<ModelPathManagerProps> = ({ slot = 'pv_fault' }
         <Button
           icon={<SwapOutlined />}
           onClick={() => setSwitchModalOpen(true)}
-          disabled={!paths || fallbackPath === '未配置'}
+          disabled={!paths || !fallbackReady}
         >
           切换到备用路径
         </Button>
@@ -96,7 +107,7 @@ const ModelPathManager: React.FC<ModelPathManagerProps> = ({ slot = 'pv_fault' }
           type="warning"
           showIcon
           style={{ marginBottom: 12 }}
-          message={`将把生产路径从「${productionPath}」切换为「${fallbackPath}」`}
+          message={`将把生产路径从「${productionLabel}」切换为「${fallbackLabel}」`}
           description="切换后新预测将使用备用路径的模型。请确认备用路径精度满足要求。"
         />
         <Input.TextArea

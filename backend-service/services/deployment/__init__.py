@@ -29,6 +29,11 @@ from services.deployment.store import (
     SwitchEventLog,
     sort_shadow_models_by_accuracy,
 )
+from services.deployment.pv_read_adapter import (
+    DeploymentSlotView,
+    PVDeploymentReadAdapter,
+    PvFaultRegistryReadOnlyError,
+)
 from services.deployment.switch_decision import (
     SwitchDecisionEngine,
     SwitchDecisionError,
@@ -47,5 +52,8 @@ __all__ = [
     "SwitchDecisionEngine",
     "SwitchDecisionError",
     "SwitchEligibility",
+    "PVDeploymentReadAdapter",
+    "DeploymentSlotView",
+    "PvFaultRegistryReadOnlyError",
 ]
 # @AI_GENERATED: end

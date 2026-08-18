@@ -502,10 +502,12 @@ class TestRealDataSmoke:
 
     @pytest.fixture
     def real_data(self):
-        p = Path(__file__).resolve().parents[1] / "data" / "iterative_labeling" / "modeling_path_compare" / "pv_fault" / "datasets" / "pathcmp-20260803021250-ea9c92ab-by_day.parquet"
+        # dataset_combined.parquet 是逐点原始时序（7 天连续，241 台设备），
+        # 可以切出 288 点窗口。by_day 快照的每行已是天级样本，不适合做切分器冒烟测试。
+        p = Path(__file__).resolve().parents[1] / "datasets" / "dataset_combined.parquet"
         if not p.exists():
             pytest.skip("真实数据文件不存在")
-        df = pd.read_parquet(p, columns=["time", "device_id", "value", "i_cal", "label"])
+        df = pd.read_parquet(p, columns=["time", "site_id", "device_id", "branch_id", "value", "i_cal", "label"])
         return df
 
     def test_real_data_produces_samples(self, real_data):
@@ -514,6 +516,7 @@ class TestRealDataSmoke:
         devices = real_data["device_id"].unique()[:5]
         subset = real_data[real_data["device_id"].isin(devices)].copy()
 
+        # dataset_combined 是逐点原始时序（每设备多天），可以切出 288 点窗口
         sampler = SlidingWindowSampler(SamplerConfig(window_length=288, stride=72))
         X, y, meta = sampler.transform_multi_device(subset)
 
@@ -539,6 +542,242 @@ class TestRealDataSmoke:
         assert (meta["purity"] >= 0.7).all()
 
 
+# @AI_GENERATED: 时间缺口修复测试（2026-08-04）
+class TestTimeContinuityGapFix:
+    """
+    验证时间连续性修复（2026-08-04）：_split_by_time_gap + 段内滑窗。
+
+    背景 bug：原实现按行号滑窗，不检查相邻点时间间隔。
+    当同一序列来自多个不连续时间段（如累计训练快照把 5 月和 8 月数据
+    concat 在一起），窗口会跨过缺口，产出物理上不存在的假样本。
+    实测：pv_cumulative_labeled_merged.parquet 中 66.98% 的窗口跨缝，
+    最大缺口 92.4 天。
+    """
+
+    @staticmethod
+    def _make_gapped_data(
+        n_before: int,
+        gap_hours: float,
+        n_after: int,
+        label: int = 0,
+        interval_min: int = 5,
+    ) -> tuple:
+        """
+        构造带时间缺口的合成数据。
+
+        前 n_before 点正常（5 分钟间隔），然后跳过 gap_hours 小时，
+        再接 n_after 点。两段数据的 label 相同。
+        """
+        t0 = pd.Timestamp("2020-05-06 00:00:00")
+        times_before = pd.date_range(t0, periods=n_before, freq=f"{interval_min}min")
+
+        gap_end = times_before[-1] + pd.Timedelta(hours=gap_hours) + pd.Timedelta(minutes=interval_min)
+        times_after = pd.date_range(gap_end, periods=n_after, freq=f"{interval_min}min")
+
+        all_times = times_before.tolist() + times_after.tolist()
+        n_total = len(all_times)
+        values = np.sin(np.linspace(0, 4 * np.pi, n_total)) * 5 + 10
+
+        ts_df = pd.DataFrame({
+            "time": all_times,
+            "value": values,
+            "i_cal": values * 1.05,
+        })
+        label_df = pd.DataFrame({
+            "time": all_times,
+            "label": [label] * n_total,
+        })
+        return ts_df, label_df
+
+    # ------------------------------------------------------------------
+    # _split_by_time_gap 单元测试
+    # ------------------------------------------------------------------
+
+    def test_split_no_gap(self):
+        """无缺口序列 → 一段。"""
+        times = pd.date_range("2020-01-01", periods=600, freq="5min")
+        segs = SlidingWindowSampler._split_by_time_gap(pd.Series(times), max_gap_multiplier=2.0)
+        assert len(segs) == 1
+        assert len(segs[0]) == 600
+
+    def test_split_single_large_gap(self):
+        """一个大缺口（1 天）→ 两段。"""
+        t1 = pd.date_range("2020-05-06", periods=288, freq="5min")
+        t2 = pd.date_range("2020-05-08", periods=288, freq="5min")  # 跳过 05-07
+        times = pd.Series(t1.tolist() + t2.tolist())
+        segs = SlidingWindowSampler._split_by_time_gap(times, max_gap_multiplier=2.0)
+        assert len(segs) == 2
+        assert len(segs[0]) == 288
+        assert len(segs[1]) == 288
+
+    def test_split_multiple_gaps(self):
+        """多个缺口 → 对应多段。"""
+        # 3 段：day1 / day3 / day7（各 144 点，中间跳天）
+        segs_times = []
+        for day in (6, 8, 14):  # 2020-05-06, 05-08, 05-14
+            segs_times.extend(pd.date_range(f"2020-05-{day:02d}", periods=144, freq="5min"))
+        times = pd.Series(segs_times)
+        segs = SlidingWindowSampler._split_by_time_gap(times, max_gap_multiplier=2.0)
+        assert len(segs) == 3
+        for s in segs:
+            assert len(s) == 144
+
+    def test_split_zero_multiplier_disables_check(self):
+        """max_gap_multiplier <= 0 → 不检测缺口，整列视为一段。"""
+        t1 = pd.date_range("2020-05-06", periods=100, freq="5min")
+        t2 = pd.date_range("2020-06-01", periods=100, freq="5min")  # 26 天后
+        times = pd.Series(t1.tolist() + t2.tolist())
+        segs = SlidingWindowSampler._split_by_time_gap(times, max_gap_multiplier=0.0)
+        assert len(segs) == 1
+        assert len(segs[0]) == 200
+
+    def test_split_empty_series(self):
+        """空序列 → 空列表。"""
+        segs = SlidingWindowSampler._split_by_time_gap(pd.Series([], dtype="datetime64[ns]"), 2.0)
+        assert segs == []
+
+    def test_split_single_point(self):
+        """单点 → 一段（含单个元素）。"""
+        times = pd.Series([pd.Timestamp("2020-01-01")])
+        segs = SlidingWindowSampler._split_by_time_gap(times, 2.0)
+        assert len(segs) == 1
+        assert segs[0] == [0]
+
+    def test_split_tolerates_minor_jitter(self):
+        """小于 2× 中位间隔的抖动不断段。"""
+        # 5min 间隔中偶发一个 9min 抖动（< 5*2=10min 阈值）
+        times = pd.date_range("2020-01-01", periods=100, freq="5min").tolist()
+        # 把第 50 个点往后推 4 分钟（9min 间隔，还在阈值内）
+        times[50] = times[50] + pd.Timedelta(minutes=4)
+        times = pd.Series(sorted(times))
+        segs = SlidingWindowSampler._split_by_time_gap(times, 2.0)
+        assert len(segs) == 1  # 不断段
+
+    # ------------------------------------------------------------------
+    # transform() 跨缝窗口防止测试
+    # ------------------------------------------------------------------
+
+    def test_gapped_sequence_no_seam_windows(self):
+        """
+        核心测试：带缺口的序列切出的窗口时间跨度不超过理想值。
+
+        构造：前 288 点（1 天）+ 缺口 1 天 + 后 288 点（1 天），共 576 点。
+        旧实现：会产出跨缺口的假窗口（从第一天末尾到第二天开头）。
+        新实现：只在各段内滑，不跨段，所有窗口时间跨度 ≤ (288-1)*5+1 分钟。
+        """
+        ts, labels = self._make_gapped_data(
+            n_before=288, gap_hours=24, n_after=288, label=0
+        )
+        sampler = SlidingWindowSampler(SamplerConfig(window_length=288, stride=72))
+        X, y, meta = sampler.transform(ts, labels, device_id="gapped_dev")
+
+        # 理想窗口跨度：(288-1) × 5min = 1435 分钟
+        ideal_span_min = (288 - 1) * 5.0
+        for _, row in meta.iterrows():
+            actual_span = (pd.Timestamp(row["t_end"]) - pd.Timestamp(row["t_start"])).total_seconds() / 60
+            assert actual_span <= ideal_span_min + 1e-6, (
+                f"窗口跨度 {actual_span:.1f}min > 理想 {ideal_span_min}min，"
+                f"窗口 t_start={row['t_start']} t_end={row['t_end']}"
+            )
+
+    def test_gapped_sequence_each_seg_independent(self):
+        """两段各自完整时，每段都能切出窗口，总数为两段之和。"""
+        # 前 288 点 + 缺口 1 天 + 后 288 点，每段 stride=288 恰好各切 1 个窗口
+        ts, labels = self._make_gapped_data(288, 24, 288, label=1)
+        sampler = SlidingWindowSampler(SamplerConfig(window_length=288, stride=288))
+        X, y, meta = sampler.transform(ts, labels, device_id="two_seg")
+        assert X.shape[0] == 2  # 两段各 1 个窗口
+
+    def test_short_segment_after_gap_discarded(self):
+        """缺口后的段太短（< window_length），不产出窗口。"""
+        # 前 576 点（足够）+ 缺口 1 天 + 后 100 点（< 288，不够一个窗口）
+        ts, labels = self._make_gapped_data(576, 24, 100, label=0)
+        sampler = SlidingWindowSampler(SamplerConfig(window_length=288, stride=72))
+        X, y, meta = sampler.transform(ts, labels, device_id="short_tail")
+
+        # 只有前段有效，后段 100 点切不出任何窗口
+        expected_front = (576 - 288) // 72 + 1
+        assert X.shape[0] == expected_front
+
+    def test_only_short_segments_returns_empty(self):
+        """所有段都比 window_length 短时返回空。"""
+        # 前 100 点 + 缺口 + 后 100 点，都不够 288
+        ts, labels = self._make_gapped_data(100, 24, 100, label=0)
+        sampler = SlidingWindowSampler(SamplerConfig(window_length=288, stride=72))
+        X, y, meta = sampler.transform(ts, labels, device_id="all_short")
+        assert len(y) == 0
+
+    def test_max_gap_multiplier_zero_reverts_to_old_behavior(self):
+        """
+        max_gap_multiplier=0 关闭缺口检测 → 退化为旧行为（会产出跨缝窗口）。
+
+        这个测试验证「关闭开关确实生效」，不验证结果是否"正确"——
+        旧行为本身是 bug，这里只确保开关语义成立。
+
+        构造：前 144 点 + 缺口 12 小时 + 后 432 点 = 576 点。
+        缺口位置：行号 144（窗口中间），stride=288 切第 2 个窗口 [144, 432)
+        必然跨过缺口（144 在段 1 末尾，145 已在段 2，时间跳了 12 小时）。
+        """
+        # 前 144 点 + 缺口 12 小时 + 后 432 点
+        ts, labels = self._make_gapped_data(144, 12, 432, label=0)
+        sampler = SlidingWindowSampler(SamplerConfig(
+            window_length=288, stride=288, max_gap_multiplier=0.0
+        ))
+        X, y, meta = sampler.transform(ts, labels, device_id="no_gap_check")
+
+        # 关闭缺口检测后，576 点按旧逻辑 stride=288 切 2 个窗口
+        assert X.shape[0] == 2
+        ideal_span_min = (288 - 1) * 5.0  # 1435 分钟
+        spans = [
+            (pd.Timestamp(meta.iloc[i]["t_end"]) - pd.Timestamp(meta.iloc[i]["t_start"])).total_seconds() / 60
+            for i in range(len(meta))
+        ]
+        # 第 2 个窗口 [144:432] 跨了 12 小时缺口，跨度约 = 143*5 + 12*60 = 715+720 = 1435+720
+        assert any(s > ideal_span_min + 60 for s in spans), (
+            f"关闭缺口检测后应产出跨缝窗口，全部窗口跨度={[round(s) for s in spans]}，"
+            f"理想={ideal_span_min}min"
+        )
+
+    def test_multi_device_with_gaps_no_seam_windows(self):
+        """transform_multi_device：多设备各自有缺口，均不产出跨缝窗口。"""
+        import itertools
+
+        rows = []
+        # 两台设备，各自前 288 + 缺口 1 天 + 后 288
+        for dev_id in ("devA", "devB"):
+            ts, labels = self._make_gapped_data(288, 24, 288, label=0)
+            merged = ts.copy()
+            merged["label"] = labels["label"]
+            merged["device_id"] = dev_id
+            merged["site_id"] = "siteX"
+            merged["branch_id"] = "1"
+            rows.append(merged)
+
+        df = pd.concat(rows, ignore_index=True)
+        sampler = SlidingWindowSampler(SamplerConfig(window_length=288, stride=288))
+        X, y, meta = sampler.transform_multi_device(df)
+
+        ideal_span_min = (288 - 1) * 5.0
+        for _, row in meta.iterrows():
+            span = (pd.Timestamp(row["t_end"]) - pd.Timestamp(row["t_start"])).total_seconds() / 60
+            assert span <= ideal_span_min + 1e-6, (
+                f"设备 {row['device_id']} 有跨缝窗口: {span:.1f}min"
+            )
+
+    def test_config_preserves_max_gap_multiplier(self):
+        """max_gap_multiplier 随配置序列化/反序列化不丢失。"""
+        cfg = SamplerConfig(max_gap_multiplier=3.5)
+        d = cfg.to_dict()
+        restored = SamplerConfig.from_dict(d)
+        assert restored.max_gap_multiplier == 3.5
+
+    def test_sample_ids_unique_across_segments(self):
+        """同一序列两段产出的 sample_id 不重复（global_start 不同保证唯一性）。"""
+        ts, labels = self._make_gapped_data(576, 24, 576, label=0)
+        sampler = SlidingWindowSampler(SamplerConfig(window_length=288, stride=288))
+        X, y, meta = sampler.transform(ts, labels, device_id="unique_id_dev")
+        assert meta["sample_id"].nunique() == len(meta)
+# @AI_GENERATED: end
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-# @AI_GENERATED: end

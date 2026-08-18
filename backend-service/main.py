@@ -63,6 +63,7 @@ from api.scheduler import (
     set_load_forecast_repository,
     set_scheduler_engine,
 )
+from api.pv_dual_path import router as pv_dual_path_router
 # @AI_GENERATED: end
 
 # 导入数据库初始化
@@ -379,6 +380,7 @@ async def startup_event():
         # @AI_GENERATED: end
         set_scheduler_engine(_sched_engine)
         app._db_adapter = _db_adapter  # store for shutdown
+        app._sched_engine = _sched_engine
         print("✓ DBAdapter 和 SchedulerEngine 初始化完成")
 
         # @AI_GENERATED: 阶段 3 — 启动时预置 tasks.json 种子（幂等，已存在则不覆盖）
@@ -398,6 +400,16 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    try:
+        engine = getattr(app, "_sched_engine", None)
+        if engine is None:
+            from api.scheduler import get_scheduler_engine
+            engine = get_scheduler_engine()
+        if engine is not None:
+            engine.shutdown_all(wait=False)
+            print("✓ SchedulerEngine 已关闭")
+    except Exception as e:
+        print(f"SchedulerEngine 关闭失败: {e}")
     try:
         if hasattr(app, '_db_adapter') and app._db_adapter:
             app._db_adapter.dispose()
@@ -444,6 +456,7 @@ app.include_router(iterative_labeling_router)  # 光伏故障迭代标注闭环�
 app.include_router(accuracy_operations_router)  # 精度运营（新版）路由
 # @AI_GENERATED: end
 app.include_router(scheduler_router)  # 调度器状态路由
+app.include_router(pv_dual_path_router)  # PV 双路径 Ledger/Epoch/Shadow/Backfill
 
 print("已注册的路由:")
 for route in app.routes:

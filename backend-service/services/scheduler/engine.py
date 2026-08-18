@@ -14,6 +14,7 @@ Pipelines supported: 'load_forecast', 'pv_fault' (and any other string key)
 
 from __future__ import annotations
 
+import atexit
 import logging
 import threading
 import time
@@ -104,6 +105,11 @@ class SchedulerEngine:
         # 仅同步调度回执；不参与预测、回填、告警或部署决策。
         self._task_result_listeners: List[TaskResultListener] = []
         # @AI_GENERATED: end
+        self._shutting_down = False
+        # uvicorn --reload / 解释器退出时，concurrent.futures 会先关掉线程池，
+        # APScheduler 后台线程若还在投 */12 任务就会报
+        # "cannot schedule new futures after interpreter shutdown"。
+        atexit.register(self.shutdown_all)
 
     # ------------------------------------------------------------------
     # Public API
@@ -147,6 +153,9 @@ class SchedulerEngine:
 
     def start_pipeline(self, pipeline: str, *, catchup: bool = True) -> None:
         """启动管线调度器；``catchup=False`` 时仅等待下一次 cron，不补跑历史任务。"""
+        if self._shutting_down:
+            logger.debug("SchedulerEngine is shutting down; skip start_pipeline('%s').", pipeline)
+            return
         if self._pipeline_running.get(pipeline):
             logger.debug("Pipeline '%s' is already running.", pipeline)
             return
@@ -179,6 +188,29 @@ class SchedulerEngine:
             self._schedulers[pipeline] = BackgroundScheduler()  # fresh, not started
         self._pipeline_running[pipeline] = False
         logger.info("Pipeline '%s' stopped.", pipeline)
+
+    def shutdown_all(self, wait: bool = False) -> None:
+        """关闭全部管线调度器，避免进程退出后 APScheduler 仍向已关闭线程池投任务。
+
+        可重复调用。``wait=False``：解释器退出路径上不能等正在跑的任务，否则可能和
+        ``ThreadPoolExecutor`` 的 atexit 死锁。
+        """
+        if self._shutting_down and not self._schedulers:
+            return
+        self._shutting_down = True
+        pipelines = list(self._schedulers.keys())
+        for pipeline in pipelines:
+            scheduler = self._schedulers.get(pipeline)
+            try:
+                if scheduler is not None and getattr(scheduler, "running", False):
+                    scheduler.shutdown(wait=wait)
+            except RuntimeError:
+                # 解释器已经在拆线程池，调度器随之失效即可。
+                pass
+            except Exception as exc:
+                logger.warning("Shutdown scheduler for pipeline '%s' failed: %s", pipeline, exc)
+            self._pipeline_running[pipeline] = False
+        self._schedulers.clear()
 
     def get_status(self, pipeline: str) -> SchedulerStatus:
         """Return the SchedulerStatus for a single pipeline."""
@@ -215,6 +247,9 @@ class SchedulerEngine:
         self, scheduler: BackgroundScheduler, meta: _TaskMeta
     ) -> None:
         """Add (or replace) a job in the given scheduler."""
+        if self._shutting_down:
+            logger.debug("SchedulerEngine is shutting down; skip adding job '%s'.", meta.task_id)
+            return
         job_id = meta.task_id
         # Remove existing job if present to avoid duplicates on re-register.
         try:

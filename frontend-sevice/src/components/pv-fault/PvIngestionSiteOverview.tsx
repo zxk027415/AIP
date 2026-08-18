@@ -24,6 +24,8 @@ interface PvIngestionSiteOverviewProps {
 
 const PvIngestionSiteOverview: React.FC<PvIngestionSiteOverviewProps> = ({ businessDate }) => {
   const [sites, setSites] = useState<PvSiteIngestionOverview[]>([]);
+  const [modelingPath, setModelingPath] = useState<string | undefined>(undefined);
+  const [readyCriterion, setReadyCriterion] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedSiteId, setExpandedSiteId] = useState<string | null>(null);
@@ -34,6 +36,8 @@ const PvIngestionSiteOverview: React.FC<PvIngestionSiteOverviewProps> = ({ busin
     try {
       const resp = await pvIngestionApi.getSiteOverview(businessDate);
       setSites(resp.sites);
+      setModelingPath(resp.modeling_path);
+      setReadyCriterion(resp.ready_criterion);
     } catch (err: any) {
       setError(err?.response?.data?.detail || err?.message || '加载数据到达总览失败');
       setSites([]);
@@ -48,7 +52,12 @@ const PvIngestionSiteOverview: React.FC<PvIngestionSiteOverviewProps> = ({ busin
     { title: '站点', dataIndex: 'site_id', width: 200, ellipsis: true },
     { title: '业务日', dataIndex: 'business_date', width: 120 },
     { title: '设备总数', dataIndex: 'device_total', width: 100, align: 'right' },
-    { title: '已完整设备数', dataIndex: 'device_complete', width: 120, align: 'right' },
+    {
+      title: modelingPath === 'seq_annotation' ? '点级可检' : '已到达设备数',
+      dataIndex: 'device_complete',
+      width: 120,
+      align: 'right',
+    },
     {
       title: '完成度',
       dataIndex: 'completion_ratio',
@@ -89,7 +98,16 @@ const PvIngestionSiteOverview: React.FC<PvIngestionSiteOverviewProps> = ({ busin
   return (
     <Card
       size="small"
-      title="数据到达总览（站点级）"
+      title={(
+        <Space>
+          <span>数据到达总览（站点级）</span>
+          {modelingPath === 'seq_annotation' || readyCriterion === 'seq_occupied_173' ? (
+            <Tag color="blue">点级占用闸门 · ≥173/288</Tag>
+          ) : (
+            <Tag>天级 · 无完整等待闸门</Tag>
+          )}
+        </Space>
+      )}
       extra={<Button size="small" icon={<ReloadOutlined />} onClick={() => void load()} loading={loading}>刷新</Button>}
       style={{ marginBottom: 16 }}
     >
@@ -108,7 +126,7 @@ const PvIngestionSiteOverview: React.FC<PvIngestionSiteOverviewProps> = ({ busin
       )}
       {expandedSiteId ? (
         <div style={{ marginTop: 16 }}>
-          <PvDeviceIngestionDetail siteId={expandedSiteId} businessDate={businessDate} />
+          <PvDeviceIngestionDetail siteId={expandedSiteId} businessDate={businessDate} modelingPath={modelingPath} />
         </div>
       ) : null}
     </Card>

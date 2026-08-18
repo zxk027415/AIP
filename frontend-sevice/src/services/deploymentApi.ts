@@ -601,9 +601,14 @@ export const schedulerTaskApi = {
   getPvPredictionCursorStatus: (): Promise<PvPredictionCursorStatusResponse> =>
     api.get('/scheduler/tasks/pv_prediction/cursor-status'),
 
-  /** 手动重置光伏预测进度。 */
-  resetPvPredictionCursor: (): Promise<{ task_id: string; status: string; message: string; cursor: Record<string, unknown> }> =>
-    api.post('/scheduler/tasks/pv_prediction/reset-cursor', {}),
+  // @AI_GENERATED
+  /** 手动重置光伏预测进度。
+   * device_scope 传入时只重置指定设备的游标，不传则清全部（会导致全表逐台 MAX(time)）。
+   */
+  resetPvPredictionCursor: (deviceScope?: Array<{ site_id: string; device_id: string; branch_id: string }>): Promise<{
+    task_id: string; status: string; message: string; scoped: boolean; cursor: Record<string, unknown>;
+  }> =>
+    api.post('/scheduler/tasks/pv_prediction/reset-cursor', deviceScope ? { device_scope: deviceScope } : {}),
   // @AI_GENERATED: end
 };
 
@@ -815,18 +820,26 @@ export interface PvSiteIngestionOverview {
   business_date: string | null;
   /** device_total — 该站点该业务日的设备总数（设备三元组数） */
   device_total: number;
-  /** device_complete — 已完整（is_complete=true）的设备数 */
+  /** device_complete — 当前日滚路径下已达可检测门槛的设备数 */
   device_complete: number;
-  /** completion_ratio — 完成度 0~1 */
+  /** device_seq_ready — 点级占用门槛（≥173）已达标的设备数，与当前路径无关 */
+  device_seq_ready?: number;
+  /** completion_ratio — 完成度 0~1（按当前日滚路径门槛） */
   completion_ratio: number;
   /** latest_updated_at — 该站点该业务日最近一次完整性记录更新时间 */
   latest_updated_at: string | null;
+  /** modeling_path — 本条总览使用的日滚路径 */
+  modeling_path?: string;
+  /** ready_criterion — is_complete_90pct / seq_occupied_173 */
+  ready_criterion?: string;
 }
 
 /** PvSiteIngestionOverviewResponse — 站点到达总览接口返回体。 */
 export interface PvSiteIngestionOverviewResponse {
   /** business_date — 请求指定的业务日；未指定时为 null（表示每站点取各自最新业务日） */
   business_date: string | null;
+  modeling_path?: string;
+  ready_criterion?: string;
   sites: PvSiteIngestionOverview[];
 }
 
@@ -844,13 +857,17 @@ export interface PvDeviceIngestionDetail {
   point_count: number;
   /** expected_point_count — 理论应有点数，默认 288（5 分钟采样 × 24h） */
   expected_point_count: number;
-  /** is_complete — 是否已达到完整性阈值（默认 90%） */
+  /** is_complete — 是否已达到天级完整性阈值（默认 90%） */
   is_complete: boolean;
+  /** is_seq_ready — 是否达到点级占用门槛（≥173） */
+  is_seq_ready?: boolean;
   first_seen_at: string | null;
   completed_at: string | null;
   updated_at: string | null;
   /** last_predicted_business_date — 仅 pending-predictable 接口返回时携带 */
   last_predicted_business_date?: string | null;
+  /** modeling_path — 仅 pending-predictable 接口返回时携带 */
+  modeling_path?: string;
 }
 
 /** PvDeviceIngestionDetailResponse — 设备到达明细（下钻）接口返回体。 */
@@ -860,11 +877,13 @@ export interface PvDeviceIngestionDetailResponse {
   devices: PvDeviceIngestionDetail[];
 }
 
-/** PvPendingPredictableResponse — 已完整但尚未预测的设备-天列表（投喂闸门完整性版）。 */
+/** PvPendingPredictableResponse — 当前路径已可检测但尚未预测的设备-天列表。 */
 export interface PvPendingPredictableResponse {
   site_id: string | null;
   count: number;
   items: PvDeviceIngestionDetail[];
+  modeling_path?: string;
+  ready_criterion?: string;
 }
 
 /**

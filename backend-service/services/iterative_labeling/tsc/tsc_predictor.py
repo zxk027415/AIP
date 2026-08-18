@@ -83,8 +83,33 @@ class TSCPredictor:
                 "error": f"数据不足: 需要 {cfg.window_length} 点, 只有 {len(df)} 点",
             }
 
-        # 取最近 window_length 个点
-        window = df.iloc[-cfg.window_length:]
+        # @AI_GENERATED: 时间连续性检查（2026-08-04，与训练侧 _split_by_time_gap 对称）
+        # 原来直接 df.iloc[-window_length:] 取最后 N 行，不检查时间间隔。
+        # 若设备数据有缺口（如当天数据不完整、两次查询结果拼接），会产出跨缝推理窗口。
+        # 修复：只在最末连续段内取，若该段不足 window_length 则返回错误。
+        segments = SlidingWindowSampler._split_by_time_gap(df["time"], cfg.max_gap_multiplier)
+        last_seg = segments[-1] if segments else []
+        if len(last_seg) < cfg.window_length:
+            # 最末连续段不够长；尝试找第一个够长的段（从末往前找）
+            for seg in reversed(segments):
+                if len(seg) >= cfg.window_length:
+                    last_seg = seg
+                    break
+            else:
+                return {
+                    "label": None,
+                    "confidence": 0.0,
+                    "window_start": None,
+                    "window_end": None,
+                    "model_name": self.model_name,
+                    "error": (
+                        f"所有连续段都不足 {cfg.window_length} 点（数据有时间缺口），"
+                        f"最长连续段 {max(len(s) for s in segments) if segments else 0} 点"
+                    ),
+                }
+        # 在所选段内取最后 window_length 个点
+        window = df.iloc[last_seg[-cfg.window_length:]]
+        # @AI_GENERATED: end
         x = window[channels].values.astype(np.float32)  # [window_length, n_channels]
         X = x[np.newaxis, ...]  # [1, window_length, n_channels]
 
@@ -144,12 +169,21 @@ class TSCPredictor:
                 "error": f"数据不足: 需要 {cfg.window_length} 点, 只有 {n_points} 点",
             }
 
-        # 滑窗切多个窗口
+        # @AI_GENERATED: 时间连续性检查（2026-08-04，与训练侧 _split_by_time_gap 对称）
+        # 原来直接在全序列 range(0, n-window+1, stride) 滑，不检查时间间隔。
+        # 修复：先切连续段，只在各段内滑，不跨段。
+        segments = SlidingWindowSampler._split_by_time_gap(df["time"], cfg.max_gap_multiplier)
         windows = []
-        for start in range(0, n_points - cfg.window_length + 1, stride):
-            end = start + cfg.window_length
-            x = df.iloc[start:end][channels].values.astype(np.float32)
-            windows.append(x)
+        for seg in segments:
+            seg_len = len(seg)
+            if seg_len < cfg.window_length:
+                continue
+            for seg_start in range(0, seg_len - cfg.window_length + 1, stride):
+                global_start = seg[seg_start]
+                global_end = seg[seg_start + cfg.window_length - 1] + 1
+                x = df.iloc[global_start:global_end][channels].values.astype(np.float32)
+                windows.append(x)
+        # @AI_GENERATED: end
 
         if not windows:
             return {

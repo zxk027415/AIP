@@ -6,9 +6,11 @@ services/scheduler/tasks/pv_fault_tasks.py — 光伏故障诊断调度任务。
 复用 quickval 预测工作流与累计训练完成的模型，不会伪造预测或训练标签。
 """
 
-# @AI_GENERATED: 正常 pv_fault 光伏调度：未标注观测拉取、真实预测和审核批次持久化
 from __future__ import annotations
 
+# @AI_GENERATED: 稳定 seq 预测批次内容寻址
+import hashlib
+# @AI_GENERATED: end
 import json
 import logging
 import math
@@ -17,7 +19,7 @@ import pickle
 import re
 import tempfile
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -58,6 +60,7 @@ def _create_prediction_review_session(
     source_dataset_path: str,
     model_ref: str,
     predictions: List[Dict[str, Any]],
+    modeling_path: str = "legacy_day",
 ) -> Dict[str, Any]:
     """Turn a persisted scheduler prediction batch into an idempotent review queue."""
     prediction_units = []
@@ -97,6 +100,10 @@ def _create_prediction_review_session(
             "window_config": {},
             "label_map": registry.get_current().get("label_map", {}),
             "model_ref": model_ref,
+            "modeling_path": modeling_path,
+            "prediction_granularity": (
+                "point" if modeling_path == _SEQ_ANNOTATION_MODELING_PATH else "day"
+            ),
             "source": "scheduled_prediction",
         },
     )
@@ -263,8 +270,15 @@ def _save_prediction_cursor(
     _atomic_write_json(_PREDICTION_CURSOR_PATH, payload)
 
 
-def reset_prediction_cursor(reason: str = "manual_reset") -> Dict[str, Any]:
-    """手动清空预测游标，并绑定当前数据源指纹。"""
+def reset_prediction_cursor(reason: str = "manual_reset", device_scope: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
+    """手动清空预测游标，并绑定当前数据源指纹。
+
+    Parameters
+    ----------
+    device_scope : 可选设备三元组列表。传入时只重置这些设备的游标，
+        不动其他两千多台——避免重置后第一轮对所有设备逐台 MAX(time) 像卡死。
+        不传则保持旧行为（全部重置）。
+    """
     try:
         source_fp = _current_source_fingerprint()
     except Exception as exc:
@@ -284,12 +298,35 @@ def reset_prediction_cursor(reason: str = "manual_reset") -> Dict[str, Any]:
         "previous_last_predicted_time": previous.get("last_predicted_time"),
     }
     _atomic_write_json(_PREDICTION_CURSOR_PATH, payload)
+    cleared_cursors = 0
+    try:
+        from services.db.adapter import DBAdapter
+        from services.db.config import DBConfig
+        from services.db.repositories.ingestion_tracker import IngestionTrackerRepository
+
+        adapter = DBAdapter(DBConfig())
+        try:
+            # 两条路径的设备游标都清：验证点级时不会被旧 seq 游标挡住。
+            # device_scope 不为空时只重置指定设备，避免全量重置后逐台打 MAX(time) 卡死。
+            cleared_cursors = IngestionTrackerRepository(adapter).reset_path_cursors(
+                slot="pv_fault",
+                modeling_path=None,
+                device_scope=device_scope,
+            )
+        finally:
+            dispose = getattr(adapter, "dispose", None)
+            if callable(dispose):
+                dispose()
+    except Exception as exc:  # noqa: BLE001 — JSON 游标已清，设备表失败不能阻断手动重置
+        logger.warning("reset_prediction_cursor: 清空路径设备游标失败: %s", exc)
+    payload["cleared_device_cursors"] = cleared_cursors
     _save_prediction_last_run(
         {
             "status": "cursor_reset",
             "reason": reason,
             "message": "预测进度已重置，下次预测将从当前数据源重新计算。",
             "source_fingerprint": payload.get("source_fingerprint"),
+            "cleared_device_cursors": cleared_cursors,
             "updated_at": payload["updated_at"],
         }
     )
@@ -379,6 +416,41 @@ def _resolve_model_artifact(model_ref: str) -> Tuple[str, Path, str, str]:
     raise FileNotFoundError(f"PV fault model not found for model_ref={requested}")
 
 
+def _resolve_seq_annotation_artifact(model_ref: str) -> Tuple[str, Path, str]:
+    """解析目录型序列标注工件，拒绝绝对路径和项目外目录。"""
+    requested = str(model_ref or "").strip()
+    if not requested:
+        raise ValueError("model_ref 不能为空")
+    requested_path = Path(requested)
+    if requested_path.is_absolute():
+        raise ValueError("model_ref 必须是模型标识或相对路径")
+
+    candidates: List[Path] = []
+    if len(requested_path.parts) > 1:
+        candidates.extend(
+            (_BACKEND_SERVICE_DIR / requested_path, _PROJECT_ROOT / requested_path)
+        )
+    else:
+        candidates.append(
+            _BACKEND_SERVICE_DIR / "data" / "models" / "seq_annotation" / requested
+        )
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+            resolved.relative_to(_PROJECT_ROOT)
+        except ValueError:
+            continue
+        if (resolved / "metadata.json").is_file() and (resolved / "model.pt").is_file():
+            metadata = json.loads((resolved / "metadata.json").read_text(encoding="utf-8"))
+            artifact_ref = str(metadata.get("model_ref") or "").strip()
+            if artifact_ref and artifact_ref != requested_path.name:
+                continue
+            return requested_path.name, resolved, _to_project_relative(resolved)
+    raise FileNotFoundError(
+        f"PV fault seq_annotation artifact not found for model_ref={requested}"
+    )
+
+
 # @AI_GENERATED: 预测必须同时读回特征契约与样本策略
 # （原 _load_feature_list 只读 feature_list，已被本函数取代并删除）
 def _load_model_contract(model_file: Path) -> Tuple[List[str], Optional[Dict[str, Any]]]:
@@ -408,12 +480,13 @@ def _load_model_contract(model_file: Path) -> Tuple[List[str], Optional[Dict[str
     return [str(feature) for feature in feature_list], strategy
 
 
-#: 逐点标签建模路径。这些路径下预测必须按模型持久化策略切样本。
-_POINT_LABEL_MODELING_PATHS = frozenset({"point_label_by_day", "point_label_by_day_night"})
+# 全天逐点序列路径；传统模型内部采样策略从模型工件读取，
+# 不再作为独立建模路径暴露。
+_SEQ_ANNOTATION_MODELING_PATH = "seq_annotation"
 
 
 def _production_modeling_path() -> str:
-    """读取当前生产建模路径（legacy_day / point_label_by_day / point_label_by_day_night）。"""
+    """读取当前生产建模路径（legacy_day / seq_annotation）。"""
     try:
         paths = CumulativeTrainingService(slot=_SLOT).get_modeling_paths()
         return str(paths.get("production_path") or "legacy_day").strip() or "legacy_day"
@@ -444,8 +517,8 @@ def _write_prediction_input(
 
     Args:
         rows: 观测行列表或已切好样本的 DataFrame。
-        extra_columns: 需要一并写出的附加列（逐点标签路径下是 ``time_window`` /
-            ``period_role`` 及 ``period_is_*`` / ``night_*`` 派生列）。带 ``#`` 的
+        extra_columns: 需要一并写出的附加列（带持久化采样策略的传统模型会使用
+            ``time_window`` / ``period_role`` 及 ``period_is_*`` / ``night_*`` 派生列）。带 ``#`` 的
             ``time_window`` 会被 ``time_window_split`` 识别为显式样本边界并原样保留，
             从而让预测样本粒度与训练完全一致。
     """
@@ -561,18 +634,64 @@ def _normalize_predictions(raw_predictions: Any) -> List[Dict[str, Any]]:
             if not 0.0 <= normalized_confidence <= 1.0:
                 raise RuntimeError(f"fault_predictions[{index}] 的 confidence 超出 [0, 1]")
 
-        predictions.append(
-            _json_safe(
-                {
-                    "site_id": raw["site_id"],
-                    "device_id": raw["device_id"],
-                    "branch_id": raw["branch_id"],
-                    "time_window": raw["time_window"],
-                    "predicted_label": predicted_label,
-                    "confidence": normalized_confidence,
-                }
-            )
-        )
+        normalized = {
+            "site_id": raw["site_id"],
+            "device_id": raw["device_id"],
+            "branch_id": raw["branch_id"],
+            "time_window": raw["time_window"],
+            "predicted_label": predicted_label,
+            "confidence": normalized_confidence,
+        }
+        detail = raw.get("prediction_detail")
+        if detail is not None:
+            if not isinstance(detail, dict):
+                raise RuntimeError(f"fault_predictions[{index}] 的 prediction_detail 不是对象")
+            timestamps = detail.get("timestamps") or []
+            point_predictions = detail.get("point_predictions") or []
+            raw_point_predictions = detail.get("raw_point_predictions") or []
+            point_confidences = detail.get("point_confidences") or []
+            segments = detail.get("segment_predictions") or []
+            postprocessing = detail.get("postprocessing") or {}
+            if not all(
+                isinstance(values, list)
+                for values in (
+                    timestamps,
+                    point_predictions,
+                    raw_point_predictions,
+                    point_confidences,
+                    segments,
+                )
+            ):
+                raise RuntimeError(f"fault_predictions[{index}] 的逐点详情字段必须是数组")
+            if not isinstance(postprocessing, dict):
+                raise RuntimeError(f"fault_predictions[{index}] 的 postprocessing 必须是对象")
+            if not (
+                len(timestamps) == len(point_predictions) == len(point_confidences)
+            ):
+                raise RuntimeError(f"fault_predictions[{index}] 的逐点详情长度不一致")
+            if raw_point_predictions and len(raw_point_predictions) != len(timestamps):
+                raise RuntimeError(f"fault_predictions[{index}] 的 raw_point_predictions 长度不一致")
+            # @AI_GENERATED: 审计布尔严格保留 JSON 语义，禁止字符串真值污染
+            trained_full_day = detail.get("trained_full_day")
+            if not isinstance(trained_full_day, bool):
+                raise RuntimeError(
+                    f"fault_predictions[{index}] 的 trained_full_day 必须为 JSON boolean"
+                )
+            normalized["prediction_detail"] = {
+                "granularity": "point",
+                "timestamps": timestamps,
+                "point_predictions": point_predictions,
+                "raw_point_predictions": raw_point_predictions,
+                "point_confidences": point_confidences,
+                "segment_predictions": segments,
+                "postprocessing": postprocessing,
+                "n_points_predicted": len(point_predictions),
+                "model_name": detail.get("model_name"),
+                "seq_len_used": detail.get("seq_len_used"),
+                "trained_full_day": trained_full_day,
+            }
+            # @AI_GENERATED: end
+        predictions.append(_json_safe(normalized))
 
     if not predictions:
         raise RuntimeError(
@@ -588,6 +707,168 @@ def _normalize_predictions(raw_predictions: Any) -> List[Dict[str, Any]]:
     return predictions
 
 
+# @AI_GENERATED: seq 设备日幂等键、不可变批次恢复与原子审核持久化
+
+def _seq_sample_key(time_window: str):
+    """把序列标注的设备日窗口解析为 (business_date, sample_id) 幂等键。
+
+    seq_annotation 场景下 ``time_window`` 为 ISO 日期（如 ``2026-08-12``）。
+    ``sample_id`` 采用 ``{date}#point`` 对齐逐点样本粒度；解析失败时业务日回退为
+    当天日期（键仍需保持确定性），以保证失败重试的幂等。
+    """
+    raw = str(time_window or "").strip()
+    try:
+        business_date = datetime.strptime(raw[:10], "%Y-%m-%d").date()
+    except ValueError:
+        business_date = datetime.utcnow().date()
+    sample_id = f"{raw[:10]}#point" if raw else f"{business_date.isoformat()}#point"
+    return business_date, sample_id
+
+
+def _seq_prediction_batch_id(
+    model_ref: str,
+    predictions: List[Dict[str, Any]],
+) -> str:
+    """为同一模型和同一组设备日生成稳定批次 ID，供失败重试复用审核会话。"""
+    units = sorted(
+        {
+            (
+                _review_unit_id(item.get("site_id")),
+                _review_unit_id(item.get("device_id")),
+                _review_unit_id(item.get("branch_id")),
+                str(item.get("time_window") or ""),
+            )
+            for item in predictions
+        }
+    )
+    if not units:
+        raise ValueError("seq_annotation 预测为空，不能生成批次 ID")
+    canonical = json.dumps(
+        {"model_ref": str(model_ref), "units": units},
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:20]
+    return f"pred-seq-{digest}"
+
+
+def _load_seq_recovery_batch(
+    batch_id: str,
+    model_ref: str,
+) -> Tuple[List[Dict[str, Any]], str, Dict[tuple, datetime]]:
+    """加载首次落盘的不可变 seq 批次，禁止重试用新推理覆盖旧审核事实。"""
+    from services.iterative_labeling.review_explanations import load_prediction_batch
+
+    payload = load_prediction_batch(_SLOT, batch_id)
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"恢复批次 {batch_id} 缺失或损坏，拒绝覆盖重建")
+    if str(payload.get("model_ref") or "") != str(model_ref):
+        raise RuntimeError(f"恢复批次 {batch_id} 的 model_ref 不一致")
+    if payload.get("modeling_path") != _SEQ_ANNOTATION_MODELING_PATH:
+        raise RuntimeError(f"恢复批次 {batch_id} 不是 seq_annotation 批次")
+
+    raw_predictions = payload.get("predictions")
+    if not isinstance(raw_predictions, list) or not raw_predictions:
+        raise RuntimeError(f"恢复批次 {batch_id} 没有有效 predictions")
+    predictions = _normalize_predictions(raw_predictions)
+    source_dataset_path = str(payload.get("dataset_version") or "").strip()
+    if not source_dataset_path:
+        raise RuntimeError(f"恢复批次 {batch_id} 缺少 dataset_version")
+
+    raw_advances = payload.get("cursor_advance_times")
+    if not isinstance(raw_advances, list) or not raw_advances:
+        raise RuntimeError(f"恢复批次 {batch_id} 缺少 cursor_advance_times")
+    advance_times: Dict[tuple, datetime] = {}
+    for index, item in enumerate(raw_advances):
+        if not isinstance(item, dict):
+            raise RuntimeError(f"恢复批次 {batch_id} 的游标项 {index} 不是对象")
+        try:
+            advance_time = datetime.fromisoformat(str(item["last_predicted_time"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RuntimeError(
+                f"恢复批次 {batch_id} 的游标项 {index} 时间无效"
+            ) from exc
+        key = (item.get("site_id"), item.get("device_id"), item.get("branch_id"))
+        advance_times[key] = advance_time
+    return predictions, source_dataset_path, advance_times
+
+
+def _partition_seq_predictions_for_recovery(
+    pv_repo: PVFaultRepository,
+    model_ref: str,
+    predictions: List[Dict[str, Any]],
+    recovery_candidates: Optional[List[Dict[str, Any]]] = None,
+) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
+    """按数据库首次批次引用拆分本轮新增设备日与待恢复旧批次。"""
+
+    def unit_key(item: Dict[str, Any]) -> tuple:
+        business_date, sample_id = _seq_sample_key(item["time_window"])
+        return (
+            item["site_id"],
+            item["device_id"],
+            item["branch_id"],
+            business_date,
+            sample_id,
+        )
+
+    candidates_by_key: Dict[tuple, Dict[str, Any]] = {}
+    for candidate in [*predictions, *(recovery_candidates or [])]:
+        candidates_by_key[unit_key(candidate)] = candidate
+
+    existing_keys: set[tuple] = set()
+    recovery_batches: Dict[str, str] = {}
+    for key, candidate in candidates_by_key.items():
+        existing = pv_repo.find_prediction_record(
+            site_id=candidate["site_id"],
+            device_id=candidate["device_id"],
+            branch_id=candidate["branch_id"],
+            business_date=key[3],
+            sample_id=key[4],
+        )
+        if existing is None:
+            continue
+
+        existing_keys.add(key)
+        raw_existing_context = existing.input_feature_json
+        existing_context = (
+            raw_existing_context if isinstance(raw_existing_context, dict) else {}
+        )
+        existing_batch_id = str(
+            existing_context.get("prediction_batch_id") or ""
+        ).strip()
+        existing_model_ref = str(existing_context.get("model_ref") or "").strip()
+        if existing_batch_id.startswith("pred-seq-") and existing_model_ref:
+            # 数据库记录中的首次 batch ID 和 model ref 才是恢复真源；当前生产模型
+            # 可能已 Promote，不能拿 M2 去校验或重建 M1 的不可变批次。
+            previous_model_ref = recovery_batches.get(existing_batch_id)
+            if previous_model_ref and previous_model_ref != existing_model_ref:
+                raise RuntimeError(
+                    f"恢复批次 {existing_batch_id} 存在冲突 model_ref"
+                )
+            recovery_batches[existing_batch_id] = existing_model_ref
+            if existing_model_ref != str(model_ref):
+                logger.info(
+                    "pv_prediction_task: recover seq batch %s from prior model %s "
+                    "while current model is %s",
+                    existing_batch_id,
+                    existing_model_ref,
+                    model_ref,
+                )
+            continue
+        logger.info(
+            "pv_prediction_task: seq_annotation skip duplicate %s %s %s",
+            candidate["device_id"],
+            candidate["time_window"],
+            key[4],
+        )
+
+    new_predictions = [
+        prediction for prediction in predictions if unit_key(prediction) not in existing_keys
+    ]
+    return new_predictions, recovery_batches
+
+
 def _write_prediction_batch(
     batch_id: str,
     *,
@@ -597,6 +878,8 @@ def _write_prediction_batch(
     predictions: List[Dict[str, Any]],
     unit_features: Optional[Dict[str, Any]] = None,
     feature_list: Optional[List[str]] = None,
+    modeling_path: str = "legacy_day",
+    cursor_advance_times: Optional[Dict[tuple, datetime]] = None,
 ) -> None:
     """Persist the same batch shape consumed by iterative-labeling review sessions."""
     batch_dir = (
@@ -612,9 +895,25 @@ def _write_prediction_batch(
         "dataset_version": source_dataset_path,
         "model_ref": model_ref,
         "model_path": model_path,
+        "modeling_path": modeling_path,
+        "prediction_granularity": (
+            "point" if modeling_path == _SEQ_ANNOTATION_MODELING_PATH else "day"
+        ),
         "feature_list": list(feature_list or []),
         "unit_features": unit_features or {},
         "predictions": predictions,
+        "cursor_advance_times": [
+            {
+                "site_id": key[0],
+                "device_id": key[1],
+                "branch_id": key[2],
+                "last_predicted_time": value.isoformat(),
+            }
+            for key, value in sorted(
+                (cursor_advance_times or {}).items(),
+                key=lambda item: tuple(str(part) for part in item[0]),
+            )
+        ],
         "created_at": _utc_now_iso(),
     }
     temp_fd, temp_path = tempfile.mkstemp(dir=str(batch_dir), suffix=".tmp", text=True)
@@ -632,19 +931,34 @@ def _write_prediction_batch(
         raise
 
 
+# @AI_GENERATED: 保留任务注册外壳，每轮惰性读取生产路径并分派双路径策略
 def make_pv_prediction_task(
     pv_repo: PVFaultRepository,
     model_ref: Optional[str] = None,
 ) -> Callable[[], None]:
-    """Create the daily PV prediction task using the latest completed cumulative model.
+    """创建光伏预测任务外壳，并在每次触发时按当前生产路径即时分派。
 
-    An explicit ``model_ref`` is honoured for controlled operations.  When omitted,
-    the task safely waits for a completed pv_fault-slot cumulative retrain request.
+    ``model_ref`` 参数仅为兼容既有任务注册调用保留；实际模型引用由
+    ``DualPathScheduler`` 每轮读取 modeling-paths 登记取得，路径切换无需重启服务。
     """
 
     def pv_prediction_task() -> None:
         try:
-            _run_pv_prediction_cycle(pv_repo, model_ref)
+            from services.scheduler.pv_dual_path.legacy_day_strategy import (
+                LegacyDayStrategy,
+            )
+            from services.scheduler.pv_dual_path.scheduler import DualPathScheduler
+            from services.scheduler.pv_dual_path.seq_daily_strategy import (
+                SeqDailyStrategy,
+            )
+
+            scheduler = DualPathScheduler(
+                strategies={
+                    "legacy_day": LegacyDayStrategy(pv_repo),
+                    "seq_annotation": SeqDailyStrategy(pv_repo),
+                }
+            )
+            scheduler.dispatch(slot="pv_fault")
         except Exception as exc:
             _save_prediction_last_run(
                 {
@@ -657,6 +971,415 @@ def make_pv_prediction_task(
             raise
 
     return pv_prediction_task
+# @AI_GENERATED: end
+
+
+def _run_seq_annotation_prediction_cycle(
+    pv_repo: PVFaultRepository,
+    model_ref: str,
+) -> None:
+    """按设备自然日执行全天逐点诊断；不完整的当天不推进游标。"""
+    try:
+        model_id, model_dir, model_path = _resolve_seq_annotation_artifact(model_ref)
+        from services.iterative_labeling.seq_annotation.predictor import (
+            SeqAnnotationPredictor,
+        )
+
+        from services.iterative_labeling.seq_annotation.production_contract import (
+            assert_final_sequence_contract,
+        )
+
+        predictor = SeqAnnotationPredictor(str(model_dir))
+        assert_final_sequence_contract(predictor.metadata)
+    except (FileNotFoundError, TypeError, ValueError, RuntimeError) as exc:
+        logger.error("pv_prediction_task: seq_annotation 工件不可用: %s", exc)
+        _save_prediction_last_run(
+            {
+                "status": "skipped",
+                "reason": "seq_annotation_model_invalid",
+                "message": str(exc),
+                "model_ref": model_ref,
+                "modeling_path": _SEQ_ANNOTATION_MODELING_PATH,
+                "updated_at": _utc_now_iso(),
+            }
+        )
+        return
+    if not predictor.supports_night or predictor.seq_len != 288:
+        message = "序列标注模型不是全天 288 点工件，拒绝进入生产预测"
+        logger.error("pv_prediction_task: %s", message)
+        _save_prediction_last_run(
+            {
+                "status": "skipped",
+                "reason": "seq_annotation_not_full_day",
+                "message": message,
+                "model_ref": model_ref,
+                "updated_at": _utc_now_iso(),
+            }
+        )
+        return
+
+    from services.db.adapter import DBAdapter
+    from services.db.config import DBConfig
+    from sqlalchemy import select
+
+    cutoff = datetime.utcnow()
+    cursor_adapter = DBAdapter(DBConfig())
+    with cursor_adapter.get_sync_session() as session:
+        cursor_rows = session.execute(select(DevicePredictionCursor)).scalars().all()
+        device_cursors: Dict[tuple, Optional[datetime]] = {
+            (row.site_id, row.device_id, row.branch_id): row.last_predicted_time
+            for row in cursor_rows
+        }
+    cursor_adapter.dispose()
+    if not device_cursors:
+        _save_prediction_last_run(
+            {
+                "status": "skipped",
+                "reason": "no_device_cursors",
+                "message": "device_prediction_cursor 表为空，请先运行初始化脚本。",
+                "modeling_path": _SEQ_ANNOTATION_MODELING_PATH,
+                "updated_at": _utc_now_iso(),
+            }
+        )
+        return
+
+    all_rows: List[Dict[str, Any]] = []
+    rows_by_device: Dict[tuple, List[Dict[str, Any]]] = {}
+    for device_key, last_time in device_cursors.items():
+        rows = pv_repo.query_unlabeled_by_point_labels(
+            after_time=last_time,
+            before_time=cutoff,
+            site_id=device_key[0],
+            device_id=device_key[1],
+            branch_id=device_key[2],
+        )
+        if rows:
+            rows_by_device[device_key] = rows
+            all_rows.extend(rows)
+    if not all_rows:
+        _save_prediction_last_run(
+            {
+                "status": "skipped",
+                "reason": "skipped_caught_up",
+                "message": "所有设备均无新增待预测数据。",
+                "modeling_path": _SEQ_ANNOTATION_MODELING_PATH,
+                "updated_at": _utc_now_iso(),
+            }
+        )
+        return
+
+    raw_predictions: List[Dict[str, Any]] = []
+    prediction_input_rows: List[Dict[str, Any]] = []
+    recovery_candidates: List[Dict[str, Any]] = []
+    skipped_incomplete_days = 0
+
+    for device_key, rows in rows_by_device.items():
+        frame = pd.DataFrame(rows)
+        frame["time"] = pd.to_datetime(frame["time"], errors="coerce")
+        frame = frame.dropna(subset=["time"]).sort_values("time")
+        frame["_date"] = frame["time"].dt.date
+        completed = frame[frame["_date"] < cutoff.date()]
+        if completed.empty:
+            skipped_incomplete_days += 1
+            continue
+        for day, _candidate_day_frame in completed.groupby("_date", sort=True):
+            recovery_candidates.append(
+                {
+                    "site_id": device_key[0],
+                    "device_id": device_key[1],
+                    "branch_id": device_key[2],
+                    "time_window": str(day),
+                }
+            )
+            day_start = datetime.combine(day, datetime.min.time())
+            full_day_rows = pv_repo.query_device_measurements(
+                site_id=device_key[0],
+                device_id=device_key[1],
+                branch_id=device_key[2],
+                time_start=day_start,
+                time_end=day_start + timedelta(days=1),
+            )
+            if not full_day_rows:
+                skipped_incomplete_days += 1
+                continue
+            day_frame = pd.DataFrame(full_day_rows)
+            day_frame["time"] = pd.to_datetime(day_frame["time"], errors="coerce")
+            day_frame = day_frame.dropna(subset=["time"]).sort_values("time")
+            prediction_input_rows.extend(full_day_rows)
+            result = predictor.predict_device_day(day_frame, include_night=True)
+            if result.get("error"):
+                logger.warning(
+                    "pv_prediction_task: seq_annotation skip %s %s: %s",
+                    device_key,
+                    day,
+                    result["error"],
+                )
+                skipped_incomplete_days += 1
+                break
+            raw_predictions.append(
+                {
+                    "site_id": device_key[0],
+                    "device_id": device_key[1],
+                    "branch_id": device_key[2],
+                    "time_window": str(day),
+                    "predicted_label": result["predicted_label"],
+                    "confidence": result["confidence"],
+                    "prediction_detail": {
+                        "timestamps": result["timestamps"],
+                        "point_predictions": result["point_predictions"],
+                        "raw_point_predictions": result.get("raw_point_predictions") or [],
+                        "point_confidences": result["point_confidences"],
+                        "segment_predictions": result["segment_predictions"],
+                        "postprocessing": result.get("postprocessing") or {},
+                        "model_name": result["model_name"],
+                        "seq_len_used": result["seq_len_used"],
+                        "trained_full_day": result["trained_full_day"],
+                    },
+                }
+            )
+
+    predictions = (
+        _normalize_predictions(raw_predictions) if raw_predictions else []
+    )
+    model_version = pv_repo.get_model_version(model_id)
+    new_predictions, recovery_batches = _partition_seq_predictions_for_recovery(
+        pv_repo,
+        model_ref,
+        predictions,
+        recovery_candidates=recovery_candidates,
+    )
+    if not predictions and not recovery_batches:
+        _save_prediction_last_run(
+            {
+                "status": "skipped",
+                "reason": "no_complete_device_day",
+                "message": "新增数据中没有满足质量门控的完整设备日，游标未推进。",
+                "model_ref": model_ref,
+                "modeling_path": _SEQ_ANNOTATION_MODELING_PATH,
+                "updated_at": _utc_now_iso(),
+            }
+        )
+        return
+
+    batch_results: List[Dict[str, Any]] = []
+    final_device_advance_times: Dict[tuple, datetime] = {}
+    final_device_model_ids: Dict[tuple, Optional[str]] = {}
+    inserted_records: List[Any] = []
+
+    def merge_advance_times(
+        values: Dict[tuple, datetime],
+        cursor_model_id: Optional[str],
+    ) -> None:
+        for key, value in values.items():
+            current = final_device_advance_times.get(key)
+            if current is None or value >= current:
+                final_device_advance_times[key] = value
+                final_device_model_ids[key] = cursor_model_id
+
+    # 先从数据库记录引用的不可变批次补建审核。即使本轮设备日集合发生增减，
+    # 也不会覆盖首次 predictions/source/cursor 事实。
+    for recovery_batch_id in sorted(recovery_batches):
+        recovery_model_ref = recovery_batches[recovery_batch_id]
+        recovered_predictions, recovered_source_path, recovered_advances = (
+            _load_seq_recovery_batch(recovery_batch_id, recovery_model_ref)
+        )
+        recovered_session = _create_prediction_review_session(
+            recovery_batch_id,
+            source_dataset_path=recovered_source_path,
+            model_ref=recovery_model_ref,
+            predictions=recovered_predictions,
+            modeling_path=_SEQ_ANNOTATION_MODELING_PATH,
+        )
+        recovery_model_version = pv_repo.get_model_version(recovery_model_ref)
+        recovery_model_id = (
+            recovery_model_ref if recovery_model_version is not None else None
+        )
+        merge_advance_times(recovered_advances, recovery_model_id)
+        batch_results.append(
+            {
+                "batch_id": recovery_batch_id,
+                "review_id": recovered_session["review_id"],
+                "model_ref": recovery_model_ref,
+                "prediction_count": len(recovered_predictions),
+                "inserted_count": 0,
+                "recovered": True,
+            }
+        )
+
+    # 本轮数据库中不存在的设备日独立形成新批次；其身份和游标不混入旧批次。
+    if new_predictions:
+        new_batch_id = _seq_prediction_batch_id(model_ref, new_predictions)
+        new_unit_keys = {
+            (
+                prediction["site_id"],
+                prediction["device_id"],
+                prediction["branch_id"],
+                str(prediction["time_window"]),
+            )
+            for prediction in new_predictions
+        }
+        new_input_rows = []
+        new_advance_times: Dict[tuple, datetime] = {}
+        for row in prediction_input_rows:
+            try:
+                row_timestamp = pd.Timestamp(row["time"])
+                row_day = str(row_timestamp.date())
+            except (KeyError, TypeError, ValueError):
+                continue
+            row_key = (
+                row.get("site_id"),
+                row.get("device_id"),
+                row.get("branch_id"),
+                row_day,
+            )
+            if row_key in new_unit_keys:
+                new_input_rows.append(row)
+                device_key = row_key[:3]
+                advance_time = row_timestamp.to_pydatetime()
+                previous_time = new_advance_times.get(device_key)
+                if previous_time is None or advance_time > previous_time:
+                    new_advance_times[device_key] = advance_time
+        if not new_input_rows or not new_advance_times:
+            raise RuntimeError("新增 seq 预测没有对应的不可变输入测量和游标时间")
+
+        _, new_source_dataset_path = _write_prediction_input(
+            new_input_rows, new_batch_id
+        )
+        _write_prediction_batch(
+            new_batch_id,
+            source_dataset_path=new_source_dataset_path,
+            model_ref=model_ref,
+            model_path=model_path,
+            predictions=new_predictions,
+            modeling_path=_SEQ_ANNOTATION_MODELING_PATH,
+            cursor_advance_times=new_advance_times,
+        )
+
+        record_payloads: List[Dict[str, Any]] = []
+        for prediction in new_predictions:
+            detail = prediction.get("prediction_detail") or {}
+            business_date, sample_id = _seq_sample_key(prediction["time_window"])
+            record_payloads.append(
+                {
+                    "model_version_id": model_id if model_version is not None else None,
+                    "site_id": prediction["site_id"],
+                    "device_id": prediction["device_id"],
+                    "branch_id": prediction["branch_id"],
+                    "predicted_label": prediction["predicted_label"],
+                    "confidence": prediction["confidence"],
+                    "business_date": business_date,
+                    "sample_id": sample_id,
+                    "input_feature_json": {
+                        "prediction_batch_id": new_batch_id,
+                        "time_window": prediction["time_window"],
+                        "source_dataset_path": new_source_dataset_path,
+                        "model_ref": model_ref,
+                        "modeling_path": _SEQ_ANNOTATION_MODELING_PATH,
+                        "prediction_granularity": "point",
+                        "segment_predictions": detail.get("segment_predictions") or [],
+                        "detail_ref": f"{new_batch_id}:{prediction['time_window']}",
+                    },
+                }
+            )
+
+        inserted_records = pv_repo.insert_prediction_records(record_payloads)
+        new_review_session = _create_prediction_review_session(
+            new_batch_id,
+            source_dataset_path=new_source_dataset_path,
+            model_ref=model_ref,
+            predictions=new_predictions,
+            modeling_path=_SEQ_ANNOTATION_MODELING_PATH,
+        )
+        merge_advance_times(
+            new_advance_times,
+            model_id if model_version is not None else None,
+        )
+        batch_results.append(
+            {
+                "batch_id": new_batch_id,
+                "review_id": new_review_session["review_id"],
+                "model_ref": model_ref,
+                "prediction_count": len(new_predictions),
+                "inserted_count": len(inserted_records),
+                "recovered": False,
+            }
+        )
+
+    if not batch_results:
+        _save_prediction_last_run(
+            {
+                "status": "skipped",
+                "reason": "all_duplicate",
+                "message": "本批设备日预测记录均已存在且无可恢复批次，游标未推进。",
+                "model_ref": model_ref,
+                "modeling_path": _SEQ_ANNOTATION_MODELING_PATH,
+                "updated_at": _utc_now_iso(),
+            }
+        )
+        return
+
+    if not final_device_advance_times:
+        raise RuntimeError("seq 预测批次已送审但没有可推进的设备游标")
+
+    from sqlalchemy.dialects.mysql import insert as mysql_insert
+
+    now = datetime.utcnow()
+    cursor_records = [
+        {
+            "site_id": key[0],
+            "device_id": key[1],
+            "branch_id": key[2],
+            "last_predicted_time": advance_time,
+            "last_predicted_at": now,
+            "model_version_id": final_device_model_ids.get(key),
+            "updated_at": now,
+        }
+        for key, advance_time in final_device_advance_times.items()
+    ]
+    write_adapter = DBAdapter(DBConfig())
+    with write_adapter.get_sync_session() as session:
+        statement = mysql_insert(DevicePredictionCursor).values(cursor_records)
+        statement = statement.on_duplicate_key_update(
+            last_predicted_time=statement.inserted.last_predicted_time,
+            last_predicted_at=statement.inserted.last_predicted_at,
+            model_version_id=statement.inserted.model_version_id,
+            updated_at=statement.inserted.updated_at,
+        )
+        session.execute(statement)
+    write_adapter.dispose()
+
+    batch_ids = [item["batch_id"] for item in batch_results]
+    review_ids = [item["review_id"] for item in batch_results]
+    prediction_count = sum(item["prediction_count"] for item in batch_results)
+    inserted_count = sum(item["inserted_count"] for item in batch_results)
+    recovered_batch_count = sum(
+        item.get("recovered") is True for item in batch_results
+    )
+    _save_prediction_last_run(
+        {
+            "status": "success",
+            "reason": "predicted",
+            "message": (
+                f"序列标注已提交 {prediction_count} 个设备日逐点结果"
+                f"（本次新增入库 {inserted_count} 条，恢复旧批次 "
+                f"{recovered_batch_count} 个）"
+            ),
+            # 保留单值字段兼容现有状态消费者；多批次事实由复数字段完整表达。
+            "batch_id": batch_ids[-1],
+            "review_id": review_ids[-1],
+            "batch_ids": batch_ids,
+            "review_ids": review_ids,
+            "prediction_count": prediction_count,
+            "inserted_count": inserted_count,
+            "device_count": len(final_device_advance_times),
+            "recovered_batch_count": recovered_batch_count,
+            "skipped_incomplete_days": skipped_incomplete_days,
+            "model_ref": model_ref,
+            "modeling_path": _SEQ_ANNOTATION_MODELING_PATH,
+            "updated_at": _utc_now_iso(),
+        }
+    )
+# @AI_GENERATED: end
 
 
 def _run_pv_prediction_cycle(
@@ -679,6 +1402,11 @@ def _run_pv_prediction_cycle(
                                    "message": "尚无可用模型，预测已跳过。", "updated_at": _utc_now_iso()})
         return
 
+    modeling_path = _production_modeling_path()
+    if modeling_path == _SEQ_ANNOTATION_MODELING_PATH:
+        _run_seq_annotation_prediction_cycle(pv_repo, resolved_ref)
+        return
+
     try:
         model_id, model_file, model_path, execution_model_path = _resolve_model_artifact(resolved_ref)
     except FileNotFoundError:
@@ -688,18 +1416,9 @@ def _run_pv_prediction_cycle(
         return
 
     feature_list, sample_strategy = _load_model_contract(model_file)
-    modeling_path = _production_modeling_path()
-    use_point_label_path = modeling_path in _POINT_LABEL_MODELING_PATHS
-    if use_point_label_path and not sample_strategy:
-        message = (
-            f"生产建模路径为 {modeling_path}，但模型 {resolved_ref} 的 pkl 里没有 "
-            "sample_strategy，无法复现训练切分口径，预测已跳过。"
-        )
-        logger.error("pv_prediction_task: %s", message)
-        _save_prediction_last_run({"status": "skipped", "reason": "sample_strategy_missing",
-                                   "message": message, "model_ref": resolved_ref,
-                                   "modeling_path": modeling_path, "updated_at": _utc_now_iso()})
-        return
+    # 历史 RF 模型可能保存 by_day / by_day_night 采样契约；它仍须在推理时复现，
+    # 但该契约只是 legacy_day 的内部实现，不再形成第三、第四条业务路径。
+    use_persisted_sample_strategy = bool(sample_strategy)
 
     # @AI_GENERATED: 点粒度改造 — cutoff = 本次 cron 触发时刻（UTC）
     cutoff = datetime.utcnow()
@@ -729,7 +1448,7 @@ def _run_pv_prediction_cycle(
     # 按设备查各自时间窗口内的测量点，汇总后一次性跑预测
     _query_by_time = (
         pv_repo.query_unlabeled_by_point_labels
-        if use_point_label_path
+        if use_persisted_sample_strategy
         else pv_repo.query_unlabeled_training_samples
     )
 
@@ -773,7 +1492,7 @@ def _run_pv_prediction_cycle(
     batch_id = f"pred-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
     # @AI_GENERATED: 点粒度改造 — 用所有设备汇总的测量行切推理样本
     split_audit: Optional[Dict[str, Any]] = None
-    if use_point_label_path:
+    if use_persisted_sample_strategy:
         from services.iterative_labeling.inference_sample import (
             INFERENCE_DERIVED_COLUMNS,
             InferenceSampleGenerator,
@@ -827,7 +1546,7 @@ def _run_pv_prediction_cycle(
             _workflow_config_set(config, "model_id", model_id)
             _workflow_config_set(config, "model_path", execution_model_path)
             required_nodes[function_id] = True
-        elif function_id == "time_window_split" and use_point_label_path:
+        elif function_id == "time_window_split" and use_persisted_sample_strategy:
             _workflow_config_set(config, "solar_mode", None)
             _workflow_config_set(config, "attach_night_features", False)
     if not all(required_nodes.values()):
@@ -877,12 +1596,14 @@ def _run_pv_prediction_cycle(
         predictions=predictions,
         unit_features=unit_features,
         feature_list=feature_list,
+        modeling_path=modeling_path,
     )
     review_session = _create_prediction_review_session(
         batch_id,
         source_dataset_path=source_dataset_path,
         model_ref=resolved_ref,
         predictions=predictions,
+        modeling_path=modeling_path,
     )
     review_id = str(review_session["review_id"])
 
@@ -939,4 +1660,3 @@ def _run_pv_prediction_cycle(
         batch_id, review_id, len(all_rows), len(predictions),
         len(device_new_rows), skipped_caught_up, resolved_ref, cutoff.isoformat(),
     )
-# @AI_GENERATED: end

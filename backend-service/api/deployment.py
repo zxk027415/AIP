@@ -48,6 +48,7 @@ api/deployment.py — 算法部署槽位管理 HTTP 层
   cooldown_active            -> 409
   no_previous_version        -> 400
   no_current_production      -> 400
+  pv_fault_registry_read_only -> 409
 """
 from __future__ import annotations
 
@@ -64,6 +65,7 @@ from services.deployment import (
     SwitchDecisionEngine,
     SwitchDecisionError,
     SwitchEventLog,
+    PvFaultRegistryReadOnlyError,
 )
 
 # ---------------------------------------------------------------------------
@@ -288,6 +290,7 @@ _ERROR_CODE_TO_HTTP: Dict[str, int] = {
     "cooldown_active": 409,
     "no_previous_version": 400,
     "no_current_production": 400,
+    "pv_fault_registry_read_only": 409,
 }
 
 
@@ -298,6 +301,15 @@ def _raise_from_decision_error(exc: SwitchDecisionError) -> None:
         status_code=status,
         detail={"code": exc.code, "message": exc.message},
     )
+
+
+# @AI_GENERATED: pv_fault 通用部署写入口统一翻译
+def _persist_slot(slot_obj: DeploymentSlot) -> None:
+    try:
+        _slot_store.upsert(slot_obj)
+    except PvFaultRegistryReadOnlyError as exc:
+        _raise_from_decision_error(SwitchDecisionError(code=exc.code, message=exc.message))
+# @AI_GENERATED: end
 
 
 def _require_slot(slot: str) -> DeploymentSlot:
@@ -485,7 +497,7 @@ def update_slot_config(slot: str, cfg: SlotConfigUpdate) -> Dict[str, Any]:
 
     slot_obj.updated_at = datetime.now().isoformat()
 
-    _slot_store.upsert(slot_obj)
+    _persist_slot(slot_obj)
 
     return _config_view(slot_obj)
 
@@ -704,7 +716,7 @@ def enter_prelaunch(slot: str, body: PrelaunchEnterBody) -> Dict[str, Any]:
     )
     slot_obj.prelaunch_models.append(new_model)
     slot_obj.updated_at = now_iso
-    _slot_store.upsert(slot_obj)
+    _persist_slot(slot_obj)
 
     return {
         "success": True,
@@ -730,11 +742,14 @@ def cancel_prelaunch(
       - 目标不存在或已不是 prelaunch → 400
     """
     slot_obj = _require_slot(slot)
-    success = _slot_store.fail_prelaunch(
-        slot,
-        workflow_id,
-        reason=reason or "manual_cancel",
-    )
+    try:
+        success = _slot_store.fail_prelaunch(
+            slot,
+            workflow_id,
+            reason=reason or "manual_cancel",
+        )
+    except PvFaultRegistryReadOnlyError as exc:
+        _raise_from_decision_error(SwitchDecisionError(code=exc.code, message=exc.message))
     if not success:
         raise HTTPException(
             status_code=400,
@@ -763,7 +778,10 @@ def graduate_prelaunch(
       - 目标不存在或已不是 prelaunch → 400
     """
     slot_obj = _require_slot(slot)
-    success = _slot_store.promote_prelaunch_to_shadow(slot, workflow_id)
+    try:
+        success = _slot_store.promote_prelaunch_to_shadow(slot, workflow_id)
+    except PvFaultRegistryReadOnlyError as exc:
+        _raise_from_decision_error(SwitchDecisionError(code=exc.code, message=exc.message))
     if not success:
         raise HTTPException(
             status_code=400,

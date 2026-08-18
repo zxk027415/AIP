@@ -23,7 +23,8 @@ import DegradationExperimentPanel from './accuracy-operations/DegradationExperim
 import AccuracyTrendChart from './accuracy-operations/AccuracyTrendChart';
 import PvFaultStoryRail from './accuracy-operations/PvFaultStoryRail';
 import PvFaultPredictionEvidencePanel from './accuracy-operations/PvFaultPredictionEvidencePanel';
-import PvFaultSplitModeOpsPanel from './accuracy-operations/PvFaultSplitModeOpsPanel';
+import PvFaultModelingPathOpsPanel from './accuracy-operations/PvFaultModelingPathOpsPanel';
+import { PvDualPathOperationsPanel } from './PvDualPathConsole';
 import PvFaultWorkspaceShell from '../components/pv-fault/PvFaultWorkspaceShell';
 import PvFaultErrorBoundary from '../components/pv-fault/PvFaultErrorBoundary';
 import { usePvFaultAccuracyOpsBundle } from '../hooks/usePvFaultAccuracyOpsBundle';
@@ -284,11 +285,13 @@ const AccuracyOperationsPage: React.FC = () => {
               onRefresh={() => setPvRefreshKey((key) => key + 1)}
             />
           </div>
-          <div className="pv-section-label">切分模式与精度对比</div>
-          <PvFaultSplitModeOpsPanel
+          <div className="pv-section-label">建模路径与标签运营</div>
+          <PvFaultModelingPathOpsPanel
             slot={currentSlot}
             opsBundle={pvOpsBundle}
           />
+          <div className="pv-section-label">双路径运营（Ledger / Shadow）</div>
+          <PvDualPathOperationsPanel />
           <div className="pv-section-label">预测证据与样本明细</div>
           <PvFaultPredictionEvidencePanel
             slot={currentSlot}

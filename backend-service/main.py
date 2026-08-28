@@ -28,6 +28,8 @@ from api.functions import router as functions_router
 from api.auth import router as auth_router
 from api.workflows import router as workflows_router
 from api.workflows_enhanced import router as workflows_enhanced_router
+from api.timeseries_profiles import router as timeseries_profiles_router
+from api.timeseries_replay import router as timeseries_replay_router
 from api.templates import router as templates_router
 from api.system import router as system_router
 from api.algorithm_test import router as algorithm_test_router
@@ -64,6 +66,9 @@ from api.scheduler import (
     set_scheduler_engine,
 )
 from api.pv_dual_path import router as pv_dual_path_router
+from api.slot_governance import router as slot_governance_router
+from api.benchmark_reuse import router as benchmark_reuse_router
+from api.slot_datasets import router as slot_datasets_router
 # @AI_GENERATED: end
 
 # 导入数据库初始化
@@ -236,6 +241,10 @@ async def startup_event():
             make_accuracy_monitor_task,
         )
         from services.scheduler.tasks.pv_fault_tasks import make_pv_prediction_task
+        from services.scheduler.tasks.slot_product_tasks import (
+            make_pv_day_predict_task,
+            make_pv_point_replay_tick_task,
+        )
         from services.precision_ops.production_registry import ProductionRegistry
         from services.precision_ops.version_registry import VersionRegistry
         from services.precision_ops.config_manager import ConfigManager
@@ -378,6 +387,18 @@ async def startup_event():
             _db_cfg.sched_pv_predict_cron, "pv_fault"
         )
         # @AI_GENERATED: end
+        _sched_engine.register_task(
+            "pv_day_predict",
+            make_pv_day_predict_task(),
+            getattr(_db_cfg, "sched_pv_day_predict_cron", "0 3 * * *"),
+            "pv_day",
+        )
+        _sched_engine.register_task(
+            "pv_point_replay_tick",
+            make_pv_point_replay_tick_task(),
+            getattr(_db_cfg, "sched_pv_point_replay_cron", "*/5 * * * *"),
+            "pv_point",
+        )
         set_scheduler_engine(_sched_engine)
         app._db_adapter = _db_adapter  # store for shutdown
         app._sched_engine = _sched_engine
@@ -393,6 +414,10 @@ async def startup_event():
         # @AI_GENERATED: PV 管线必须显式启动；无 completed 模型时预测任务安全等待。
         _sched_engine.start_pipeline("pv_fault", catchup=False)
         print("✓ pv_fault 调度管线已启动")
+        _sched_engine.start_pipeline("pv_day", catchup=False)
+        print("✓ pv_day 调度管线已启动")
+        _sched_engine.start_pipeline("pv_point", catchup=False)
+        print("✓ pv_point 调度管线已启动")
         # @AI_GENERATED: end
     except Exception as e:
         print(f"DBAdapter/SchedulerEngine 初始化失败（非致命）: {e}")
@@ -428,6 +453,8 @@ app.include_router(system_router)  # 系统监控路由 - 提前注册
 app.include_router(matrix_router)
 app.include_router(functions_router)
 app.include_router(workflows_enhanced_router)  # 先注册增强版算法模板路由
+app.include_router(timeseries_profiles_router)
+app.include_router(timeseries_replay_router)
 app.include_router(workflows_router)  # 再注册普通算法模板路由
 app.include_router(templates_router)
 app.include_router(algorithm_test_router)
@@ -457,6 +484,9 @@ app.include_router(accuracy_operations_router)  # 精度运营（新版）路由
 # @AI_GENERATED: end
 app.include_router(scheduler_router)  # 调度器状态路由
 app.include_router(pv_dual_path_router)  # PV 双路径 Ledger/Epoch/Shadow/Backfill
+app.include_router(slot_governance_router)  # G4 slot registry / model candidate gate
+app.include_router(benchmark_reuse_router)  # G6.5 benchmark reuse evidence report
+app.include_router(slot_datasets_router)  # G5 annotation / snapshot chain
 
 print("已注册的路由:")
 for route in app.routes:
@@ -599,6 +629,22 @@ def _seed_scheduler_tasks(db_cfg) -> None:
                 "slot": "pv_fault",
             },
             # @AI_GENERATED: end
+            {
+                "task_id": "pv_day_predict",
+                "name": "pv_day — 日级 predict 工作流（registry Champion 驱动）",
+                "pipeline": "pv_day",
+                "schedule_type": "cron",
+                "cron_expr": getattr(db_cfg, "sched_pv_day_predict_cron", "0 3 * * *"),
+                "slot": "pv_day",
+            },
+            {
+                "task_id": "pv_point_replay_tick",
+                "name": "pv_point — replay_activity 点级推进（冻结 graph + 告警前置）",
+                "pipeline": "pv_point",
+                "schedule_type": "cron",
+                "cron_expr": getattr(db_cfg, "sched_pv_point_replay_cron", "*/5 * * * *"),
+                "slot": "pv_point",
+            },
         ]
 
         seeded = 0
@@ -608,15 +654,24 @@ def _seed_scheduler_tasks(db_cfg) -> None:
                 defaults["slot"] = LOAD_FORECAST_SLOT
             if defaults["pipeline"] == "pv_fault":
                 defaults["slot"] = "pv_fault"
+            if defaults["pipeline"] == "pv_day":
+                defaults["slot"] = "pv_day"
+            if defaults["pipeline"] == "pv_point":
+                defaults["slot"] = "pv_point"
             # @AI_GENERATED: end
             # 已存在则跳过（不覆盖用户改过的 cron_expr）
             if store.get_task(defaults["task_id"]) is not None:
                 continue
             try:
+                initial_status = (
+                    "running"
+                    if defaults["task_id"] in {"pv_day_predict", "pv_point_replay_tick"}
+                    else "stopped"
+                )
                 task = ScheduledTask(
                     **defaults,
                     trigger_time="02:00",
-                    status="stopped",
+                    status=initial_status,
                     retry_on_failure=True,
                     max_retries=3,
                     created_at=now,

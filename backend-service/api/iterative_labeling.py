@@ -36,7 +36,7 @@
 """
 
 # @AI_GENERATED: 正常光伏审核链路的 API 基础依赖
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Tuple
@@ -68,10 +68,12 @@ from services.iterative_labeling.pv_governance_events import (
 )
 from services.iterative_labeling.freeform_labeling import FreeformLabelingService
 from services.iterative_labeling.pending_label_queue import PendingLabelQueueService
+from services.iterative_labeling.day_label_service import DayLabelService, DayLabelValidationError
 from services.iterative_labeling.point_label_service import PointLabelService, PointLabelValidationError
-from services.iterative_labeling.point_label_wiring import submit_review_verdict_as_point_label
+from services.iterative_labeling.point_label_wiring import submit_review_verdict_as_day_label
 from services.db.adapter import DBAdapter
 from services.db.config import DBConfig
+from services.db.repositories.day_label import DayLabelRepository
 from services.db.repositories.point_label import PointLabelRepository
 # @AI_GENERATED: end
 from services.iterative_labeling.iteration_tracker import IterationTracker
@@ -81,6 +83,8 @@ from services.iterative_labeling.storage.file_backend import (
     FileIterationHistoryRepository,
     FileGroundTruthRepository,
 )
+from api.auth import require_modeling_path_write_auth
+from services.platform_env import governance_flags
 
 router = APIRouter(prefix="/api/iterative-labeling", tags=["iterative-labeling"])
 logger = logging.getLogger(__name__)
@@ -118,6 +122,16 @@ def _point_label_service_for_slot(slot: str) -> PointLabelService:
     )
 
 
+def _day_label_service_for_slot(slot: str) -> DayLabelService:
+    """构造仅访问 day_label_ops/day_labels 的天路径服务。"""
+    adapter = DBAdapter(DBConfig())
+    return DayLabelService(
+        DayLabelRepository(adapter),
+        _registry_for_slot(slot),
+        slot=slot,
+    )
+
+
 def _pending_queue_for_slot(slot: str) -> PendingLabelQueueService:
     if _pv_repo_instance is None:
         raise RuntimeError("PVFaultRepository 未注入，无法查询待标注队列")
@@ -135,6 +149,7 @@ import os as _os
 # __file__ = backend-service/api/iterative_labeling.py
 # dirname x3 → AIP/ (项目根)
 _PROJECT_ROOT = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+_BACKEND_DIR = _os.path.join(_PROJECT_ROOT, "backend-service")
 
 
 # 兼容旧中文路径：老 session 里可能存了 '相关数据'（现在目录名是 'relate_data'）
@@ -187,19 +202,44 @@ def _resolve_data_path(path: str) -> str:
             # 兜底：还是按原样拼接（供其他 backend-service/xxx 场景）
             backend_dir = _os.path.join(_PROJECT_ROOT, 'backend-service')
             return _os.path.normpath(_os.path.join(backend_dir, path))
-        # 1b. 普通相对路径 → 相对项目根 AIP/
-        return _os.path.join(_PROJECT_ROOT, path)
+        # 1b. 普通相对路径：按约定依次尝试 backend-service/ 与项目根
+        normalized = path.replace("\\", "/")
+        if normalized.startswith("data/"):
+            # 平台持久化数据（models/uploads/slot_datasets/...）相对 backend-service
+            candidates = [
+                _os.path.join(_BACKEND_DIR, path),
+                _os.path.join(_PROJECT_ROOT, path),
+            ]
+        else:
+            candidates = [
+                _os.path.join(_PROJECT_ROOT, path),
+                _os.path.join(_BACKEND_DIR, path),
+            ]
+        for candidate in candidates:
+            if _os.path.exists(candidate):
+                return candidate
+        return candidates[0]
 
     # 2. 绝对路径：优先直接使用
     if _os.path.exists(path):
         return path
 
-    # 3. 绝对路径但不存在（部署到新机器路径失效）：尝试提取相对部分回退到项目根
-    for marker in ('backend-service/', 'fault-diag-algo-release', 'data/'):
-        idx = path.find(marker)
-        if idx != -1:
-            relative = path[idx:]
-            candidate = _os.path.join(_PROJECT_ROOT, relative)
+    # 3. 绝对路径但不存在（部署到新机器路径失效）：尝试提取相对部分回退
+    for marker in ("backend-service/", "fault-diag-algo-release", "data/"):
+        idx = path.replace("\\", "/").find(marker)
+        if idx == -1:
+            continue
+        relative = path[idx:].replace("\\", "/")
+        if marker == "backend-service/":
+            candidates = [_os.path.join(_PROJECT_ROOT, relative)]
+        elif marker == "data/":
+            candidates = [
+                _os.path.join(_BACKEND_DIR, relative),
+                _os.path.join(_PROJECT_ROOT, relative),
+            ]
+        else:
+            candidates = [_os.path.join(_PROJECT_ROOT, relative)]
+        for candidate in candidates:
             if _os.path.exists(candidate):
                 return candidate
     return path
@@ -359,6 +399,30 @@ class RegisterCumulativeTrainingImportRequest(BaseModel):
     """登记带真值导入数据到正常累计训练集。"""
     dataset_path: str = Field(..., description="带 label 列的 CSV/Parquet 相对项目根目录路径")
     source_name: Optional[str] = Field(None, description="导入来源说明 — 仅用于审计展示")
+
+
+class IncludeLabeledVersionInCumulativeRequest(BaseModel):
+    """将确认箱纳入 slot 累计清单（不改确认箱文件）。"""
+    slot: str = Field(..., description="pv_day 或 pv_point")
+    dataset_version_id: str = Field(..., description="LabeledDatasetVersion ID")
+    source: str = Field("path_a", description="入库来源：path_a 或 daily_review")
+    reviewed_at: Optional[str] = Field(None, description="人工审核结束时间 ISO")
+    reviewer: Optional[str] = Field(None, description="审核人")
+    freeze: bool = Field(False, description="纳入后是否按审核时间冻结一版累计训练快照")
+
+
+class FreezeCumulativeRequest(BaseModel):
+    """按人工审核结束时间冻结累计训练版本。"""
+    slot: str = Field(..., description="pv_day 或 pv_point")
+    reviewed_at_cutoff: str = Field(..., description="纳入截止的人工审核结束时间")
+    reason: Optional[str] = Field(None, description="冻结原因")
+
+
+class BuildLabeledCumulativeSnapshotRequest(BaseModel):
+    """基于累计清单构建 slot_dataset_snapshot 并登记画布累计行。"""
+    slot: str = Field(..., description="pv_day 或 pv_point")
+    idempotency_key: str = Field(..., description="幂等键")
+    reason: str = Field("build labeled cumulative snapshot", description="构建原因")
 # @AI_GENERATED: end
 
 class GetAccuracyResponse(BaseModel):
@@ -439,6 +503,14 @@ class CreateReviewSessionFromPredictionRequest(BaseModel):
     loop_id: Optional[str] = Field(None, description="所属迭代闭环 — 可选,编辑器驱动可不传")
     reviewer: Optional[str] = Field("operator", description="审核人标识")
     slot: str = Field("default", description="槽位 — 审核、标签和累计训练集的隔离分区")
+    prediction_granularity: str = Field(
+        ...,
+        description="预测粒度 — 必填，只允许 day/point；缺失时禁止猜测标签路径",
+    )
+    modeling_path: str = Field(
+        ...,
+        description="建模路径 — 必填；seq_annotation 必须对应 point，legacy_day 必须对应 day",
+    )
     sampling_strategy: Optional[str] = Field(
         "uncertainty",
         description="审核队列策略 — uncertainty/diversity/disagreement_first/random",
@@ -452,6 +524,30 @@ class CreateManualReviewFromDatasetRequest(BaseModel):
     slot: str = Field("pv_fault", description="审核槽位")
     reviewer: str = Field("operator", description="审核人")
     max_units: int = Field(500, ge=1, le=5000, description="单次人工标注单元上限")
+
+
+class CreateReviewFromAnnotationCandidateRequest(BaseModel):
+    """把 G5 标注候选所属检测组转成可框选的 rev-* 审核会话。"""
+    slot: str = Field(..., description="产品槽位 pv_day 或 pv_point")
+    annotation_candidate_id: str = Field(..., description="annotation_candidate_id（将创建整组检测会话）")
+    reviewer: str = Field("ui-operator", description="审核人")
+    source_csv_path: Optional[str] = Field(
+        None,
+        description="可选：覆盖曲线数据源（相对项目根）；缺省从候选/快照解析",
+    )
+
+
+class CreateReviewFromDetectionGroupRequest(BaseModel):
+    """一次完整检测（按天/execution）→ 一个 rev-* 会话。"""
+    slot: str = Field(..., description="产品槽位 pv_day 或 pv_point")
+    detection_group_id: str = Field(..., description="检测组 ID，来自 candidate-queue.groups")
+    reviewer: str = Field("ui-operator", description="审核人")
+    source_csv_path: Optional[str] = Field(None, description="可选：覆盖曲线数据源")
+
+
+class CompleteReviewSessionAdmitRequest(BaseModel):
+    """审核会话完成：合并框选 → 纳入累计 → freeze 升一版。"""
+    reviewer: str = Field("ui-operator", description="审核人")
 
 
 class BackfillToDatasetRequest(BaseModel):
@@ -1093,6 +1189,7 @@ async def list_review_sessions(slot: str = "default"):
             for f in sessions_dir.glob('*.json'):
                 try:
                     d = json.loads(f.read_text(encoding='utf-8'))
+                    ctx = d.get('prediction_context') or {}
                     sessions.append({
                         'review_id': d.get('review_id', f.stem),
                         'status': d.get('status', 'unknown'),
@@ -1100,6 +1197,13 @@ async def list_review_sessions(slot: str = "default"):
                         'total_count': d.get('total_count', 0),
                         'loop_id': d.get('loop_id', ''),
                         'prediction_batch_id': d.get('prediction_batch_id', ''),
+                        'slot': resolved_slot,
+                        'annotation_candidate_id': ctx.get('annotation_candidate_id'),
+                        'annotation_candidate_ids': ctx.get('annotation_candidate_ids'),
+                        'detection_group_id': ctx.get('detection_group_id'),
+                        'detection_date': ctx.get('detection_date'),
+                        'review_kind': ctx.get('review_kind'),
+                        'prediction_granularity': ctx.get('prediction_granularity'),
                         '_updated_timestamp': f.stat().st_mtime,
                     })
                 except Exception:
@@ -1163,6 +1267,28 @@ async def create_review_session(request: CreateReviewSessionRequest):
         if not prediction_units:
             raise HTTPException(status_code=422, detail="预测批次没有可审核的诊断单元")
 
+        prediction_granularity = str(batch.get("prediction_granularity") or "").strip()
+        modeling_path = str(batch.get("modeling_path") or "").strip()
+        if prediction_granularity not in {"day", "point"}:
+            raise HTTPException(
+                status_code=422,
+                detail="预测批次必须显式提供 prediction_granularity=day|point",
+            )
+        if not modeling_path:
+            raise HTTPException(status_code=422, detail="预测批次必须显式提供 modeling_path")
+        expected_granularity = {
+            "seq_annotation": "point",
+            "legacy_day": "day",
+        }.get(modeling_path)
+        if expected_granularity and prediction_granularity != expected_granularity:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"modeling_path={modeling_path} 与 prediction_granularity="
+                    f"{prediction_granularity} 冲突"
+                ),
+            )
+
         registry_service = _registry_for_slot(slot)
         session = _review_service_for_slot(slot).create_session(
             loop_id=request.loop_id,
@@ -1176,8 +1302,8 @@ async def create_review_session(request: CreateReviewSessionRequest):
                 "label_map": registry_service.get_current().get("label_map", {}),
                 "model_ref": batch.get("model_ref"),
                 "model_path": batch.get("model_path"),
-                "modeling_path": batch.get("modeling_path") or "legacy_day",
-                "prediction_granularity": batch.get("prediction_granularity") or "day",
+                "modeling_path": modeling_path,
+                "prediction_granularity": prediction_granularity,
                 "feature_list": batch.get("feature_list") or [],
                 "has_unit_features": bool(batch.get("unit_features")),
             },
@@ -1266,6 +1392,16 @@ async def create_review_session_from_prediction(request: CreateReviewSessionFrom
         slot = _normalize_slot(request.slot)
         if _os.path.isabs(request.source_csv_path):
             raise HTTPException(status_code=422, detail="source_csv_path 必须使用相对项目根目录路径")
+        prediction_granularity = str(request.prediction_granularity or "").strip()
+        modeling_path = str(request.modeling_path or "").strip()
+        if prediction_granularity not in {"day", "point"}:
+            raise HTTPException(status_code=422, detail="prediction_granularity 只允许 day/point")
+        expected_granularity = {"seq_annotation": "point", "legacy_day": "day"}.get(modeling_path)
+        if not modeling_path or (expected_granularity and expected_granularity != prediction_granularity):
+            raise HTTPException(
+                status_code=422,
+                detail="modeling_path 缺失或与 prediction_granularity 冲突",
+            )
         registry_service = _registry_for_slot(slot)
         if request.label_map:
             registry_service.seed_labels(request.label_map)
@@ -1310,6 +1446,8 @@ async def create_review_session_from_prediction(request: CreateReviewSessionFrom
                 'load_config': request.load_config or {},
                 'window_config': request.window_config or {},
                 'label_map': request.label_map or {},
+                'modeling_path': modeling_path,
+                'prediction_granularity': prediction_granularity,
             },
             sampling_strategy=request.sampling_strategy or "uncertainty",
             disagreement_first=bool(request.disagreement_first),
@@ -1404,6 +1542,8 @@ async def create_manual_review_from_dataset(request: CreateManualReviewFromDatas
                 "manual_labeling": True,
                 "reviewer": request.reviewer,
                 "window_config": {"time_field": "time", "window": "1D"},
+                "modeling_path": "legacy_day",
+                "prediction_granularity": "day",
             },
         )
         _accuracy_evaluators[_accuracy_key(slot, session["review_id"])] = AccuracyEvaluator()
@@ -1416,6 +1556,140 @@ async def create_manual_review_from_dataset(request: CreateManualReviewFromDatas
     except Exception as exc:
         logger.error("create_manual_review_from_dataset failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"创建人工标注会话失败: {exc}")
+
+
+@router.get("/review-sessions/candidate-queue")
+async def list_annotation_candidate_review_queue(slot: str):
+    """待进入曲线审核的检测组（按天/execution 聚合，尚未绑定 rev-*）。"""
+    from services.slot_datasets.annotation_candidate_review import (
+        list_pending_annotation_candidates_for_review,
+        list_pending_detection_groups,
+    )
+    from services.slot_datasets.errors import SlotDatasetError
+
+    try:
+        resolved = _normalize_slot(slot)
+        if resolved not in {"pv_day", "pv_point"}:
+            raise HTTPException(status_code=422, detail="仅 pv_day / pv_point 支持检测候选队列")
+        groups = list_pending_detection_groups(resolved)
+        items = list_pending_annotation_candidates_for_review(resolved)
+        return {
+            "slot": resolved,
+            "groups": groups,
+            "group_count": len(groups),
+            "candidates": items,
+            "count": len(items),
+        }
+    except SlotDatasetError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": exc.message}) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("list_annotation_candidate_review_queue failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"读取标注候选队列失败: {exc}") from exc
+
+
+@router.post("/review-sessions/from-detection-group", response_model=CreateReviewSessionResponse)
+async def create_review_session_from_detection_group_api(
+    request: CreateReviewFromDetectionGroupRequest,
+):
+    """一次完整检测 → 一个 rev-* 会话（组内多条候选 = 多个 unit）。"""
+    from services.slot_datasets.annotation_candidate_review import (
+        create_review_session_from_detection_group,
+    )
+    from services.slot_datasets.errors import SlotDatasetError
+
+    try:
+        slot = _normalize_slot(request.slot)
+        if slot not in {"pv_day", "pv_point"}:
+            raise HTTPException(status_code=422, detail="仅 pv_day / pv_point 支持检测组转审核会话")
+        registry_service = _registry_for_slot(slot)
+        result = create_review_session_from_detection_group(
+            slot=slot,
+            detection_group_id_value=request.detection_group_id,
+            review_repo=_review_repo,
+            registry_service=registry_service,
+            reviewer=request.reviewer,
+            source_csv_path=request.source_csv_path,
+        )
+        _accuracy_evaluators[_accuracy_key(slot, result["review_id"])] = AccuracyEvaluator()
+        return CreateReviewSessionResponse(
+            review_id=result["review_id"],
+            total_count=int(result.get("total_count") or 1),
+        )
+    except SlotDatasetError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": exc.message}) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("create_review_session_from_detection_group failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建检测组审核会话失败: {exc}") from exc
+
+
+@router.post("/review-sessions/from-annotation-candidate", response_model=CreateReviewSessionResponse)
+async def create_review_session_from_annotation_candidate_api(
+    request: CreateReviewFromAnnotationCandidateRequest,
+):
+    """G5 候选 → 所属检测组的 rev-* 会话（非单条候选单会话）。"""
+    from services.slot_datasets.annotation_candidate_review import (
+        create_review_session_from_annotation_candidate,
+    )
+    from services.slot_datasets.errors import SlotDatasetError
+
+    try:
+        slot = _normalize_slot(request.slot)
+        if slot not in {"pv_day", "pv_point"}:
+            raise HTTPException(status_code=422, detail="仅 pv_day / pv_point 支持 annotation candidate 转审核会话")
+        registry_service = _registry_for_slot(slot)
+        result = create_review_session_from_annotation_candidate(
+            slot=slot,
+            annotation_candidate_id=request.annotation_candidate_id,
+            review_repo=_review_repo,
+            registry_service=registry_service,
+            reviewer=request.reviewer,
+            source_csv_path=request.source_csv_path,
+        )
+        _accuracy_evaluators[_accuracy_key(slot, result["review_id"])] = AccuracyEvaluator()
+        return CreateReviewSessionResponse(
+            review_id=result["review_id"],
+            total_count=int(result.get("total_count") or 1),
+        )
+    except SlotDatasetError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": exc.message}) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("create_review_session_from_annotation_candidate failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建候选审核会话失败: {exc}") from exc
+
+
+@router.post("/review-sessions/{review_id}/complete-and-admit")
+async def complete_review_session_and_admit_api(
+    review_id: str,
+    request: CompleteReviewSessionAdmitRequest,
+    slot: str = "default",
+):
+    """pv_day/pv_point：会话框完后合并学习单元 → daily_review 入库记账，不 freeze。"""
+    from services.slot_datasets.errors import SlotDatasetError
+    from services.slot_datasets.review_session_admission import complete_review_session_and_admit
+
+    try:
+        resolved = _normalize_slot(slot)
+        if resolved not in {"pv_day", "pv_point"}:
+            raise HTTPException(status_code=422, detail="complete-and-admit 仅支持 pv_day / pv_point")
+        return complete_review_session_and_admit(
+            slot=resolved,
+            review_id=review_id,
+            review_repo=_review_repo,
+            reviewer=request.reviewer,
+        )
+    except SlotDatasetError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": exc.message}) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("complete_review_session_and_admit failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"审核完成入库失败: {exc}") from exc
 
 
 # @AI_GENERATED: end
@@ -1810,11 +2084,10 @@ async def get_review_session(review_id: str, slot: str = "default"):
 
 def _freeform_service_for_slot(slot: str) -> FreeformLabelingService:
     point_label_service = None
-    if slot == "pv_fault" and _pv_repo_instance is not None:
-        try:
-            point_label_service = _point_label_service_for_slot(slot)
-        except Exception as exc:
-            logger.warning("point_label_service unavailable for freeform: %s", exc)
+    if slot == "pv_fault":
+        if _pv_repo_instance is None:
+            raise RuntimeError("PVFaultRepository 未注入，已拒绝点标签降级")
+        point_label_service = _point_label_service_for_slot(slot)
     return FreeformLabelingService(
         slot=slot,
         review_service=_review_service_for_slot(slot),
@@ -1887,6 +2160,8 @@ async def create_freeform_label(
         raise HTTPException(status_code=422, detail=str(e))
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -1960,49 +2235,56 @@ async def submit_verdict(review_id: str, request: SubmitVerdictRequest, slot: st
             prediction_context = (
                 result.get("session_state", {}).get("prediction_context") or {}
             )
-            is_seq_annotation_review = (
-                prediction_context.get("modeling_path") == "seq_annotation"
-            )
+            granularity = str(prediction_context.get("prediction_granularity") or "").strip()
+            is_point_review = granularity == "point"
+            is_day_review = granularity == "day"
             if resolved_slot == "pv_fault" and _pv_repo_instance is not None and unit is not None:
-                point_result = None
+                day_result = None
                 if (
                     verdict.get("action_type") in {"confirm", "correct", "new_label"}
-                    and not is_seq_annotation_review
+                    and is_day_review
                 ):
-                    point_result = submit_review_verdict_as_point_label(
-                        _point_label_service_for_slot(resolved_slot),
+                    day_result = submit_review_verdict_as_day_label(
+                        _day_label_service_for_slot(resolved_slot),
                         _pv_repo_instance,
                         review_id=review_id,
                         unit=unit,
                         verdict=verdict,
                     )
-                if point_result:
-                    cumulative_training = _cumulative_training_for_slot(resolved_slot).admit_point_label_op(
+                if day_result:
+                    cumulative_training = _cumulative_training_for_slot(resolved_slot).admit_day_label_op(
                         review_id=review_id,
-                        op_id=point_result["op_id"],
+                        op_id=day_result["op_id"],
                         verdict=verdict,
                         label_source="human_day",
                     )
-                elif is_seq_annotation_review:
-                    # 天级字段只是 288 点结果的兼容摘要；确认摘要不等于确认整天每个点。
-                    # 真正进入 seq 累计集的人工真值必须由波形框选产生 human_range。
+                    cumulative_training["label_path"] = "day"
+                elif is_point_review:
+                    # 点级会话的整日字段只是兼容摘要，不能生成 human_day 或逐点真值。
                     cumulative_training = {
                         "admitted": False,
-                        "reason": "seq_day_summary_not_point_ground_truth",
-                        "snapshot_mode": "seq_annotation",
+                        "reason": "point_review_day_summary_not_ground_truth",
+                        "snapshot_mode": "point_label",
                         "action_required": "请在波形上框选故障段，生成 human_range 逐点真值",
                     }
+                elif not granularity:
+                    cumulative_training = {
+                        "admitted": False,
+                        "reason": "prediction_granularity_required",
+                        "snapshot_mode": "unknown",
+                        "action_required": "旧会话缺少 day/point 粒度，禁止猜测标签路径；请重新创建审核会话",
+                    }
                 elif verdict.get("action_type") == "skip":
-                    cumulative_training = _cumulative_training_for_slot(resolved_slot).admit_point_label_op(
-                        review_id=review_id,
-                        op_id=f"skip-{review_id}-{request.unit_key}",
-                        verdict=verdict,
-                    )
+                    cumulative_training = {
+                        "admitted": False,
+                        "reason": "not_ground_truth",
+                        "snapshot_mode": "day_label" if is_day_review else "unknown",
+                    }
                 else:
                     cumulative_training = {
                         "admitted": False,
                         "reason": "not_ground_truth",
-                        "snapshot_mode": "point_label",
+                        "snapshot_mode": "day_label" if is_day_review else "unknown",
                     }
             else:
                 cumulative_training = _cumulative_training_for_slot(resolved_slot).admit_verdict(
@@ -2011,9 +2293,10 @@ async def submit_verdict(review_id: str, request: SubmitVerdictRequest, slot: st
                     verdict=verdict,
                 )
             _spawn_auto_retrain_if_requested(cumulative_training, resolved_slot)
-        except PointLabelValidationError as admission_error:
+            # pv_day / pv_point 只走会话 complete-and-admit，避免按条裁决双记入库。
+        except (PointLabelValidationError, DayLabelValidationError) as admission_error:
             logger.error(
-                "Point label admission failed review_id=%s unit_key=%s: %s",
+                "Label path admission failed review_id=%s unit_key=%s: %s",
                 review_id,
                 request.unit_key,
                 admission_error,
@@ -2022,7 +2305,7 @@ async def submit_verdict(review_id: str, request: SubmitVerdictRequest, slot: st
             cumulative_training = {
                 "admitted": False,
                 "admission_error": str(admission_error),
-                "action_required": "修复逐点标签校验错误后，重新提交同一裁决以重试",
+                "action_required": "修复标签路径校验错误后，重新提交同一裁决以重试",
             }
         except Exception as admission_error:  # 审核裁决已原子持久化，不能为账本失败而伪装为未提交。
             logger.error(
@@ -2058,18 +2341,36 @@ async def submit_verdict(review_id: str, request: SubmitVerdictRequest, slot: st
 async def get_accuracy(review_id: str, slot: str = "default"):
     """读取当前审核会话的三方精度。"""
     try:
-        evaluator = _accuracy_evaluators.get(_accuracy_key(_normalize_slot(slot), review_id))
-        if evaluator is None:
-            return GetAccuracyResponse(
-                classifier_accuracy=0.0,
-                llm_accuracy=0.0,
-                human_verified_accuracy=0.0,
-                llm_coverage=0.0,
-                macro={"precision": 0.0, "recall": 0.0, "f1": 0.0},
-                counted_units=0,
-                by_source={},
-            )
-        return GetAccuracyResponse(**evaluator.get_current_accuracy())
+        resolved_slot = _normalize_slot(slot)
+        evaluator = _accuracy_evaluators.get(_accuracy_key(resolved_slot, review_id))
+        if evaluator is not None:
+            return GetAccuracyResponse(**evaluator.get_current_accuracy())
+        try:
+            from services.iterative_labeling.storage.file_backend import FileReviewResultRepository
+
+            session = FileReviewResultRepository().load_session(resolved_slot, review_id) or {}
+            snap = session.get("accuracy_snapshot") if isinstance(session, dict) else None
+            if isinstance(snap, dict) and int(snap.get("counted_units") or 0) > 0:
+                return GetAccuracyResponse(
+                    classifier_accuracy=float(snap.get("classifier_accuracy") or 0.0),
+                    llm_accuracy=float(snap.get("llm_accuracy") or 0.0),
+                    human_verified_accuracy=float(snap.get("human_verified_accuracy") or 0.0),
+                    llm_coverage=float(snap.get("llm_coverage") or 0.0),
+                    macro=dict(snap.get("macro") or {"precision": 0.0, "recall": 0.0, "f1": 0.0}),
+                    counted_units=int(snap.get("counted_units") or 0),
+                    by_source=dict(snap.get("by_source") or {}),
+                )
+        except Exception:
+            pass
+        return GetAccuracyResponse(
+            classifier_accuracy=0.0,
+            llm_accuracy=0.0,
+            human_verified_accuracy=0.0,
+            llm_coverage=0.0,
+            macro={"precision": 0.0, "recall": 0.0, "f1": 0.0},
+            counted_units=0,
+            by_source={},
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -2442,6 +2743,48 @@ async def register_cumulative_training_import(
         raise HTTPException(status_code=500, detail=f"登记累计训练导入失败: {exc}")
 
 
+@router.post("/labeled-versions/include-cumulative")
+async def include_labeled_version_in_cumulative_api(request: IncludeLabeledVersionInCumulativeRequest):
+    """显式把确认箱 ID 记入该 slot 累计清单，不修改确认箱文件。"""
+    from services.slot_datasets.errors import SlotDatasetError
+    from services.slot_datasets.snapshots import include_labeled_version_in_cumulative
+
+    try:
+        return include_labeled_version_in_cumulative(
+            slot=request.slot,
+            dataset_version_id=request.dataset_version_id,
+            source=request.source,
+            reviewed_at=request.reviewed_at,
+            reviewer=request.reviewer,
+            freeze=request.freeze,
+        )
+    except SlotDatasetError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": exc.message}) from exc
+    except Exception as exc:
+        logger.error("include_labeled_version_in_cumulative failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"纳入累计清单失败: {exc}") from exc
+
+
+@router.post("/labeled-versions/build-cumulative-snapshot")
+async def build_labeled_cumulative_snapshot_api(request: BuildLabeledCumulativeSnapshotRequest):
+    """显式 build 累计快照版本，成功后登记画布 cumulative_snapshot 行。"""
+    from services.slot_datasets.errors import SlotDatasetError
+    from services.slot_datasets.snapshots import build_labeled_versions_snapshot
+
+    try:
+        return build_labeled_versions_snapshot(
+            slot=request.slot,
+            idempotency_key=request.idempotency_key,
+            reason=request.reason,
+        )
+    except SlotDatasetError as exc:
+        status = 409 if exc.code in {"base_version_conflict", "idempotency_conflict"} else 422
+        raise HTTPException(status_code=status, detail={"code": exc.code, "message": exc.message}) from exc
+    except Exception as exc:
+        logger.error("build_labeled_versions_snapshot failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"构建累计快照失败: {exc}") from exc
+
+
 @router.get("/point-labels/pending-queue")
 async def get_pending_label_queue(
     slot: str = "pv_fault",
@@ -2580,6 +2923,7 @@ async def get_modeling_paths(slot: str = "pv_fault"):
             }
             summary["updated_at"] = state.updated_at
             summary["note"] = state.note
+        summary["governance"] = governance_flags()
         return summary
     except Exception as exc:
         logger.error("get modeling-paths failed: %s", exc, exc_info=True)
@@ -2587,9 +2931,12 @@ async def get_modeling_paths(slot: str = "pv_fault"):
 
 
 @router.put("/cumulative-training/modeling-paths")
-async def set_modeling_paths(request: SetModelingPathsRequest, slot: str = "pv_fault"):
+async def set_modeling_paths(
+    request: SetModelingPathsRequest,
+    slot: str = "pv_fault",
+    _auth: dict = Depends(require_modeling_path_write_auth),
+):
     """同路径只覆盖备注；跨路径经九项门控原子切换。"""
-    # TODO P0 鉴权：PUT modeling-paths 上线前必须鉴权（Req10.9/10.10）。本任务不实施。
     target_slot = _normalize_slot(request.slot or slot)
     target_path = str(request.modeling_path or request.production_path or "").strip()
     if target_slot != "pv_fault":
@@ -2718,9 +3065,12 @@ async def promote_within_path(modeling_path: str, request: PromoteWithinPathRequ
 
 
 @router.post("/cumulative-training/modeling-paths/switch-fallback")
-async def switch_fallback_path(request: SwitchFallbackPathRequest, slot: str = "pv_fault"):
+async def switch_fallback_path(
+    request: SwitchFallbackPathRequest,
+    slot: str = "pv_fault",
+    _auth: dict = Depends(require_modeling_path_write_auth),
+):
     """整路径不可用只允许进入评估；fallback 仍须九项门控与 confirm=true。"""
-    # TODO P0 鉴权：fallback 切换入口上线前必须鉴权。
     if slot != "pv_fault":
         try:
             return _cumulative_training_for_slot(_normalize_slot(slot)).switch_to_fallback_path(
@@ -2823,7 +3173,11 @@ class RegisterPathModelRequest(BaseModel):
 
 
 @router.post("/cumulative-training/modeling-paths/register-model")
-async def register_path_model(request: RegisterPathModelRequest, slot: str = "pv_fault"):
+async def register_path_model(
+    request: RegisterPathModelRequest,
+    slot: str = "pv_fault",
+    _auth: dict = Depends(require_modeling_path_write_auth),
+):
     """登记某建模路径的最近可用模型。"""
     try:
         return _cumulative_training_for_slot(_normalize_slot(slot)).register_path_model(
@@ -3055,6 +3409,23 @@ class CreateClusteringRunRequest(BaseModel):
     time_end: Optional[str] = Field(None, description="结束时间 ISO")
     reviewer: str = Field("operator", description="操作者")
     dataset_path: Optional[str] = Field(None, description="可选：相对项目根目录的数据集路径")
+    slot: str = Field("pv_point", description="目标槽位，决定推荐打标模板")
+
+
+class ConfirmLabelProposalRequest(BaseModel):
+    """确认 label proposal 并发布确认箱"""
+    slot: str = Field(..., description="pv_day 或 pv_point")
+    label_names: Optional[Dict[str, str]] = Field(None, description="cluster_id → 标签名，可选覆盖默认名")
+
+
+class PatchLabelProposalRequest(BaseModel):
+    slot: str = Field(..., description="pv_day 或 pv_point")
+    clusters: Optional[Dict[str, Any]] = Field(None, description="cluster_id → proposed_label_name / selected_member_keys")
+
+
+class RejectLabelProposalRequest(BaseModel):
+    slot: str = Field(..., description="pv_day 或 pv_point")
+    reason: Optional[str] = None
 
 
 class UpdateClusterRequest(BaseModel):
@@ -3066,6 +3437,7 @@ class UpdateClusterRequest(BaseModel):
 class ConfirmClusteringRunRequest(BaseModel):
     """二次确认聚类 run 请求"""
     confirm_inclusion: bool = Field(..., description="必须为 true 才执行确认")
+    slot: str = Field("pv_point", description="确认箱槽位：pv_day 或 pv_point")
 
 
 class CreateTimeSliceRequest(BaseModel):
@@ -3157,7 +3529,12 @@ async def create_clustering_run(request: CreateClusteringRunRequest):
             samples=samples,
             n_clusters=request.n_clusters,
             reviewer=request.reviewer,
+            slot=str(request.slot or "pv_point").strip(),
         )
+        preferred = "workflow-pv-point-label-v1" if run.get("slot") == "pv_point" else "workflow-pv-day-label-v1"
+        run["labeling_mode"] = "shortcut"
+        run["preferred_labeling_workflow_id"] = preferred
+        run["labeling_note"] = "REST 快捷模式；推荐工作流模板 A 为 canonical 打标路径"
         return run
     except HTTPException:
         raise
@@ -3201,7 +3578,7 @@ async def update_cluster(run_id: str, cluster_id: str, request: UpdateClusterReq
 
 @router.post("/clustering/runs/{run_id}/confirm")
 async def confirm_clustering_run(run_id: str, request: ConfirmClusteringRunRequest):
-    """二次确认聚类 run：生成 labeled CSV 并登记到累计训练集。"""
+    """二次确认聚类 run：生成 labeled CSV 并发布确认箱。"""
     if not request.confirm_inclusion:
         raise HTTPException(status_code=422, detail="confirm_inclusion 必须为 true")
     workspace = _get_pv_workspace()
@@ -3210,8 +3587,12 @@ async def confirm_clustering_run(run_id: str, request: ConfirmClusteringRunReque
         if run is None:
             raise HTTPException(status_code=404, detail=f"聚类 run {run_id} 不存在")
 
+        slot = str(request.slot or "pv_point").strip()
+        if slot not in ("pv_day", "pv_point"):
+            raise HTTPException(status_code=422, detail="slot 必须是 pv_day 或 pv_point")
+
         # 构建 label_id_map：对不存在标签自动新增
-        registry = _registry_for_slot("pv_fault")
+        registry = _registry_for_slot(slot)
         current = registry.get_current()
         existing_map: Dict[str, int] = current.get("label_map", {})
         label_id_map: Dict[str, int] = {}
@@ -3226,15 +3607,11 @@ async def confirm_clustering_run(run_id: str, request: ConfirmClusteringRunReque
                 label_id_map[name] = new_id
                 existing_map[name] = new_id
 
-        result = workspace.confirm_clustering_run(run_id=run_id, label_id_map=label_id_map)
-
-        # 登记到累计训练集
-        ct = _cumulative_training_for_slot("pv_fault")
-        import_result = ct.register_labeled_dataset(
-            dataset_path=result["dataset_path"],
-            source_name=f"clustering-confirm-{run_id}",
+        result = workspace.confirm_clustering_run(
+            run_id=run_id,
+            label_id_map=label_id_map,
+            slot=slot,
         )
-        result["cumulative_training"] = import_result
         return result
     except HTTPException:
         raise
@@ -3245,6 +3622,106 @@ async def confirm_clustering_run(run_id: str, request: ConfirmClusteringRunReque
     except Exception as exc:
         logger.error("confirm_clustering_run failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"确认聚类 run 失败: {exc}")
+
+
+@router.get("/label-proposals")
+async def list_label_proposals_api(slot: str):
+    from services.slot_datasets.errors import SlotDatasetError
+    from services.slot_datasets.label_proposals import list_label_proposals
+
+    try:
+        return {"slot": slot, "proposals": list_label_proposals(slot)}
+    except SlotDatasetError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": exc.message}) from exc
+
+
+def _assert_proposal_slot(slot: str, proposal_id: str):
+    from services.slot_datasets.label_proposals import get_label_proposal
+
+    proposal = get_label_proposal(slot, proposal_id)
+    if str(proposal.get("slot") or "") != str(slot):
+        raise HTTPException(status_code=422, detail={"code": "slot_mismatch", "message": "proposal.slot 与请求 slot 不一致"})
+    return proposal
+
+
+@router.get("/label-proposals/{proposal_id}")
+async def get_label_proposal_api(proposal_id: str, slot: str):
+    from services.slot_datasets.errors import SlotDatasetError
+    from services.slot_datasets.label_proposals import get_label_proposal_detail
+
+    if slot not in ("pv_day", "pv_point"):
+        raise HTTPException(status_code=422, detail="slot 必须是 pv_day 或 pv_point")
+    try:
+        _assert_proposal_slot(slot, proposal_id)
+        return get_label_proposal_detail(slot, proposal_id)
+    except SlotDatasetError as exc:
+        status = 404 if exc.code == "proposal_not_found" else 422
+        raise HTTPException(status_code=status, detail={"code": exc.code, "message": exc.message}) from exc
+
+
+@router.patch("/label-proposals/{proposal_id}")
+async def patch_label_proposal_api(proposal_id: str, request: PatchLabelProposalRequest):
+    from services.slot_datasets.errors import SlotDatasetError
+    from services.slot_datasets.label_proposals import patch_label_proposal
+
+    slot = str(request.slot or "").strip()
+    if slot not in ("pv_day", "pv_point"):
+        raise HTTPException(status_code=422, detail="slot 必须是 pv_day 或 pv_point")
+    try:
+        _assert_proposal_slot(slot, proposal_id)
+        return patch_label_proposal(slot, proposal_id, clusters_patch=request.clusters)
+    except SlotDatasetError as exc:
+        status = 404 if exc.code == "proposal_not_found" else 422
+        raise HTTPException(status_code=status, detail={"code": exc.code, "message": exc.message}) from exc
+
+
+@router.post("/label-proposals/{proposal_id}/reject")
+async def reject_label_proposal_api(proposal_id: str, request: RejectLabelProposalRequest):
+    from services.slot_datasets.errors import SlotDatasetError
+    from services.slot_datasets.label_proposals import reject_label_proposal
+
+    slot = str(request.slot or "").strip()
+    if slot not in ("pv_day", "pv_point"):
+        raise HTTPException(status_code=422, detail="slot 必须是 pv_day 或 pv_point")
+    try:
+        _assert_proposal_slot(slot, proposal_id)
+        return reject_label_proposal(slot, proposal_id, reason=request.reason)
+    except SlotDatasetError as exc:
+        status = 404 if exc.code == "proposal_not_found" else 422
+        raise HTTPException(status_code=status, detail={"code": exc.code, "message": exc.message}) from exc
+
+
+@router.post("/label-proposals/{proposal_id}/confirm")
+async def confirm_label_proposal_api(proposal_id: str, request: ConfirmLabelProposalRequest):
+    """将 workflow 产出的 label proposal 确认为 curated 确认箱。"""
+    from services.slot_datasets.errors import SlotDatasetError
+    from services.slot_datasets.label_proposals import confirm_label_proposal, get_label_proposal
+
+    slot = str(request.slot or "").strip()
+    if slot not in ("pv_day", "pv_point"):
+        raise HTTPException(status_code=422, detail="slot 必须是 pv_day 或 pv_point")
+    try:
+        proposal = get_label_proposal(slot, proposal_id)
+        registry = _registry_for_slot(slot)
+        current = registry.get_current()
+        existing_map: Dict[str, int] = current.get("label_map", {})
+        label_id_map: Dict[str, int] = {}
+        for cid, cluster in (proposal.get("clusters") or {}).items():
+            default_name = cluster.get("proposed_label_name") or f"cluster_{cid}"
+            name = (request.label_names or {}).get(cid, default_name)
+            cluster["proposed_label_name"] = name
+            if name in existing_map:
+                label_id_map[name] = existing_map[name]
+            else:
+                new_id = registry.allocate_label(name)
+                label_id_map[name] = new_id
+                existing_map[name] = new_id
+        return confirm_label_proposal(slot=slot, proposal_id=proposal_id, label_id_map=label_id_map)
+    except SlotDatasetError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": exc.message}) from exc
+    except Exception as exc:
+        logger.error("confirm_label_proposal failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"确认 label proposal 失败: {exc}") from exc
 
 
 @router.post("/training-slices")

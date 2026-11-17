@@ -1,0 +1,52 @@
+---
+description: "强制使用相对路径，禁止绝对路径写入代码和数据"
+alwaysApply: true
+---
+
+# 路径规范：全项目强制使用相对路径
+
+本项目需要在 macOS 开发机和 Linux 服务器之间部署，**禁止在代码和数据文件中使用绝对路径**。
+
+## 规则
+
+1. **代码中引用文件一律使用相对路径**。
+   - 相对于项目根目录（`AIP/`），例如 `fault-diag-algo-release-3.1/相关数据/all_labeled_combined.parquet`
+   - 或相对于 `backend-service/`，例如 `data/models/xxx.pkl`、`data/uploads/xxx.csv`
+
+2. **禁止 `os.path.abspath()` 写入持久化结果**。
+   - 模型路径、执行历史、会话数据等持久化字段必须存储相对路径。
+   - 使用 `os.path.relpath(path, start=backend_service_dir)` 代替。
+
+3. **后端路径解析约定**：
+   - `backend-service/api/iterative_labeling.py` 中已有 `_resolve_data_path(path)` 工具函数。
+   - 其他模块如需解析用户传入的路径，复用 `load_csv` 算子内置的搜索逻辑（project_root → backend_dir → cwd）。
+   - 项目根目录 = `backend-service/` 的父目录。
+
+4. **前端传路径给后端时只传相对路径**（相对于项目根）。
+
+5. **工作流模板 JSON 中的 `file_path`**：
+   - 用 `../` 前缀（CWD 是 `backend-service/`）或纯相对路径（`load_csv` 自动搜索）。
+
+6. **数据文件存储位置**：
+   - 模型 → `backend-service/data/models/`
+   - 上传 → `backend-service/data/uploads/`
+   - 迭代标注 → `backend-service/data/iterative_labeling/`
+   - 外部数据集 → 项目根下独立目录
+
+## 违反示例
+
+```python
+# BAD
+result["model_path"] = os.path.abspath(model_path)
+const trainPath = '/Users/zxk/Desktop/project/AIP/...'
+"source_csv_path": "/Users/zxk/Desktop/project/AIP/..."
+```
+
+## 正确示例
+
+```python
+# GOOD
+result["model_path"] = os.path.relpath(model_path, start=backend_service_dir)
+const trainPath = 'fault-diag-algo-release-3.1/相关数据/all_labeled_combined.parquet'
+"source_csv_path": "fault-diag-algo-release-3.1/enos_fault_diag/test/predict_small.parquet"
+```

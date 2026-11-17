@@ -1,0 +1,12 @@
+{
+  "phase": "resume",
+  "run_dir": "C:\\Users\\xiaokang.zhao\\project\\operation_skill\\artifacts\\2026-06-05_173923",
+  "rca_source": "kiro_llm",
+  "selected_strategy": "pred_fill_dm1",
+  "baseline_accuracy": 94.24,
+  "degraded_accuracy": 86.03,
+  "recovered_accuracy": 97.08,
+  "delta_recovery": 11.05,
+  "html_report_path": "C:\\Users\\xiaokang.zhao\\project\\operation_skill\\artifacts\\2026-06-05_173923\\report_2026-06-05.html",
+  "report_file": "report_2026-06-05.html"
+}

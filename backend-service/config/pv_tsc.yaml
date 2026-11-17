@@ -1,0 +1,85 @@
+# @AI_GENERATED
+# 光伏 TSC 时序分类诊断路径配置
+#
+# 独立 slot pv_tsc 的默认配置。加载优先级（高 → 低）：环境变量 > 本文件 > 代码默认值。
+# 本文件结构与 pv_dual_path.yaml 对齐，但只包含 TSC 路径需要的配置项。
+
+# ── 滑动窗口参数 ──
+
+# window_length — TSC 滑动窗口长度（采样点数），默认 288（= 1 天，5 分钟采样）。
+#   环境变量覆盖：PV_TSC_WINDOW_LENGTH
+window_length: 288
+
+# stride — 窗口滑动步长，默认 72（= 6 小时，75% 重叠）。
+#   环境变量覆盖：PV_TSC_STRIDE
+stride: 72
+
+# channels — 输入通道列表。
+channels:
+  - value
+  - i_cal
+
+# min_std — 退化窗口过滤阈值：窗口内 value 通道标准差低于此值则丢弃，默认 1e-6。
+#   环境变量覆盖：PV_TSC_MIN_STD
+min_std: 1.0e-6
+
+# min_coverage — 窗口内非 NaN 点的最低比例，低于则丢弃，默认 0.9。
+#   环境变量覆盖：PV_TSC_MIN_COVERAGE
+min_coverage: 0.9
+
+# purity_threshold — 窗口标签众数占比低于此值则丢弃（混合窗口过滤），默认 0.7。
+#   环境变量覆盖：PV_TSC_PURITY_THRESHOLD
+purity_threshold: 0.7
+
+# preprocess_method — 预处理方法，默认 per_sample_zscore。
+#   环境变量覆盖：PV_TSC_PREPROCESS_METHOD
+preprocess_method: per_sample_zscore
+
+# ── 模型参数 ──
+
+# model_name — 默认使用的 TSC 模型，默认 multirocket。
+#   环境变量覆盖：PV_TSC_MODEL_NAME
+model_name: multirocket
+
+# ── 评估参数 ──
+
+# evaluation — 评估口径，strict（严格三隔离）或 legacy（探索用，不可对外引用）。
+#   环境变量覆盖：PV_TSC_EVALUATION
+evaluation: strict
+
+# split_mode — strict 口径下的划分模式：strict / time / device。
+#   环境变量覆盖：PV_TSC_SPLIT_MODE
+split_mode: strict
+
+# n_repeats — 划分次数，建议 ≥ 10。
+#   环境变量覆盖：PV_TSC_N_REPEATS
+n_repeats: 10
+
+# n_test_days — 严格口径下末尾多少天作为 test。
+#   环境变量覆盖：PV_TSC_N_TEST_DAYS
+n_test_days: 3
+
+# held_device_ratio — 严格口径下保留作 test 的设备比例。
+#   环境变量覆盖：PV_TSC_HELD_DEVICE_RATIO
+held_device_ratio: 0.3
+
+# ── 检测调度参数 ──
+
+# completeness_ratio — 完整性阈值（TSC 路径不以此为前置，与天路径一致）。
+completeness_ratio: 0.9
+
+# expected_point_count — 一天满格的时钟槽数。
+expected_point_count: 288
+
+# retrain_change_threshold — 触发自动重训的累计标签变动阈值。
+#   环境变量覆盖：PV_TSC_RETRAIN_CHANGE_THRESHOLD
+retrain_change_threshold: 200
+
+# retrain_period_days — 触发自动重训的周期天数。
+#   环境变量覆盖：PV_TSC_RETRAIN_PERIOD_DAYS
+retrain_period_days: 7
+
+# promotion_margin — Challenger 晋升需严格优于 Champion 的边际。
+#   环境变量覆盖：PV_TSC_PROMOTION_MARGIN
+promotion_margin: 0.0
+# @AI_GENERATED: end

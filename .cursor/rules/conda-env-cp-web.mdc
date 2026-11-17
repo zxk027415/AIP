@@ -1,0 +1,42 @@
+---
+description: 后端 conda 环境与测试命令统一使用 cp_web
+alwaysApply: true
+---
+
+# Conda 环境：cp_web
+
+本项目后端默认 conda 环境为 **`cp_web`**（不再使用 `aip_web`）。
+
+Agent 执行以下操作时**必须**在 `cp_web` 下运行：
+
+- `pytest` / 单元测试、集成测试
+- `python -m py_compile` 语法检查
+- 后端脚本、训练/预测 one-off 脚本
+- `uvicorn` 启动（除非用户指定其他环境）
+
+## 推荐命令（Windows / 跨平台）
+
+```bash
+cd backend-service
+conda run -n cp_web python -m pytest tests/test_cumulative_training.py -q
+```
+
+或先激活再跑：
+
+```bash
+conda activate cp_web
+cd backend-service
+set PYTHONPATH=.   # Windows cmd
+# export PYTHONPATH=.   # bash
+pytest tests/test_cumulative_training.py -q
+```
+
+## 启动脚本
+
+- Windows：`aip.ps1` 默认 `AIP_CONDA_ENV=cp_web`
+- macOS/Linux：`aip.sh` 默认 `AIP_CONDA_ENV=cp_web`
+- 可用项目根 `.aip.local.env` 覆盖 `AIP_CONDA_ENV`
+
+## 禁止
+
+- 不要在文档、回复或命令示例中写 `conda run -n aip_web` 或 `conda activate aip_web`，除非用户明确要求对比旧环境。

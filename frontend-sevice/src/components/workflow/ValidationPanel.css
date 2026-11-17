@@ -1,0 +1,73 @@
+.validation-panel {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.validation-panel .ant-card-body {
+  padding: 16px;
+}
+
+.validation-summary {
+  margin-bottom: 16px;
+}
+
+.validation-list {
+  margin-top: 16px;
+}
+
+.validation-item {
+  padding: 12px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.validation-item.clickable {
+  cursor: pointer;
+}
+
+.validation-item.clickable:hover {
+  background-color: #f9fafb;
+}
+
+.validation-item-content {
+  width: 100%;
+}
+
+.validation-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.validation-type {
+  flex: 1;
+  font-weight: 600;
+  font-size: 13px;
+  color: #1f2937;
+  font-family: monospace;
+}
+
+.validation-message {
+  font-size: 14px;
+  color: #4b5563;
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+.validation-location {
+  font-size: 12px;
+  color: #9ca3af;
+  font-family: monospace;
+  margin-bottom: 6px;
+}
+
+.validation-suggestion {
+  font-size: 13px;
+  color: #059669;
+  background: #d1fae5;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-top: 8px;
+  line-height: 1.5;
+}

@@ -1,0 +1,98 @@
+# db.yaml.example — 数据库及调度器配置示例
+#
+# 使用方式：
+#   cp configs/db.yaml.example configs/db.yaml
+#   按需修改 db.yaml（已加入 .gitignore，不提交凭据）
+#
+# 优先级：环境变量 > 本文件 > 代码内默认值
+# 对应环境变量名见各字段注释。
+#
+# 注：MySQL 中 "schema" 与 "database" 等价；
+#     lf_db_schema / pv_db_schema 实际是独立 MySQL DATABASE 名。
+
+# --------------------------------------------------------------------------
+# 数据库连接
+# --------------------------------------------------------------------------
+
+# engine — 数据库引擎类型
+# 环境变量：DB_ENGINE
+# 可选值：mysql（当前主用）、postgresql（未来扩展预留）
+engine: mysql
+
+# connection_url — 完整连接字符串（同步 pymysql 驱动）
+# 环境变量：DB_CONNECTION_URL
+# 本地开发：Homebrew MySQL 9.6.0，root 无密码，已有库 aip_algo_platform
+# 生产环境：通过环境变量覆盖指向公司 MySQL（10.65.101.249）
+connection_url: "mysql+pymysql://root@localhost:3306/aip_algo_platform"
+
+# --------------------------------------------------------------------------
+# Schema（MySQL DATABASE）名称
+# --------------------------------------------------------------------------
+
+# lf_db_schema — 负荷预测 MySQL 数据库名
+# 环境变量：LF_DB_SCHEMA
+lf_db_schema: load_forecast
+
+# pv_db_schema — 光伏故障诊断 MySQL 数据库名
+# 环境变量：PV_DB_SCHEMA
+pv_db_schema: pv_fault_diag
+
+# --------------------------------------------------------------------------
+# 连接池参数
+# --------------------------------------------------------------------------
+
+# max_connections — 最大连接数，范围 [1, 100]
+# 环境变量：DB_POOL_MAX
+max_connections: 10
+
+# idle_timeout — 空闲连接超时（秒），范围 [10, 3600]
+# 环境变量：DB_POOL_IDLE_TIMEOUT
+idle_timeout: 300
+
+# connection_lifetime — 连接最大生存期（秒），范围 [60, 86400]
+# 环境变量：DB_POOL_CONN_LIFETIME
+connection_lifetime: 3600
+
+# pool_wait_timeout — 池满时排队等待超时（秒），范围 [1, 120]
+# 环境变量：DB_POOL_WAIT_TIMEOUT
+pool_wait_timeout: 30
+
+# --------------------------------------------------------------------------
+# 功能开关
+# --------------------------------------------------------------------------
+
+# db_enabled — 总开关；false 时退化到文件存储，不产生错误日志
+# 环境变量：DB_ENABLED
+db_enabled: true
+
+# dual_write — 双写开关；true 时同时写数据库和文件（过渡期用）
+# 环境变量：DB_DUAL_WRITE
+dual_write: true
+
+# --------------------------------------------------------------------------
+# 调度器 cron 表达式（最小粒度 1 分钟）
+# --------------------------------------------------------------------------
+
+# sched_lf_pull_cron — 负荷数据拉取（每天 01:00）
+# 环境变量：SCHED_LF_PULL_CRON
+sched_lf_pull_cron: "0 1 * * *"
+
+# sched_lf_predict_cron — 负荷滚动预测（每天 01:30）
+# 环境变量：SCHED_LF_PREDICT_CRON
+sched_lf_predict_cron: "30 1 * * *"
+
+# sched_lf_backfill_cron — 精度回填（每天 03:00）
+# 环境变量：SCHED_LF_BACKFILL_CRON
+sched_lf_backfill_cron: "0 3 * * *"
+
+# sched_pv_pull_cron — PV 数据拉取（每天 02:00）
+# 环境变量：SCHED_PV_PULL_CRON
+sched_pv_pull_cron: "0 2 * * *"
+
+# sched_pv_predict_cron — PV 故障预测（每天 02:30）
+# 环境变量：SCHED_PV_PREDICT_CRON
+sched_pv_predict_cron: "30 2 * * *"
+
+# task_retry_delay — 任务失败后重试延迟（秒），范围 [10, 600]
+# 环境变量：SCHED_TASK_RETRY_DELAY
+task_retry_delay: 60

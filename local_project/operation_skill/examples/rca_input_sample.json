@@ -1,0 +1,64 @@
+{
+  "_comment": "@AI_GENERATED",
+  "loop_id": "loop_gap_fault_a_v1",
+  "asset": "南华变.10kV叶家线085",
+  "fault_type": "A",
+  "baseline_accuracy": 98.42,
+  "degraded_accuracy": 72.11,
+  "recovery_target": 85.0,
+  "evidence": {
+    "fault_type": "A",
+    "missing_start": "2026-05-10T00:00:00",
+    "missing_end": "2026-05-11T00:00:00",
+    "missing_description": "D-1 整天数据丢失",
+    "accuracy_drop": 26.31,
+    "baseline_accuracy": 98.42,
+    "degraded_accuracy": 72.11,
+    "group_importance_baseline": {
+      "lag": 0.451,
+      "rolling": 0.304,
+      "calendar": 0.148,
+      "weather": 0.097
+    },
+    "checked_items": [
+      "原始负荷完整性",
+      "缺失时间范围",
+      "级联特征影响",
+      "气象数据正常"
+    ]
+  },
+  "candidate_strategies": [
+    {
+      "strategy_id": "extra_gap",
+      "name": "多 gap 一天(从 D-2 起算)",
+      "expected_accuracy": 89.31,
+      "cost": "low",
+      "risk": "low",
+      "rationale": "D-1 丢了就跳过,只用 D-2 及之前真值。丢信息但不引入假值。"
+    },
+    {
+      "strategy_id": "pred_fill_dm1",
+      "name": "预测值回填 D-1, 继续 gap D",
+      "expected_accuracy": 91.54,
+      "cost": "medium",
+      "risk": "medium",
+      "rationale": "用 gap 模型对 D-1 的预测值当代理真值填回,保住 lag_1d→D-1 位置。"
+    }
+  ],
+  "decision_schema": {
+    "rca": {
+      "analyzer": "kiro_llm",
+      "root_cause": "str",
+      "confidence": "0..1",
+      "reasoning": "str",
+      "supporting_evidence": ["str"],
+      "checked_items": ["str"],
+      "undetermined": "bool"
+    },
+    "strategy": {
+      "selected_strategy_id": "str",
+      "decision_reasoning": "str"
+    }
+  },
+  "_comment_end": "@AI_GENERATED: end"
+}

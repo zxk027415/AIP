@@ -1,0 +1,190 @@
+/* @AI_GENERATED: algorithm-deployment-workspace */
+.algorithm-deployment-workspace {
+  --deployment-ink: #162235;
+  --deployment-muted: #64748b;
+  --deployment-line: #dbe4ef;
+  min-height: 100%;
+  padding: 28px 24px 36px;
+  background:
+    radial-gradient(circle at 94% 0%, rgba(22, 119, 255, 0.07), transparent 28rem),
+    #f4f7fb;
+}
+
+.algorithm-deployment-container {
+  max-width: 1480px;
+  margin: 0 auto;
+}
+
+.deployment-page-header.ant-card,
+.deployment-page-tabs.ant-card {
+  border: 1px solid var(--deployment-line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 3px 8px rgba(38, 67, 100, 0.06);
+}
+
+.deployment-page-header .ant-card-body {
+  padding: 20px 22px;
+}
+
+.deployment-page-header .ant-typography {
+  color: var(--deployment-ink);
+  letter-spacing: -0.02em;
+}
+
+.deployment-page-header .ant-typography-secondary {
+  max-width: 68ch;
+  color: var(--deployment-muted);
+  line-height: 1.7;
+}
+
+.deployment-page-tabs .ant-card-body {
+  padding: 8px 18px 20px;
+}
+
+.deployment-page-tabs .ant-tabs-nav {
+  margin-bottom: 20px;
+}
+
+.deployment-page-tabs .ant-tabs-tab {
+  min-height: 44px;
+  padding-inline: 12px;
+  font-weight: 550;
+}
+
+.deployment-page-tabs .ant-tabs-ink-bar {
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+}
+
+.deployment-page-tabs .ant-card {
+  border-color: var(--deployment-line);
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(38, 67, 100, 0.04);
+}
+
+.deployment-page-tabs .ant-card-head {
+  min-height: 46px;
+  border-bottom-color: #e7edf5;
+}
+
+.deployment-page-tabs .ant-btn:not(.ant-btn-link) {
+  border-radius: 7px;
+  font-weight: 500;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.deployment-page-tabs .ant-btn:not(.ant-btn-link):hover {
+  transform: translateY(-1px);
+}
+
+.deployment-page-tabs .ant-btn:not(.ant-btn-link):active {
+  transform: translateY(0);
+}
+
+.deployment-page-tabs .ant-alert {
+  border-radius: 10px;
+}
+
+.deployment-page-tabs .ant-table-thead > tr > th {
+  color: #53657a;
+  background: #f6f9fc;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.deployment-page-tabs .ant-table-tbody > tr:hover > td {
+  background: #f2f7fd !important;
+}
+
+.scheduler-flow-note .ant-alert-message {
+  color: var(--deployment-ink);
+  font-weight: 650;
+}
+
+.scheduler-flow-note .ant-alert-description {
+  color: var(--deployment-muted);
+  line-height: 1.7;
+}
+
+.scheduler-task-table {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.scheduler-task-table .ant-table-cell {
+  vertical-align: top;
+}
+
+.scheduler-task-actions {
+  min-width: 240px;
+}
+
+.scheduler-task-actions .ant-space {
+  flex-wrap: nowrap;
+}
+
+.scheduler-task-actions .ant-btn {
+  padding-inline: 8px;
+}
+
+@media (max-width: 768px) {
+  .algorithm-deployment-workspace {
+    padding: 20px 14px 28px;
+  }
+
+  .deployment-page-header .ant-card-body,
+  .deployment-page-tabs .ant-card-body {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .deployment-page-tabs .ant-tabs-tab {
+    padding-inline: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deployment-page-tabs .ant-btn:not(.ant-btn-link) {
+    transition: none;
+  }
+}
+/* @AI_GENERATED: end */
+
+/* @AI_GENERATED: formal-load-forecast-context */
+.deployment-page-header .ant-tag {
+  font-variant-numeric: tabular-nums;
+}
+
+.deployment-page-tabs .ant-btn[href*='accuracy-operations'] {
+  color: #155cb0;
+  border-color: #b7d7ff;
+  background: #f2f8ff;
+}
+
+.deployment-page-tabs .ant-btn[href*='accuracy-operations']:hover {
+  color: #0f4d98;
+  border-color: #82baff;
+  background: #e6f2ff;
+}
+
+/* ── 光伏黑橙白（slot=pv_fault） ── */
+.pv-fault-workspace .algorithm-deployment-workspace--pv {
+  --deployment-ink: var(--pv-ink);
+  --deployment-muted: var(--pv-muted);
+  --deployment-line: var(--pv-line);
+  background: var(--pv-canvas);
+}
+
+.pv-fault-workspace .algorithm-deployment-workspace--pv .deployment-page-tabs .ant-btn[href*='accuracy-operations'] {
+  color: #b45309;
+  border-color: rgba(255, 106, 0, 0.35);
+  background: var(--pv-primary-soft);
+}
+
+.pv-fault-workspace .algorithm-deployment-workspace--pv .deployment-page-tabs .ant-btn[href*='accuracy-operations']:hover {
+  color: #92400e;
+  border-color: rgba(255, 106, 0, 0.55);
+  background: #ffe8d6;
+}
+/* @AI_GENERATED: end */

@@ -1,0 +1,54 @@
+{
+  "incident_day": "2026-05-24",
+  "missing_day": "2026-05-22",
+  "selected_strategy": "pred_fill_dm1",
+  "window": [
+    "2026-05-21",
+    "2026-05-27"
+  ],
+  "days": [
+    {
+      "iso": "2026-05-21",
+      "label": "05-21",
+      "baseline_acc": 81.52
+    },
+    {
+      "iso": "2026-05-22",
+      "label": "05-22",
+      "baseline_acc": 88.88
+    },
+    {
+      "iso": "2026-05-23",
+      "label": "05-23",
+      "baseline_acc": 88.05
+    },
+    {
+      "iso": "2026-05-24",
+      "label": "05-24",
+      "baseline_acc": 94.24,
+      "nofix_acc": 86.03,
+      "recovered_acc": 97.08
+    },
+    {
+      "iso": "2026-05-25",
+      "label": "05-25",
+      "baseline_acc": 93.92,
+      "nofix_acc": 86.37,
+      "recovered_acc": 93.15
+    },
+    {
+      "iso": "2026-05-26",
+      "label": "05-26",
+      "baseline_acc": 96.63,
+      "nofix_acc": 91.54,
+      "recovered_acc": 95.96
+    },
+    {
+      "iso": "2026-05-27",
+      "label": "05-27",
+      "baseline_acc": 97.91,
+      "nofix_acc": 96.43,
+      "recovered_acc": 97.05
+    }
+  ]
+}

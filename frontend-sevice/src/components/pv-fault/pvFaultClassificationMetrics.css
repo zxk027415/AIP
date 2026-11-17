@@ -1,0 +1,29 @@
+.pv-classification-metrics {
+  width: 100%;
+}
+
+.pv-metric-number {
+  min-height: 92px;
+  padding: 12px 14px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.pv-metric-number .ant-statistic-content {
+  color: #162235;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pv-metric-evidence {
+  display: block;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.pv-metric-chart-title {
+  margin-bottom: 4px;
+  color: #334155;
+  font-weight: 600;
+}

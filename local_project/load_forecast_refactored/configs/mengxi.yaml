@@ -1,0 +1,62 @@
+# 蒙西电网日前负荷预测配置
+customer:
+  name: "mengxi"
+  task_id: "1216_v2_1_mengxi_d1_15min"
+  output_dir: "./output/mengxi_dataset"
+
+data_source:
+  dataset_name: "ai-suite-load-v2-1"
+  table_name: "sgms_hbuilding_load_quarter3"
+  parent_field: "parent_id"
+  child_field: "child_id"
+  time_field: "record_time"
+  load_field: "load"
+  time_granularity: "15min"
+  time_zone: "Asia/Shanghai"
+  offline_csv_path: ""
+
+forecast:
+  task_type: "D"
+  forecast_horizon: 62
+  forecast_start_time: "00:00"
+  specify_model: "auto"
+  separate_modeling: "true"
+  operate_status: "local_offline"
+
+id_lists:
+  mengxi:
+    - MX_LOAD_REGULATION
+    - MX_NOT_MARKET_POWER
+    - MX_EASTWARD_PLAN
+
+weather_cols:
+  train:
+    - mengxi_ENS_AVG_MAX_WS
+    - mengxi_ENS_AVG_MAX_TMP
+    - mengxi_ENS_AVG_MAX_poa
+    - mengxi_ENS_AVG_MAX_ghi
+    - mengxi_ENS_AVG_AVG_WS
+    - mengxi_ENS_AVG_AVG_TMP
+    - mengxi_ENS_AVG_AVG_poa
+    - mengxi_ENS_AVG_AVG_ghi
+    - mengxi_ENS_AVG_MIN_WS
+    - mengxi_ENS_AVG_MIN_TMP
+    - mengxi_ENS_AVG_MIN_poa
+    - mengxi_ENS_AVG_MIN_ghi
+  predict:
+    - mengxi_ENS_AVG_MAX_WS
+    - mengxi_ENS_AVG_MAX_TMP
+    - mengxi_ENS_AVG_MAX_poa
+    - mengxi_ENS_AVG_MAX_ghi
+    - mengxi_ENS_AVG_AVG_WS
+    - mengxi_ENS_AVG_AVG_TMP
+    - mengxi_ENS_AVG_AVG_poa
+    - mengxi_ENS_AVG_AVG_ghi
+    - mengxi_ENS_AVG_MIN_WS
+    - mengxi_ENS_AVG_MIN_TMP
+    - mengxi_ENS_AVG_MIN_poa
+    - mengxi_ENS_AVG_MIN_ghi
+
+backtest:
+  start_date: "2023-03-06"
+  end_date: "2023-03-07"

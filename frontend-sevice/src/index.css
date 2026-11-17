@@ -1,0 +1,50 @@
+/* Tailwind CSS 基础样式 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局样式 */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* 全局字体渲染优化 */
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1;
+  /* 微妙的文字阴影增强清晰度 */
+  text-shadow: 0 0 0.5px rgba(0, 0, 0, 0.01);
+}
+
+/* React 根元素 */
+#root {
+  height: 100%;
+  width: 100%;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* React Flow 样式覆盖 */
+.react-flow__node {
+  font-size: 15px;
+  /* 全局字体优化 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1;
+}
+
+.react-flow__edge-path {
+  stroke-width: 2;
+}

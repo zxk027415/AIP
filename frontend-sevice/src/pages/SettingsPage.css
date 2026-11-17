@@ -1,0 +1,123 @@
+/* 系统配置页面Tab样式 - 与架构页面保持一致 */
+
+/* 强制禁用所有Ant Design motion动画 */
+.settings-tabs .ant-motion-collapse,
+.settings-tabs .ant-motion-collapse-legacy,
+.settings-tabs [class*="ant-motion"],
+.settings-tabs [class*="ant-zoom"],
+.settings-tabs [class*="ant-slide"],
+.settings-tabs [class*="ant-fade"] {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+/* 禁用Tab内容区域的所有动画 */
+.settings-tabs .ant-tabs-tabpane,
+.settings-tabs .ant-tabs-content,
+.settings-tabs .ant-tabs-content-holder {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+/* Tab标签样式优化 */
+.settings-tabs .ant-tabs-tab {
+  padding: 12px 0 !important;
+  margin: 0 16px 0 0 !important;
+  font-weight: 500;
+  transition: color 0.2s ease !important;
+  animation: none !important;
+  transform: none !important;
+}
+
+.settings-tabs .ant-tabs-tab:hover {
+  color: #1890ff;
+}
+
+.settings-tabs .ant-tabs-tab-active {
+  color: #1890ff !important;
+  font-weight: 600;
+}
+
+.settings-tabs .ant-tabs-tab-active .anticon {
+  color: #1890ff !important;
+}
+
+.settings-tabs .ant-tabs-ink-bar {
+  background: #1890ff;
+  height: 3px;
+  /* 恢复ink-bar的平滑移动动画 */
+  transition: left 0.3s ease, width 0.3s ease !important;
+}
+
+/* Tab导航栏 */
+.settings-tabs .ant-tabs-nav {
+  animation: none !important;
+  transform: none !important;
+}
+
+.settings-tabs .ant-tabs-nav-wrap {
+  animation: none !important;
+  transform: none !important;
+}
+
+.settings-tabs .ant-tabs-nav-list {
+  animation: none !important;
+  transform: none !important;
+}
+
+/* Tab内容区域 */
+.settings-tabs .ant-tabs-content-holder {
+  margin-top: 16px;
+  transition: none !important;
+  animation: none !important;
+}
+
+.settings-tabs .ant-tabs-content {
+  min-height: 500px;
+  transition: none !important;
+  animation: none !important;
+  transform: none !important;
+}
+
+.settings-tabs .ant-tabs-tabpane {
+  min-height: 500px;
+  transition: none !important;
+  animation: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+/* 禁用Tab内容切换动画 */
+.settings-tabs .ant-tabs-content-animated {
+  transition: none !important;
+  animation: none !important;
+  transform: none !important;
+}
+
+/* Tab导航栏保持稳定 */
+.settings-tabs .ant-tabs-nav {
+  animation: none !important;
+}
+
+/* Tab内容区域 */
+.settings-tab-content {
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 0 0 8px 8px;
+  min-height: 500px; /* 设置最小高度防止抖动 */
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+  .settings-tabs .ant-tabs-tab {
+    padding: 8px 0 !important;
+    margin: 0 12px 0 0 !important;
+    font-size: 12px;
+  }
+
+  .settings-tab-content {
+    padding: 12px;
+  }
+}

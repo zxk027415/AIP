@@ -1,0 +1,174 @@
+/* Dify 风格的节点 */
+.dify-node {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  min-width: 180px;
+  max-width: 240px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  position: relative;
+  overflow: visible;
+  cursor: move;
+  will-change: transform;
+  /* 移除所有过渡效果，确保即时响应 */
+}
+
+.dify-node:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  border-color: #cbd5e1;
+}
+
+/* 选中状态 - 即时应用，无过渡 */
+.dify-node.selected {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15), 0 4px 16px rgba(59, 130, 246, 0.2);
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+}
+
+.dify-node.error {
+  border-color: #ef4444;
+  background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+}
+
+/* 拖拽时的样式 */
+.react-flow__node-dragging .dify-node {
+  cursor: grabbing;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  transform: scale(1.02);
+}
+
+/* 节点内容 */
+.dify-node-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+.dify-node-icon {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  border-radius: 8px;
+}
+
+.dify-node-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.4;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dify 风格的端口 */
+.dify-port {
+  width: 14px;
+  height: 14px;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  background: #64748b;
+  transition: all 0.2s ease;
+  cursor: crosshair;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.dify-port:hover {
+  transform: scale(1.3);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2), 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+.dify-port-input {
+  left: -7px;
+}
+
+.dify-port-output {
+  right: -7px;
+}
+
+/* 连接时的高亮效果 */
+.dify-port.react-flow__handle-connecting {
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+  transform: scale(1.2);
+}
+
+.dify-port.react-flow__handle-valid {
+  background: #10b981;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.3);
+}
+
+/* 错误提示 */
+.dify-node-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-top: 1px solid #fecaca;
+  border-radius: 0 0 12px 12px;
+  font-size: 12px;
+  color: #dc2626;
+  line-height: 1.4;
+}
+
+.error-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.error-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 动画效果 */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.dify-node.selected .dify-node-icon {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* React Flow 性能优化 */
+.react-flow__node {
+  pointer-events: all;
+}
+
+.react-flow__node.dragging {
+  pointer-events: none;
+}
+
+/* 优化拖拽性能 */
+.react-flow__renderer {
+  will-change: transform;
+}
+
+.react-flow__viewport {
+  will-change: transform;
+}
+
+/* 平滑的节点移动 */
+.react-flow__node {
+  transition: none !important;
+}
+
+.react-flow__node.selected {
+  z-index: 1000;
+}

@@ -1,0 +1,22 @@
+{
+  "_comment": "@AI_GENERATED",
+  "status": "passed",
+  "source_database": "aip_algo_platform",
+  "target_database": "aip_algo_platform_test_kiro_20260908",
+  "source_and_target_are_distinct": true,
+  "selected_database": "aip_algo_platform_test_kiro_20260908",
+  "alembic_revision": "e7b9c2d4f6a8",
+  "table_count": 33,
+  "required_tables_present": true,
+  "required_tables": [
+    "day_label_ops",
+    "day_labels",
+    "label_ops",
+    "point_label_ops",
+    "point_labels",
+    "training_samples"
+  ],
+  "credentials_persisted": false,
+  "business_database_ddl_or_dml": false,
+  "_comment_end": "@AI_GENERATED: end"
+}

@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoResearch — Linear Style</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      /* 背景三层深度 */
+      --bg-primary:    #0a0a0a;
+      --bg-secondary:  #111111;
+      --bg-tertiary:   #1a1a1a;
+      --bg-elevated:   #222222;
+      --bg-hover:      #1f1f1f;
+
+      /* 文字三级 */
+      --text-primary:   #ededed;
+      --text-secondary: #8b8b8b;
+      --text-tertiary:  #5a5a5a;
+
+      /* 强调色 */
+      --accent:         #5e6ad2;
+      --accent-hover:   #6e7ae2;
+
+      /* 状态色 */
+      --success:  #4ade80;
+      --warning:  #fbbf24;
+      --error:    #f87171;
+      --info:     #60a5fa;
+      --purple:   #a78bfa;
+
+      /* 边框 */
+      --border:       #1e1e1e;
+      --border-hover: #333333;
+
+      /* 字体 */
+      --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+
+      /* 间距 */
+      --sidebar-width: 240px;
+      --header-height: 48px;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+      background: var(--bg-primary);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ===== Layout ===== */
+    .layout { display: flex; height: 100vh; }
+
+    /* ===== Sidebar ===== */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .sidebar-header {
+      height: var(--header-height);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-logo {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+    .sidebar-logo span { color: var(--accent); }
+
+    .sidebar-section {
+      padding: 12px 8px;
+    }
+    .sidebar-section-title {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0 8px 8px;
+    }
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+    .sidebar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .sidebar-item.active { background: var(--bg-tertiary); color: var(--text-primary); }
+    .sidebar-item.active .sidebar-icon { color: var(--accent); }
+    .sidebar-icon { font-size: 15px; width: 18px; text-align: center; }
+    .sidebar-badge {
+      margin-left: auto;
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+    .sidebar-badge.blue { background: rgba(94,106,210,0.15); color: var(--accent); }
+    .sidebar-badge.green { background: rgba(74,222,128,0.15); color: var(--success); }
+    .sidebar-badge.yellow { background: rgba(251,191,36,0.15); color: var(--warning); }
+
+    /* ===== Main Content ===== */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .header {
+      height: var(--header-height);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      flex-shrink: 0;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+
+    /* ===== Buttons ===== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+      font-family: var(--font-sans);
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--border-hover); }
+    .btn-danger { background: rgba(248,113,113,0.1); color: var(--error); }
+    .btn-danger:hover { background: rgba(248,113,113,0.2); }
+
+    /* ===== Content Area ===== */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    /* ===== Status Bar (active run) ===== */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 24px;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot.running {
+      background: var(--info);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .status-dot.success { background: var(--success); }
+    .status-dot.failed { background: var(--error); }
+    .status-dot.waiting { background: var(--purple); animation: pulse 2s ease-in-out infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(96,165,250,0.4); }
+      50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(96,165,250,0); }
+    }
+
+    .status-info { flex: 1; }
+    .status-run-id {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-primary);
+    }
+    .status-meta {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+    .status-progress {
+      width: 120px;
+      height: 4px;
+      background: var(--bg-elevated);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .status-progress-bar {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.3s;
+    }
+
+    /* ===== Stats Row ===== */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -0.03em;
+    }
+    .stat-change {
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    .stat-change.positive { color: var(--success); }
+    .stat-change.negative { color: var(--error); }
+
+    /* ===== Panel ===== */
+    .panel {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+    .panel-body { padding: 0; }
+
+    /* ===== Tabs ===== */
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+    }
+    .tab {
+      padding: 10px 12px;
+      font-size: 13px;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .tab:hover { color: var(--text-secondary); }
+    .tab.active {
+      color: var(--text-primary);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ===== Table ===== */
+    .table { width: 100%; border-collapse: collapse; }
+    .table th {
+      text-align: left;
+      padding: 8px 16px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+    }
+    .table td {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .table tr:hover td { background: var(--bg-hover); }
+    .table tr:last-child td { border-bottom: none; }
+
+    .mono { font-family: var(--font-mono); font-size: 12px; }
+
+    /* ===== Tags ===== */
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .tag-success { background: rgba(74,222,128,0.1); color: var(--success); }
+    .tag-error   { background: rgba(248,113,113,0.1); color: var(--error); }
+    .tag-warning { background: rgba(251,191,36,0.1); color: var(--warning); }
+    .tag-info    { background: rgba(96,165,250,0.1); color: var(--info); }
+    .tag-purple  { background: rgba(167,139,250,0.1); color: var(--purple); }
+    .tag-neutral { background: rgba(139,139,139,0.1); color: var(--text-secondary); }
+
+    /* ===== Run Row (runs list) ===== */
+    .run-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr 1.5fr 120px;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .run-row:hover { background: var(--bg-hover); }
+    .run-row:last-child { border-bottom: none; }
+    .run-row-header {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr 1.5fr 120px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .run-row-header span {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .run-id {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+    .run-id .run-tags { display: inline-flex; gap: 4px; margin-left: 8px; }
+
+    /* ===== Iteration Detail ===== */
+    .iter-detail {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      padding: 16px;
+    }
+    .metric-block { margin-bottom: 12px; }
+    .metric-label { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; }
+    .metric-value { font-size: 18px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.02em; margin-top: 4px; }
+
+    /* ===== Evidence / Candidate / Verification indicators ===== */
+    .indicator-row { display: flex; gap: 12px; margin-top: 16px; }
+    .indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .indicator-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+    }
+
+    /* ===== Scrollbar ===== */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--bg-elevated); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+    /* ===== MAPE improvement color ===== */
+    .mape-positive { color: var(--success); }
+    .mape-negative { color: var(--error); }
+    .mape-neutral  { color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">Auto<span>Research</span></div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">实验管理</div>
+        <div class="sidebar-item active">
+          <span class="sidebar-icon">📊</span> 实验面板
+        </div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">🧪</span> 候选池
+          <span class="sidebar-badge green">12</span>
+        </div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">✅</span> 复验池
+          <span class="sidebar-badge blue">3</span>
+        </div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">📋</span> Evidence Ledger
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">研究工具</div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">🎯</span> 候选规划器
+        </div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">🔍</span> Novelty 门控
+        </div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">🧠</span> 知识库
+          <span class="sidebar-badge yellow">New</span>
+        </div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">❓</span> 研究问题
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">系统</div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">⚙️</span> 搜索空间 Registry
+        </div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">📈</span> 画像分析
+        </div>
+        <div class="sidebar-item">
+          <span class="sidebar-icon">🤖</span> GLM 提案
+          <span class="sidebar-badge blue">2</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main -->
+    <div class="main">
+      <!-- Header -->
+      <div class="header">
+        <div class="header-left">
+          <span class="header-title">实验面板</span>
+          <span style="color:var(--text-tertiary);font-size:12px">/ 负荷预测 v2</span>
+        </div>
+        <div class="header-right">
+          <button class="btn btn-ghost">Registry 配置</button>
+          <button class="btn btn-primary">▶ 开始新 Run</button>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="content">
+        <!-- Active Run Status -->
+        <div class="status-bar">
+          <div class="status-dot running"></div>
+          <div class="status-info">
+            <div class="status-run-id">ares-6fd54813f76b</div>
+            <div class="status-meta">第 14/30 轮 · 开始于 21:32 · 预计剩余 ~12 min</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:12px;color:var(--text-secondary)">Batch 3/3</div>
+            <div class="status-progress" style="margin-top:4px">
+              <div class="status-progress-bar" style="width:46%"></div>
+            </div>
+          </div>
+          <button class="btn btn-danger" style="margin-left:8px">■ 停止</button>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-label">总 Run 数</div>
+            <div class="stat-value">24</div>
+            <div class="stat-change positive">↑ 3 本周</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">最佳 MAPE 改善</div>
+            <div class="stat-value">-1.82%</div>
+            <div class="stat-change positive">ares-8c2f…run3</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">候选池</div>
+            <div class="stat-value">12</div>
+            <div class="stat-change">3 等待复验</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Novelty Rate</div>
+            <div class="stat-value">73%</div>
+            <div class="stat-change negative">↓ 8% vs 上周</div>
+          </div>
+        </div>
+
+        <!-- Tabs + Table Panel -->
+        <div class="panel">
+          <div class="tabs">
+            <div class="tab active">迭代详情</div>
+            <div class="tab">Run 列表</div>
+            <div class="tab">Pareto 前沿</div>
+            <div class="tab">GLM 提案</div>
+          </div>
+
+          <!-- Iterations Table -->
+          <table class="table">
+            <thead>
+              <tr>
+                <th style="width:60px">轮次</th>
+                <th style="width:80px">状态</th>
+                <th style="width:110px">MAPE 改善</th>
+                <th style="width:110px">Baseline</th>
+                <th style="width:110px">Challenger</th>
+                <th style="width:80px">约束</th>
+                <th>覆盖参数</th>
+                <th style="width:120px">方向</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span style="color:var(--text-primary);font-weight:500">14</span></td>
+                <td><span class="tag tag-info"><span class="status-dot" style="width:6px;height:6px;background:var(--info)"></span> 运行中</span></td>
+                <td>—</td>
+                <td><span class="mono">5.21</span></td>
+                <td>—</td>
+                <td>—</td>
+                <td><span class="mono" style="color:var(--text-tertiary)">train_days: 14, ensemble: auto</span></td>
+                <td><span class="tag tag-purple">parameter</span></td>
+              </tr>
+              <tr>
+                <td><span style="color:var(--text-primary);font-weight:500">13</span></td>
+                <td><span class="tag tag-success">✓ 成功</span></td>
+                <td><span class="mape-positive mono" style="font-weight:500">+0.41</span></td>
+                <td><span class="mono">5.21</span></td>
+                <td><span class="mono" style="color:var(--success)">4.80</span></td>
+                <td><span class="tag tag-success">达标</span></td>
+                <td><span class="mono" style="color:var(--text-tertiary)">rolling: [8,24,48,96]</span></td>
+                <td><span class="tag tag-info">feature</span></td>
+              </tr>
+              <tr>
+                <td><span style="color:var(--text-primary);font-weight:500">12</span></td>
+                <td><span class="tag tag-success">✓ 成功</span></td>
+                <td><span class="mape-negative mono" style="font-weight:500">-0.15</span></td>
+                <td><span class="mono">5.21</span></td>
+                <td><span class="mono" style="color:var(--error)">5.36</span></td>
+                <td><span class="tag tag-success">达标</span></td>
+                <td><span class="mono" style="color:var(--text-tertiary)">calendar: holiday=true</span></td>
+                <td><span class="tag tag-info">feature</span></td>
+              </tr>
+              <tr>
+                <td><span style="color:var(--text-primary);font-weight:500">11</span></td>
+                <td><span class="tag tag-success">✓ 成功</span></td>
+                <td><span class="mape-positive mono" style="font-weight:500">+0.28</span></td>
+                <td><span class="mono">5.21</span></td>
+                <td><span class="mono" style="color:var(--success)">4.93</span></td>
+                <td><span class="tag tag-success">达标</span></td>
+                <td><span class="mono" style="color:var(--text-tertiary)">train_days: 14</span></td>
+                <td><span class="tag tag-purple">parameter</span></td>
+              </tr>
+              <tr>
+                <td><span style="color:var(--text-primary);font-weight:500">10</span></td>
+                <td><span class="tag tag-success">✓ 成功</span></td>
+                <td><span class="mape-positive mono" style="font-weight:500">+0.32</span></td>
+                <td><span class="mono">5.21</span></td>
+                <td><span class="mono" style="color:var(--success)">4.89</span></td>
+                <td><span class="tag tag-success">达标</span></td>
+                <td><span class="mono" style="color:var(--text-tertiary)">xgb_eta: 0.05, depth: 6</span></td>
+                <td><span class="tag tag-purple">model</span></td>
+              </tr>
+              <tr>
+                <td style="color:var(--text-tertiary)">9</td>
+                <td><span class="tag tag-error">✗ 失败</span></td>
+                <td><span class="mape-negative mono">-0.58</span></td>
+                <td><span class="mono">5.21</span></td>
+                <td><span class="mono" style="color:var(--error)">5.79</span></td>
+                <td><span class="tag tag-error">未达标</span></td>
+                <td><span class="mono" style="color:var(--text-tertiary)">daily_horizon: 192</span></td>
+                <td><span class="tag tag-neutral">risk</span></td>
+              </tr>
+              <tr>
+                <td style="color:var(--text-tertiary)">8</td>
+                <td><span class="tag tag-success">✓ 成功</span></td>
+                <td><span class="mape-positive mono">+0.12</span></td>
+                <td><span class="mono">5.21</span></td>
+                <td><span class="mono" style="color:var(--success)">5.09</span></td>
+                <td><span class="tag tag-success">达标</span></td>
+                <td><span class="mono" style="color:var(--text-tertiary)">weather: temp+humidity</span></td>
+                <td><span class="tag tag-warning">data</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Bottom: Two columns -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Run History -->
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">最近 Run</span>
+              <span style="font-size:12px;color:var(--text-tertiary)">共 24 个</span>
+            </div>
+            <div class="panel-body">
+              <div class="run-row-header">
+                <span>Run ID</span>
+                <span>状态</span>
+                <span>轮次</span>
+                <span>最佳改善</span>
+                <span>更新时间</span>
+                <span></span>
+              </div>
+              <div class="run-row" style="background:var(--bg-tertiary)">
+                <div>
+                  <span class="run-id">ares-6fd54813…</span>
+                  <span class="tag tag-info" style="margin-left:6px;font-size:10px">当前</span>
+                </div>
+                <span class="tag tag-info">● 运行中</span>
+                <span style="color:var(--text-primary)">14/30</span>
+                <span class="mape-positive mono">+0.41</span>
+                <span style="color:var(--text-tertiary);font-size:12px">2 min ago</span>
+                <button class="btn btn-ghost" style="padding:3px 8px;font-size:12px">查看</button>
+              </div>
+              <div class="run-row">
+                <div><span class="run-id">ares-8c2f91e7…</span></div>
+                <span class="tag tag-success">✓ 完成</span>
+                <span style="color:var(--text-secondary)">30/30</span>
+                <span class="mape-positive mono">+1.82</span>
+                <span style="color:var(--text-tertiary);font-size:12px">3h ago</span>
+                <button class="btn btn-ghost" style="padding:3px 8px;font-size:12px">查看</button>
+              </div>
+              <div class="run-row">
+                <div><span class="run-id">ares-a3bc4521…</span></div>
+                <span class="tag tag-error">✗ 失败</span>
+                <span style="color:var(--text-secondary)">8/20</span>
+                <span class="mape-negative mono">+0.15</span>
+                <span style="color:var(--text-tertiary);font-size:12px">1d ago</span>
+                <button class="btn btn-ghost" style="padding:3px 8px;font-size:12px">恢复</button>
+              </div>
+              <div class="run-row">
+                <div><span class="run-id">ares-f7d2e893…</span></div>
+                <span class="tag tag-neutral">■ 中断</span>
+                <span style="color:var(--text-secondary)">22/30</span>
+                <span class="mape-positive mono">+1.24</span>
+                <span style="color:var(--text-tertiary);font-size:12px">2d ago</span>
+                <button class="btn btn-ghost" style="padding:3px 8px;font-size:12px">恢复</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Evidence & Knowledge -->
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">探索质量指标</span>
+            </div>
+            <div class="panel-body" style="padding:16px">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+                <div class="stat-card" style="border:none;padding:12px">
+                  <div class="metric-label">Novelty Rate</div>
+                  <div class="metric-value" style="color:var(--success)">73%</div>
+                </div>
+                <div class="stat-card" style="border:none;padding:12px">
+                  <div class="metric-label">Duplicate Rate</div>
+                  <div class="metric-value" style="color:var(--warning)">27%</div>
+                </div>
+                <div class="stat-card" style="border:none;padding:12px">
+                  <div class="metric-label">多窗口确认</div>
+                  <div class="metric-value" style="color:var(--info)">4</div>
+                </div>
+                <div class="stat-card" style="border:none;padding:12px">
+                  <div class="metric-label">问题解决率</div>
+                  <div class="metric-value" style="color:var(--purple)">58%</div>
+                </div>
+              </div>
+
+              <!-- Direction distribution -->
+              <div style="margin-bottom:12px">
+                <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">探索方向分布</div>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span style="width:60px;font-size:12px;color:var(--text-secondary)">parameter</span>
+                    <div style="flex:1;height:6px;background:var(--bg-elevated);border-radius:3px;overflow:hidden">
+                      <div style="width:38%;height:100%;background:var(--purple);border-radius:3px"></div>
+                    </div>
+                    <span class="mono" style="font-size:11px;color:var(--text-tertiary)">38%</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span style="width:60px;font-size:12px;color:var(--text-secondary)">feature</span>
+                    <div style="flex:1;height:6px;background:var(--bg-elevated);border-radius:3px;overflow:hidden">
+                      <div style="width:28%;height:100%;background:var(--info);border-radius:3px"></div>
+                    </div>
+                    <span class="mono" style="font-size:11px;color:var(--text-tertiary)">28%</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span style="width:60px;font-size:12px;color:var(--text-secondary)">model</span>
+                    <div style="flex:1;height:6px;background:var(--bg-elevated);border-radius:3px;overflow:hidden">
+                      <div style="width:20%;height:100%;background:var(--success);border-radius:3px"></div>
+                    </div>
+                    <span class="mono" style="font-size:11px;color:var(--text-tertiary)">20%</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span style="width:60px;font-size:12px;color:var(--text-secondary)">data</span>
+                    <div style="flex:1;height:6px;background:var(--bg-elevated);border-radius:3px;overflow:hidden">
+                      <div style="width:9%;height:100%;background:var(--warning);border-radius:3px"></div>
+                    </div>
+                    <span class="mono" style="font-size:11px;color:var(--text-tertiary)">9%</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span style="width:60px;font-size:12px;color:var(--text-secondary)">risk</span>
+                    <div style="flex:1;height:6px;background:var(--bg-elevated);border-radius:3px;overflow:hidden">
+                      <div style="width:5%;height:100%;background:var(--error);border-radius:3px"></div>
+                    </div>
+                    <span class="mono" style="font-size:11px;color:var(--text-tertiary)">5%</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Knowledge claims -->
+              <div>
+                <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">最新知识沉淀</div>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="padding:8px 10px;background:var(--bg-tertiary);border-radius:6px;font-size:12px">
+                    <span style="color:var(--success)">●</span>
+                    <span style="color:var(--text-primary);margin-left:4px">漂移场景(drift>0.3)下 train_days=14 优于默认 30</span>
+                    <span style="color:var(--text-tertiary);margin-left:4px">置信度 0.9</span>
+                  </div>
+                  <div style="padding:8px 10px;background:var(--bg-tertiary);border-radius:6px;font-size:12px">
+                    <span style="color:var(--info)">●</span>
+                    <span style="color:var(--text-primary);margin-left:4px">波动高场景 rolling 窗口族加宽改善尾部误差</span>
+                    <span style="color:var(--text-tertiary);margin-left:4px">置信度 0.7</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</body>
+</html>

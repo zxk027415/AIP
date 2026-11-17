@@ -1,0 +1,150 @@
+.template-gallery-page {
+  padding: 24px;
+  min-height: 100vh;
+  background-color: #f0f2f5;
+}
+
+.page-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.page-header p {
+  margin: 0;
+  color: #8c8c8c;
+  font-size: 14px;
+}
+
+.template-toolbar {
+  margin-bottom: 24px;
+}
+
+/* 模板卡片 */
+.template-card {
+  height: 100%;
+  transition: all 0.3s ease;
+}
+
+.template-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.template-preview {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+}
+
+.template-preview-placeholder {
+  width: 100%;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-size: 48px;
+}
+
+.template-meta {
+  min-height: 80px;
+}
+
+.template-description {
+  margin-bottom: 8px;
+  color: #595959;
+  font-size: 13px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 模板详情 */
+.template-detail {
+  padding: 16px 0;
+}
+
+.template-detail-section {
+  margin-bottom: 24px;
+}
+
+.template-detail-section:last-child {
+  margin-bottom: 0;
+}
+
+.template-detail-section h4 {
+  margin-bottom: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.template-documentation {
+  padding: 16px;
+  background-color: #fafafa;
+  border-radius: 4px;
+  line-height: 1.8;
+}
+
+.template-documentation h1,
+.template-documentation h2,
+.template-documentation h3 {
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.template-documentation p {
+  margin-bottom: 12px;
+}
+
+.template-documentation ul,
+.template-documentation ol {
+  padding-left: 24px;
+  margin-bottom: 12px;
+}
+
+.template-documentation code {
+  padding: 2px 6px;
+  background-color: #f0f0f0;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .template-gallery-page {
+    padding: 16px;
+  }
+
+  .template-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .template-toolbar .ant-input-search {
+    width: 100% !important;
+  }
+
+  .template-preview,
+  .template-preview-placeholder {
+    height: 150px;
+  }
+}
+
+@media (max-width: 576px) {
+  .page-header h2 {
+    font-size: 20px;
+  }
+
+  .template-preview,
+  .template-preview-placeholder {
+    height: 120px;
+  }
+}

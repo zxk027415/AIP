@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>算法运营 Agent · Gap一天闭环报告</title>
+<style>
+:root{
+  --ink:#101b2d;--muted:#5d6a7d;--soft:#8b97a7;--line:#d8e2ee;
+  --blue:#1e63d6;--blue2:#174a9f;--green:#11874d;--green-bg:#e8f7ef;
+  --red:#d73c36;--red-bg:#fff0ee;--amber:#b27610;
+  --bg:#eef4fb;--panel:#fff;--panel2:#f7fbff;--nav:#071f45;--nav2:#0b3265;
+  --shadow:0 18px 42px rgba(16,27,45,.10);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
+  color:var(--ink);background:radial-gradient(circle at top left,#e6f0ff 0,#f4f8fd 38%,#eef4fb 100%);
+  height:100vh;overflow:hidden;letter-spacing:0;
+}
+.shell{height:100vh;display:grid;grid-template-columns:232px minmax(0,1fr)}
+aside{background:linear-gradient(180deg,var(--nav),var(--nav2));color:#d9e8ff;padding:22px 18px;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:15px;line-height:1.2}
+.mark{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;background:#2b78ff;color:#fff;font-size:14px;box-shadow:0 10px 24px rgba(43,120,255,.28)}
+.side-title{margin-top:26px;font-size:25px;line-height:1.08;font-weight:850;color:#fff}
+.side-copy{margin-top:10px;font-size:12px;line-height:1.55;color:#b9cae3}
+.run-meta{margin-top:18px;border-top:1px solid rgba(255,255,255,.14);padding-top:14px;display:grid;gap:9px}
+.meta-line{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#cbdaf1}
+.meta-line strong{color:#fff;font-weight:700}
+nav{margin-top:auto;display:grid;gap:7px}
+nav a{color:#d9e7ff;text-decoration:none;padding:9px 10px;border-radius:7px;font-weight:700;font-size:12px;cursor:pointer}
+nav a.active{background:#2b78ff;color:#fff;box-shadow:0 10px 22px rgba(43,120,255,.22)}
+.content{display:grid;grid-template-rows:58px minmax(0,1fr);overflow:hidden}
+header{display:flex;align-items:center;justify-content:space-between;padding:0 22px;background:rgba(255,255,255,.88);border-bottom:1px solid var(--line);backdrop-filter:blur(10px)}
+header h1{font-size:16px;font-weight:850}
+.topbar{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted)}
+.health{color:var(--green);font-weight:800}
+.llm-badge{border-radius:999px;padding:5px 10px;font-weight:800;color:#5b28b4;background:#f2eaff;font-size:12px}
+main{height:100%;padding:14px 18px 16px;display:grid;grid-template-columns:minmax(0,1.2fr) 340px;grid-template-rows:260px minmax(210px,1fr) minmax(150px,.54fr);gap:12px;overflow:hidden}
+section{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:14px;overflow:hidden}
+h2{font-size:13px;margin-bottom:9px;font-weight:850}
+p{color:var(--muted);font-size:12px;line-height:1.5}
+.recovery-board{padding:0;background:transparent;border:none;box-shadow:none;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:12px}
+.hero.recovery-board{grid-column:1/2;min-height:260px}
+.hero.recovery-board .trajectory-card,.hero.recovery-board .summary-card{padding:16px}
+.hero.recovery-board .curve{height:118px;margin:7px 0 6px}
+.hero.recovery-board .daily-point b{font-size:13px}
+.hero.recovery-board .daily-point.key b{font-size:23px}
+.hero.recovery-board .daily-point span{font-size:10px}
+.hero.recovery-board .facts{gap:8px 12px}
+.hero.recovery-board .facts .k{font-size:12px}.hero.recovery-board .facts .v{font-size:13px}
+.hero.recovery-board .summary-text{font-size:12px;line-height:1.45}
+.hero.recovery-board .donut{width:92px;height:92px}.hero.recovery-board .donut::before{width:66px;height:66px}.hero.recovery-board .donut b{font-size:23px}
+.trajectory-card,.summary-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:18px;overflow:hidden}
+.title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.title-row h2{font-size:19px;margin:0}
+.title-row span{color:var(--muted);font-size:13px;font-weight:800;white-space:nowrap}
+.curve{height:154px;position:relative;margin:10px 0 8px}
+.curve svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.daily-point{position:absolute;transform:translate(-50%,-50%);text-align:center;color:var(--muted);font-weight:900}
+.daily-point b{display:block;font-size:15px;line-height:1;color:var(--ink)}
+.daily-point span{display:block;margin-top:3px;font-size:10px;color:var(--muted);font-weight:850}
+.daily-point .dot{width:10px;height:10px;border-radius:50%;border:3px solid currentColor;background:#fff;margin:4px auto 0}
+.daily-point.key .dot{width:15px;height:15px;border-width:4px}
+.daily-point.key b{font-size:25px}
+.trajectory-legend{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px}
+.trajectory-legend strong{display:block;font-size:13px}.trajectory-legend span{display:block;margin-top:5px;color:var(--muted);font-size:12px;font-weight:700}
+.summary-card{display:grid;grid-template-columns:minmax(0,1fr) 142px;gap:14px;align-items:start}
+.summary-card h2{font-size:19px;margin:0 0 14px}.summary-card .status-pill{margin:0 0 16px}
+.status-pill{display:inline-flex;width:max-content;border-radius:999px;padding:4px 8px;background:var(--red-bg);color:var(--red);font-weight:850;font-size:11px}
+.status-pill.ok{background:var(--green-bg);color:var(--green)}
+.facts{display:grid;grid-template-columns:76px 1fr;gap:12px 14px;align-items:start}
+.facts .k{color:var(--muted);font-size:13px;font-weight:800}.facts .v{font-size:14px;font-weight:900;line-height:1.35}.facts .v.green{color:var(--green)}
+.engine-pill{display:inline-flex;border-radius:999px;padding:6px 11px;background:#f2eaff;color:#6c3cc6;font-weight:900;font-size:12px}
+.confidence{display:grid;place-items:center;text-align:center;gap:7px;margin-top:2px}
+.donut{width:104px;height:104px;border-radius:50%;display:grid;place-items:center;position:relative}
+.donut::before{content:"";width:76px;height:76px;border-radius:50%;background:#fff;position:absolute}
+.donut b{position:relative;font-size:25px}
+.confidence span{font-size:13px;color:var(--muted);font-weight:850}
+.summary-text{grid-column:1/3;color:var(--muted);font-size:13px;line-height:1.55;font-weight:700}
+.chart-main{grid-column:1/2;grid-row:2/3;padding:16px;display:grid;grid-template-rows:auto auto 1fr;gap:12px}
+.day-rail{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.day-cell{border:1px solid var(--line);border-radius:7px;background:#fbfdff;padding:10px 8px;min-height:62px;display:flex;flex-direction:column;justify-content:space-between}
+.day-cell strong{font-size:15px}.day-cell span{font-size:11px;color:var(--muted);font-weight:700}
+.day-cell.ok{border-color:#cfe8db;background:#f4fbf7}.day-cell.incident{border-color:#f0b8b3;background:#fff4f2;box-shadow:inset 0 0 0 1px rgba(215,60,54,.14)}.day-cell.recovered{border-color:#b8dfca;background:#edf9f2}
+.incident-list{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.incident-head,.incident-row{display:grid;grid-template-columns:76px 1.35fr 90px 104px 96px;gap:10px;align-items:center}
+.incident-head{background:#f6f9fd;color:var(--muted);font-size:11px;font-weight:850;padding:9px 12px}
+.incident-row{padding:10px 12px;border-top:1px solid var(--line);font-size:12px}
+.incident-row.selected{background:#fff8f7}.incident-row strong{display:block;font-size:12px}.incident-row small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.severity{width:max-content;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:850}.severity.high{background:var(--red-bg);color:var(--red)}.severity.watch{background:#fff7e6;color:var(--amber)}.severity.ok{background:var(--green-bg);color:var(--green)}
+.status{font-weight:850;color:var(--green)}
+.impact{font-weight:900;color:var(--red)}
+.chart-detail{grid-column:1/2;grid-row:3/4;padding:14px 16px}
+.chart-detail canvas{height:calc(100% - 34px)!important;min-height:148px}
+.panel-stack{grid-column:2/3;grid-row:1/4;display:grid;grid-template-rows:auto auto 1fr auto;gap:12px;overflow:hidden}
+.side-panel{box-shadow:var(--shadow)}
+.decision{background:linear-gradient(180deg,#ffffff,#f6fbf8);border-color:#cfe8db}
+.decision h2{display:flex;align-items:center;justify-content:space-between}
+.decision-badge{border-radius:999px;background:var(--green-bg);color:var(--green);font-weight:900;font-size:11px;padding:4px 8px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:9px 7px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--muted);font-weight:800;background:#f7faff;font-size:11px}
+tr.selected td{background:#edf9f2;color:#0f6f40;font-weight:850}
+.tag{border-radius:999px;padding:3px 7px;font-weight:900;color:var(--green);background:#dff4e8;font-size:10px}
+.evidence-list,.steps{list-style:none;display:grid;gap:7px}
+.evidence-list li,.steps li{border:1px solid var(--line);border-radius:6px;padding:9px 10px;background:#fbfdff;font-size:12px;line-height:1.34}
+.evidence-list li::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-right:7px}
+.steps li{display:grid;grid-template-columns:22px 1fr;align-items:start}
+.steps li::before{content:"✓";width:17px;height:17px;border-radius:50%;display:grid;place-items:center;background:var(--green);color:#fff;font-weight:900;font-size:10px;margin-right:0}
+.adv-row{display:grid;gap:8px}
+.adv{border:1px solid var(--line);border-radius:6px;padding:9px 10px;background:#fbfdff;font-size:12px;line-height:1.42}
+.adv strong{display:block;margin-bottom:3px;font-size:11px;color:var(--blue2)}
+.chart-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.chart-title h2{margin:0}.chart-title p{font-size:11px}
+.incident-note{color:var(--red);font-weight:800;font-size:11px}
+@media (max-width:980px){
+  body{height:auto;overflow:auto}.shell{min-height:100vh;grid-template-columns:1fr}aside{display:none}.content{display:block}main{height:auto;display:block;overflow:visible;padding:12px}.hero,.chart-main,.chart-detail,.panel-stack{display:block;margin-bottom:12px;grid-column:auto;grid-row:auto}.recovery-board{display:grid;grid-template-columns:1fr}.title-row{display:block}.title-row span{white-space:normal}.trajectory-legend{grid-template-columns:1fr}.summary-card{grid-template-columns:1fr}.summary-text{grid-column:auto}.day-rail{grid-template-columns:repeat(2,1fr);margin-bottom:12px}.incident-head,.incident-row{grid-template-columns:1fr;gap:4px}.chart-detail canvas{height:240px!important}.panel-stack{display:grid}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside>
+<div class="brand"><span class="mark">电</span><span>电力智能运营</span></div>
+<div class="side-title">算法运营 Agent 闭环演示</div>
+<p class="side-copy">D-1 原始负荷缺失导致次日预测劣化，Kiro 完成根因判断、策略选择和恢复验证。</p>
+<div class="run-meta">
+<div class="meta-line"><span>资产</span><strong>南华变 · 叶家线085</strong></div>
+<div class="meta-line"><span>模式</span><strong>真 gap 一天</strong></div>
+<div class="meta-line"><span>事故日</span><strong>05-26</strong></div>
+<div class="meta-line"><span>决策源</span><strong>Kiro LLM</strong></div>
+</div>
+<nav><a class="active">总览看板</a><a>预测监控</a><a>根因分析</a><a>策略管理</a><a>CoE</a></nav>
+</aside>
+<div class="content">
+<header><h1>算法运营 Agent · Gap一天闭环 · 南华变.叶家线</h1>
+<div class="topbar"><span class="health">● 闭环完成</span><span>05-21 ~ 05-27 连续回放</span><span class="llm-badge">Kiro 大脑</span></div></header>
+<main>
+
+<section class="hero recovery-board">
+<div class="trajectory-card">
+<div class="title-row"><h2>7 天预测精度变化</h2><span>05-21 ~ 05-27 · 事故日 05-26</span></div>
+<div class="curve">
+<svg viewBox="0 0 640 170" preserveAspectRatio="none" aria-hidden="true">
+<path d="M 46,43 L 137,41 L 229,42 L 320,42 L 411,41" fill="none" stroke="#1e63d6" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 411 41 C 439 41 475 133 503 133" fill="none" stroke="#d73c36" stroke-width="4.5" stroke-linecap="round"/>
+<path d="M 503 133 L 503 46" fill="none" stroke="#11874d" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="6 4" opacity="0.85"/>
+<path d="M 503 46 C 535 46 571 45 594 45" fill="none" stroke="#11874d" stroke-width="4.5" stroke-linecap="round"/>
+</svg>
+<div class="daily-point" style="left:8.0%;top:23.5%;color:#1e63d6"><b>96.4%</b><div class="dot" style="border-color:#1e63d6"></div><span>05-21</span></div><div class="daily-point" style="left:21.8%;top:22.6%;color:#1e63d6"><b>96.7%</b><div class="dot" style="border-color:#1e63d6"></div><span>05-22</span></div><div class="daily-point" style="left:35.7%;top:22.9%;color:#1e63d6"><b>96.6%</b><div class="dot" style="border-color:#1e63d6"></div><span>05-23</span></div><div class="daily-point" style="left:49.5%;top:22.9%;color:#1e63d6"><b>96.6%</b><div class="dot" style="border-color:#1e63d6"></div><span>05-24</span></div><div class="daily-point key" style="left:63.3%;top:22.3%;color:#1e63d6"><b>96.8%</b><div class="dot" style="border-color:#1e63d6"></div><span>05-25 基线</span></div><div class="daily-point key" style="left:77.2%;top:75.5%;color:#d73c36"><b>79.8%</b><div class="dot" style="border-color:#d73c36"></div><span>05-26 劣化</span></div><div class="daily-point key" style="left:77.2%;top:25.5%;color:#11874d"><b>95.8%</b><div class="diamond dashed" style="border-color:#11874d"></div><span>05-26 恢复(待上线)</span></div><div class="daily-point key" style="left:91.0%;top:24.5%;color:#11874d"><b>96.1%</b><div class="diamond solid" style="border-color:#11874d"></div><span>05-27 上线</span></div>
+</div>
+<div class="trajectory-legend">
+<div><strong>事故前稳定</strong><span>保持 96.6% 左右</span></div>
+<div><strong>D-1 全天缺失</strong><span>精度下降 16.8pp</span></div>
+<div><strong>恢复后观察</strong><span>S1 多 gap 一天 后连续回升</span></div>
+</div>
+</div>
+<div class="summary-card">
+<div>
+<h2>事件摘要</h2>
+<span class="status-pill ok">已恢复</span>
+<div class="facts">
+<span class="k">劣化类型</span><span class="v">D-1 整天数据丢失</span>
+<span class="k">资产</span><span class="v">南华变.10kV<br>叶家线085</span>
+<span class="k">状态</span><span class="v green">已恢复</span>
+<span class="k">分析引擎</span><span class="v"><i class="engine-pill">Kiro LLM</i></span>
+<span class="k">选中策略</span><span class="v">S1 多 gap 一天</span>
+</div>
+</div>
+<div class="confidence"><div class="donut" style="background:conic-gradient(var(--blue) 0 91%,#dfe8f5 91% 100%)"><b>91%</b></div><span>根因置信度</span></div>
+<p class="summary-text">lag_1d 指向 D-1，05-24 原始负荷整天缺失后，模型丢失负荷量级锚点，事故日精度由 96.6% 跌至 79.8%。Agent 选择 S1 多 gap 一天 后，恢复至 95.8%。</p>
+</div>
+</section>
+
+<section class="chart-main">
+<div class="chart-title"><div><h2>7 天运行事件 / 事故队列</h2><p>列表承载多事故，选中事故在下方曲线区展示恢复细节</p></div>
+<span class="incident-note">当前选中：05-26 D-1 负荷缺失</span></div>
+<div class="day-rail"><div class="day-cell ok"><strong>05-21</strong><span>精度 96.4%</span></div><div class="day-cell ok"><strong>05-22</strong><span>精度 96.7%</span></div><div class="day-cell ok"><strong>05-23</strong><span>精度 96.6%</span></div><div class="day-cell ok"><strong>05-24</strong><span>D-1 缺失源</span></div><div class="day-cell ok"><strong>05-25</strong><span>精度 96.8%</span></div><div class="day-cell incident"><strong>05-26</strong><span>事故触发</span></div><div class="day-cell recovered"><strong>05-27</strong><span>恢复上线</span></div></div>
+<div class="incident-list">
+<div class="incident-head"><span>时间</span><span>事件</span><span>级别</span><span>影响</span><span>状态</span></div>
+<div class="incident-row selected">
+<span>05-26</span>
+<span><strong>D-1 原始负荷整天缺失</strong><small>lag_1d 关键锚点失效，Kiro 选择 S1</small></span>
+<span><i class="severity high">事故</i></span>
+<span class="impact">79.8% → 95.8%</span>
+<span class="status">已恢复</span>
+</div>
+<div class="incident-row">
+<span>05-26</span>
+<span><strong>恢复后曲线复核</strong><small>恢复预测继续贴近真实负荷，无新增劣化</small></span>
+<span><i class="severity watch">观察</i></span>
+<span>偏差回落</span>
+<span class="status">已关闭</span>
+</div>
+<div class="incident-row">
+<span>05-27</span>
+<span><strong>连续监控复核</strong><small>策略保持稳定，进入 CoE 经验沉淀</small></span>
+<span><i class="severity ok">正常</i></span>
+<span>无新增事故</span>
+<span class="status">完成</span>
+</div>
+</div>
+</section>
+
+<section class="chart-detail">
+<div class="chart-title"><div><h2>事故窗口放大：05-24 / 05-26(事故) / 05-25</h2><p>演示"前一天正常 → 事故日偏离 → 次日恢复"的可视化证据</p></div></div>
+<canvas id="chart3d" style="width:100%"></canvas>
+</section>
+
+<div class="panel-stack">
+<section class="side-panel decision">
+<h2>策略决策 <span class="decision-badge">已选 S1</span></h2>
+<table><tr><th>策略</th><th>恢复精度</th><th>状态</th></tr><tr class="selected"><td>S1 多 gap 一天</td><td>95.78%</td><td><span class="tag">采用</span></td></tr><tr class=""><td>S2 预测回填 D-1</td><td>93.02%</td><td>备选</td></tr></table>
+</section>
+<section class="side-panel">
+<h2>根因证据</h2>
+<ul class="evidence-list"><li>D-1(05-24)整天负荷采集中断</li><li>gap1 基线 lag_1d 指向 D-1</li><li>关键特征 NaN 后精度跌至 79.8%</li><li>无穿越、无模型版本退化、无天气异常</li></ul>
+</section>
+<section class="side-panel">
+<h2>执行链路</h2>
+<ul class="steps"><li>确认 D-1 数据不可用</li><li>将 gap 扩大为 2 天(跳过 D 和 D-1)</li><li>用 gap_extra=2 版特征工程(lag 从 D-2 起算)</li><li>重训模型并预测 D+1</li></ul>
+</section>
+<section class="side-panel">
+<h2>CoE 建议</h2>
+<div class="adv-row">
+<div class="adv"><strong>依据</strong>原始负荷丢失级联影响 lag/rolling。恢复策略的选择取决于故障发生在哪天、丢了多少、预测值质量如何。</div>
+<div class="adv"><strong>风险</strong>预测值回填引入代理误差;多 gap 丢失近期信息。需根据实测精度决策。</div>
+<div class="adv"><strong>预防</strong>建立负荷采集多通道冗余;设置入库超时告警;预置 gap 降级预案。</div>
+</div>
+</section>
+</div>
+
+</main>
+</div>
+</div>
+<script>
+const D3={"y_true": [1.057, 1.1472, 1.171, 1.0993, 1.0626, 0.9597, 0.8438, 0.7818, 0.7268, 0.7593, 0.7536, 0.7164, 0.7236, 0.7975, 0.8004, 0.7942, 0.748, 0.5876, 0.3808, 0.2968, 0.2817, 0.18, 0.129, 0.1645, 0.1762, 0.2788, 0.3002, 0.304, 0.3866, 0.4004, 0.4273, 0.509, 0.5998, 0.644, 0.6012, 0.6944, 0.8808, 0.9574, 1.082, 1.158, 1.1782, 1.2457, 1.297, 1.3952, 1.3998, 1.3003, 1.206, 1.202, 1.2095, 1.2194, 1.2103, 1.2576, 1.2445, 1.2094, 1.1402, 1.0878, 1.013, 0.946, 0.8892, 0.8623, 0.815, 0.7646, 0.74, 0.7013, 0.7122, 0.6905, 0.648, 0.6336, 0.641, 0.607, 0.6256, 0.6236, 0.6264, 0.6315, 0.583, 0.594, 0.592, 0.577, 0.6036, 0.5762, 0.5502, 0.573, 0.566, 0.596, 0.5726, 0.5794, 0.5822, 0.5722, 0.607, 0.6336, 0.7248, 0.7687, 0.833, 0.831, 0.8365, 0.9464, 1.057, 1.1472, 1.171, 1.0993, 1.0626, 0.9597, 0.8438, 0.7818, 0.7268, 0.7593, 0.7536, 0.7164, 0.7236, 0.7975, 0.8004, 0.7942, 0.748, 0.5876, 0.3808, 0.2968, 0.2817, 0.18, 0.129, 0.1645, 0.1762, 0.2788, 0.3002, 0.304, 0.3866, 0.4004, 0.4273, 0.509, 0.5998, 0.644, 0.6012, 0.6944, 0.8808, 0.9574, 1.082, 1.158, 1.1782, 1.2457, 1.297, 1.3952, 1.3998, 1.3003, 1.206, 1.202, 1.2095, 1.2194, 1.2103, 1.2576, 1.2445, 1.2094, 1.1402, 1.0878, 1.013, 0.946, 0.8892, 0.8623, 0.815, 0.7646, 0.74, 0.7013, 0.7122, 0.6905, 0.648, 0.6336, 0.641, 0.607, 0.6256, 0.6236, 0.6264, 0.6315, 0.583, 0.594, 0.592, 0.577, 0.6036, 0.5762, 0.5502, 0.573, 0.566, 0.596, 0.5726, 0.5794, 0.5822, 0.5722, 0.607, 0.6336, 0.7248, 0.7687, 0.833, 0.831, 0.8365, 0.9464, 1.057, 1.1472, 1.171, 1.0993, 1.0626, 0.9597, 0.8438, 0.7818, 0.7268, 0.7593, 0.7536, 0.7164, 0.7236, 0.7975, 0.8004, 0.7942, 0.748, 0.5876, 0.3808, 0.2968, 0.2817, 0.18, 0.129, 0.1645, 0.1762, 0.2788, 0.3002, 0.304, 0.3866, 0.4004, 0.4273, 0.509, 0.5998, 0.644, 0.6012, 0.6944, 0.8808, 0.9574, 1.082, 1.158, 1.1782, 1.2457, 1.297, 1.3952, 1.3998, 1.3003, 1.206, 1.202, 1.2095, 1.2194, 1.2103, 1.2576, 1.2445, 1.2094, 1.1402, 1.0878, 1.013, 0.946, 0.8892, 0.8623, 0.815, 0.7646, 0.74, 0.7013, 0.7122, 0.6905, 0.648, 0.6336, 0.641, 0.607, 0.6256, 0.6236, 0.6264, 0.6315, 0.583, 0.594, 0.592, 0.577, 0.6036, 0.5762, 0.5502, 0.573, 0.566, 0.596, 0.5726, 0.5794, 0.5822, 0.5722, 0.607, 0.6336, 0.7248, 0.7687, 0.833, 0.831, 0.8365, 0.9464], "y_normal": [1.0724, 1.141, 1.1504, 1.1064, 1.0719, 0.9691, 0.8589, 0.79, 0.7321, 0.7605, 0.7587, 0.7282, 0.729, 0.7905, 0.8, 0.7865, 0.7414, 0.5544, 0.3841, 0.2903, 0.2775, 0.135, 0.1048, 0.1144, 0.1452, 0.2798, 0.2818, 0.2876, 0.3813, 0.3808, 0.3953, 0.5012, 0.5855, 0.6162, 0.5869, 0.7077, 0.8867, 0.9574, 1.0693, 1.156, 1.1737, 1.2105, 1.2929, 1.3905, 1.3905, 1.2937, 1.218, 1.218, 1.218, 1.2185, 1.218, 1.25, 1.2597, 1.2329, 1.1699, 1.1207, 1.0734, 1.0169, 0.9659, 0.9379, 0.8746, 0.8151, 0.7907, 0.7837, 0.7809, 0.7686, 0.7148, 0.6938, 0.69, 0.6155, 0.6083, 0.6083, 0.616, 0.6245, 0.5772, 0.5889, 0.5889, 0.5818, 0.5952, 0.5772, 0.5637, 0.5813, 0.5739, 0.5903, 0.5748, 0.5814, 0.5815, 0.5748, 0.5949, 0.621, 0.7251, 0.7733, 0.8587, 0.8579, 0.8625, 0.9458, 1.0724, 1.141, 1.1504, 1.1064, 1.0719, 0.9691, 0.8589, 0.79, 0.7321, 0.7605, 0.7587, 0.7282, 0.729, 0.7905, 0.8, 0.7865, 0.7414, 0.5544, 0.3841, 0.2903, 0.2775, 0.135, 0.1048, 0.1144, 0.1452, 0.2798, 0.2818, 0.2876, 0.3813, 0.3808, 0.3953, 0.5012, 0.5855, 0.6162, 0.5869, 0.7077, 0.8867, 0.9574, 1.0693, 1.156, 1.1737, 1.2105, 1.2929, 1.3905, 1.3905, 1.2937, 1.218, 1.218, 1.218, 1.2185, 1.218, 1.25, 1.2597, 1.2329, 1.1699, 1.1207, 1.0734, 1.0169, 0.9659, 0.9379, 0.8746, 0.8151, 0.7907, 0.7837, 0.7809, 0.7686, 0.7148, 0.6938, 0.69, 0.6155, 0.6083, 0.6083, 0.616, 0.6245, 0.5772, 0.5889, 0.5889, 0.5818, 0.5952, 0.5772, 0.5637, 0.5813, 0.5739, 0.5903, 0.5748, 0.5814, 0.5815, 0.5748, 0.5949, 0.621, 0.7251, 0.7733, 0.8587, 0.8579, 0.8625, 0.9458, 1.0643, 1.1601, 1.1555, 1.1135, 1.0812, 0.9584, 0.8216, 0.7983, 0.7447, 0.7715, 0.7715, 0.7428, 0.7434, 0.7949, 0.7949, 0.7929, 0.7518, 0.5234, 0.3248, 0.2725, 0.2555, 0.1467, 0.1104, 0.1325, 0.1485, 0.2486, 0.2608, 0.2629, 0.3556, 0.3715, 0.3956, 0.4864, 0.5529, 0.6109, 0.5525, 0.6811, 0.82, 0.9219, 1.0692, 1.1388, 1.1559, 1.2053, 1.2823, 1.3678, 1.3688, 1.2852, 1.2013, 1.2013, 1.202, 1.2071, 1.202, 1.2363, 1.2391, 1.2068, 1.1562, 1.1174, 1.0411, 0.9615, 0.9058, 0.8779, 0.837, 0.7795, 0.754, 0.7292, 0.7271, 0.7272, 0.655, 0.6393, 0.6468, 0.5652, 0.6, 0.5973, 0.6028, 0.6025, 0.5622, 0.557, 0.556, 0.5565, 0.5576, 0.5485, 0.5455, 0.5499, 0.5479, 0.5565, 0.5495, 0.5505, 0.5551, 0.5415, 0.5632, 0.6014, 0.7003, 0.7503, 0.8066, 0.8114, 0.8243, 0.9168], "y_degraded": [1.0724, 1.141, 1.1504, 1.1064, 1.0719, 0.9691, 0.8589, 0.79, 0.7321, 0.7605, 0.7587, 0.7282, 0.729, 0.7905, 0.8, 0.7865, 0.7414, 0.5544, 0.3841, 0.2903, 0.2775, 0.135, 0.1048, 0.1144, 0.1452, 0.2798, 0.2818, 0.2876, 0.3813, 0.3808, 0.3953, 0.5012, 0.5855, 0.6162, 0.5869, 0.7077, 0.8867, 0.9574, 1.0693, 1.156, 1.1737, 1.2105, 1.2929, 1.3905, 1.3905, 1.2937, 1.218, 1.218, 1.218, 1.2185, 1.218, 1.25, 1.2597, 1.2329, 1.1699, 1.1207, 1.0734, 1.0169, 0.9659, 0.9379, 0.8746, 0.8151, 0.7907, 0.7837, 0.7809, 0.7686, 0.7148, 0.6938, 0.69, 0.6155, 0.6083, 0.6083, 0.616, 0.6245, 0.5772, 0.5889, 0.5889, 0.5818, 0.5952, 0.5772, 0.5637, 0.5813, 0.5739, 0.5903, 0.5748, 0.5814, 0.5815, 0.5748, 0.5949, 0.621, 0.7251, 0.7733, 0.8587, 0.8579, 0.8625, 0.9458, 1.1269, 1.1586, 1.1611, 1.1321, 1.1077, 0.9487, 0.866, 0.8205, 0.7712, 0.8229, 0.7934, 0.7591, 0.7794, 0.8283, 0.8279, 0.8281, 0.7595, 0.5347, 0.4888, 0.4137, 0.4165, 0.3289, 0.2675, 0.2964, 0.3591, 0.4269, 0.4469, 0.4367, 0.498, 0.5021, 0.5223, 0.5723, 0.6293, 0.6805, 0.6372, 0.7536, 0.8919, 0.936, 1.1081, 1.1966, 1.2084, 1.2324, 1.2828, 1.3553, 1.3626, 1.3331, 1.2808, 1.2808, 1.2903, 1.2891, 1.2849, 1.3099, 1.317, 1.296, 1.2347, 1.2065, 1.224, 1.1407, 1.0657, 1.0439, 1.0345, 0.9991, 0.9721, 0.9387, 0.9589, 0.935, 0.9223, 0.9131, 0.9223, 0.8526, 0.8416, 0.8381, 0.8381, 0.837, 0.8009, 0.8296, 0.8122, 0.7814, 0.8201, 0.7814, 0.6906, 0.6976, 0.6922, 0.7109, 0.6922, 0.6988, 0.7398, 0.7443, 0.6547, 0.6598, 0.7228, 0.7742, 0.8518, 0.853, 0.865, 0.8916, 1.1269, 1.1586, 1.1611, 1.1321, 1.1077, 0.9487, 0.866, 0.8205, 0.7712, 0.8229, 0.7934, 0.7591, 0.7794, 0.8283, 0.8279, 0.8281, 0.7595, 0.5347, 0.4888, 0.4137, 0.4165, 0.3289, 0.2675, 0.2964, 0.3591, 0.4269, 0.4469, 0.4367, 0.498, 0.5021, 0.5223, 0.5723, 0.6293, 0.6805, 0.6372, 0.7536, 0.8919, 0.936, 1.1081, 1.1966, 1.2084, 1.2324, 1.2828, 1.3553, 1.3626, 1.3331, 1.2808, 1.2808, 1.2903, 1.2891, 1.2849, 1.3099, 1.317, 1.296, 1.2347, 1.2065, 1.224, 1.1407, 1.0657, 1.0439, 1.0345, 0.9991, 0.9721, 0.9387, 0.9589, 0.935, 0.9223, 0.9131, 0.9223, 0.8526, 0.8416, 0.8381, 0.8381, 0.837, 0.8009, 0.8296, 0.8122, 0.7814, 0.8201, 0.7814, 0.6906, 0.6976, 0.6922, 0.7109, 0.6922, 0.6988, 0.7398, 0.7443, 0.6547, 0.6598, 0.7228, 0.7742, 0.8518, 0.853, 0.865, 0.8916]};
+const CHART_DAYS=3;
+const CHART_INCIDENT_START=96;
+const CHART_INCIDENT_END=192;
+const CHART_LABELS=["05-24", "05-26(事故)", "05-25"];
+
+function drawChart(cvId,data,nDays,incidentStart,incidentEnd,labels){
+const cv=document.getElementById(cvId);if(!cv)return;
+const ctx=cv.getContext("2d");
+const dpr=window.devicePixelRatio||1;cv.width=cv.clientWidth*dpr;cv.height=cv.clientHeight*dpr;ctx.scale(dpr,dpr);
+const W=cv.clientWidth,H=cv.clientHeight,pL=44,pR=14,pT=12,pB=24;
+const yt=data.y_true,yn=data.y_normal,yd=data.y_degraded,n=yt.length;
+const all=yt.concat(yn).concat(yd),mn=Math.min(...all)*.9,mx=Math.max(...all)*1.06;
+const x=i=>pL+(W-pL-pR)*i/(n-1),y=v=>pT+(H-pT-pB)*(1-(v-mn)/(mx-mn));
+ctx.clearRect(0,0,W,H);
+ctx.font="10px sans-serif";ctx.fillStyle="#8b97a7";ctx.strokeStyle="#e7eef7";ctx.lineWidth=1;
+for(let g=0;g<=4;g++){const vv=mn+(mx-mn)*g/4;ctx.beginPath();ctx.moveTo(pL,y(vv));ctx.lineTo(W-pR,y(vv));ctx.stroke();ctx.fillText(vv.toFixed(1),6,y(vv)+3)}
+ctx.fillStyle="rgba(215,60,54,.075)";ctx.fillRect(x(incidentStart),pT,x(incidentEnd)-x(incidentStart),H-pT-pB);
+ctx.fillStyle="rgba(215,60,54,.88)";ctx.font="bold 11px sans-serif";ctx.fillText("事故日",x(incidentStart)+8,pT+16);
+ctx.strokeStyle="#cfdbe9";ctx.lineWidth=1;ctx.setLineDash([4,4]);
+for(let d=1;d<nDays;d++){const i=d*96;ctx.beginPath();ctx.moveTo(x(i),pT);ctx.lineTo(x(i),H-pB);ctx.stroke()}
+ctx.setLineDash([]);
+ctx.globalAlpha=.55;ctx.lineWidth=2;ctx.strokeStyle="#d73c36";ctx.beginPath();
+for(let i=incidentStart;i<incidentEnd;i++){i===incidentStart?ctx.moveTo(x(i),y(yd[i])):ctx.lineTo(x(i),y(yd[i]))}ctx.stroke();ctx.globalAlpha=1;
+ctx.lineWidth=2.2;ctx.strokeStyle="#11874d";ctx.beginPath();yn.forEach((v,i)=>{i?ctx.lineTo(x(i),y(v)):ctx.moveTo(x(i),y(v))});ctx.stroke();
+ctx.lineWidth=2.1;ctx.strokeStyle="#101b2d";ctx.beginPath();yt.forEach((v,i)=>{i?ctx.lineTo(x(i),y(v)):ctx.moveTo(x(i),y(v))});ctx.stroke();
+ctx.fillStyle="#5d6a7d";ctx.textAlign="center";ctx.font="11px sans-serif";
+labels.forEach((l,d)=>ctx.fillText(l,x(d*96+48),H-3));
+ctx.textAlign="left";
+}
+function go(){drawChart("chart3d",D3,CHART_DAYS,CHART_INCIDENT_START,CHART_INCIDENT_END,CHART_LABELS);}
+window.addEventListener("resize",go);go();
+
+</script>
+</body>
+</html>

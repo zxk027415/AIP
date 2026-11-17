@@ -1,0 +1,13 @@
+{
+  "region": "雄州",
+  "asset": "南华变.10kV叶家线085",
+  "nwp": "ENS_AVG",
+  "start": "2026-02-01",
+  "end": "2026-05-28",
+  "target_day": "2026-05-26",
+  "train_start": "2026-02-24T00:00:00",
+  "train_cutoff_exclusive": "2026-05-25T00:00:00",
+  "gap_days": 1,
+  "total_records": 11136,
+  "interval": "15min"
+}

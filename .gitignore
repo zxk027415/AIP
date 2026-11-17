@@ -1,0 +1,24 @@
+node_modules/
+__pycache__/
+dist/
+.DS_Store
+*.env
+.env*
+!.env.example
+!.env.*.example
+backend-service/data/slot_datasets/pv_day/loop_demo/outcomes.json
+backend-service/data/iterative_labeling/cumulative_training/pv_fault/snapshots/
+
+# 2026-11-17 archive exclusions (data stays local)
+backend-service/data/
+local_project/load_forecast_refactored/data/
+.claude/
+.git-bak-20261117/
+_archive_2026-09-17/misplaced-nested-data/
+.rivet/
+local_project/load_forecast_refactored/datasets/
+local_project/fault-diag-algo-release-3.1/relate_data/
+_archive_2026-09-17/
+backend-service/datasets/
+local_project/load_forecast_refactored/load_true_weihai_260407.xlsx
+local_project/load_forecast_refactored/operation_skill/cached_data/

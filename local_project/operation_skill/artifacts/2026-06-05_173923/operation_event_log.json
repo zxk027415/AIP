@@ -1,0 +1,191 @@
+{
+  "loop_id": "loop_gap_fault_a_v1",
+  "events": [
+    {
+      "loop_id": "loop_gap_fault_a_v1",
+      "stage": "monitor",
+      "type": "baseline",
+      "payload": {
+        "accuracy": 94.24,
+        "mape": 0.057587,
+        "algorithm_version": "load_xgb_v1",
+        "prediction_id": "pred_baseline_gap1",
+        "asset": "南华变.10kV叶家线085",
+        "region": "雄州",
+        "group_importance": {
+          "lag": 0.4462,
+          "rolling": 0.17261,
+          "calendar": 0.37168,
+          "weather": 0.00951
+        },
+        "mode": 1,
+        "baseline_scenario": "baseline_gap1",
+        "message": "真·gap一天基线预测稳定。"
+      },
+      "ts": "2026-06-05T17:39:28+08:00"
+    },
+    {
+      "loop_id": "loop_gap_fault_a_v1",
+      "stage": "monitor",
+      "type": "degradation",
+      "payload": {
+        "accuracy": 86.03,
+        "mape": 0.139697,
+        "algorithm_version": "load_xgb_v1_degraded",
+        "prediction_id": "pred_degraded_a",
+        "event_id": "evt_gap_fault_a_001",
+        "threshold": 90.0,
+        "baseline_accuracy": 94.24,
+        "degraded_accuracy": 86.03,
+        "message": "D-1 整天数据丢失"
+      },
+      "ts": "2026-06-05T17:39:28+08:00"
+    },
+    {
+      "loop_id": "loop_gap_fault_a_v1",
+      "stage": "rca",
+      "type": "rca",
+      "payload": {
+        "analyzer": "kiro_llm",
+        "root_cause": "D-1(2026-05-22)整天96点负荷数据丢失，gap一天基线的lag_1d(→D-1)全NaN，模型丧失负荷量级锚点，事故日(05-24)精度从94.24%跌至86.03%",
+        "confidence": 0.91,
+        "reasoning": "1) D-1(05-22)全天96点load=NaN → lag_1d(→D-1)失效；2) lag组重要性0.4606排名第一，是模型命门特征；3) 精度跌幅8.21pp，方向与lag锚点失效一致；4) 事故前基线稳定在88%-94%区间，无渐进退化迹象，排除模型衰退；5) 气象组重要性仅0.00762且数据完整，排除外部因素。根因锁定为D-1原始负荷整天缺失导致lag_1d锚点失效",
+        "supporting_evidence": [
+          "D-1(05-22)全天96点load=NaN，缺失区间2026-05-22T00:00~2026-05-23T00:00",
+          "lag组特征重要性0.4606(排名第一)，lag_1d失效后rolling短窗也被NaN污染",
+          "精度跌幅8.21pp，基线94.24%→劣化86.03%（均为真实XGB实算）",
+          "气象组重要性仅0.00762，气象数据完整，排除外部因素"
+        ],
+        "checked_items": [
+          "原始负荷完整性: D-1(05-22)全天缺失确认",
+          "缺失时间范围: 2026-05-22 00:00 ~ 2026-05-23 00:00 共96点",
+          "级联特征影响: lag_1d全NaN + rolling短窗部分污染",
+          "气象数据正常: temperature/wind_speed完整无缺失"
+        ],
+        "undetermined": false,
+        "evidence": {
+          "fault_type": "A",
+          "missing_start": "2026-05-22T00:00:00",
+          "missing_end": "2026-05-23T00:00:00",
+          "missing_description": "D-1 整天数据丢失",
+          "accuracy_drop": 8.21,
+          "baseline_accuracy": 94.24,
+          "degraded_accuracy": 86.03,
+          "group_importance_baseline": {
+            "lag": 0.4462,
+            "rolling": 0.17261,
+            "calendar": 0.37168,
+            "weather": 0.00951
+          },
+          "checked_items": [
+            "原始负荷完整性",
+            "缺失时间范围",
+            "级联特征影响",
+            "气象数据正常"
+          ]
+        }
+      },
+      "ts": "2026-06-05T17:40:24+08:00"
+    },
+    {
+      "loop_id": "loop_gap_fault_a_v1",
+      "stage": "strategy",
+      "type": "strategy",
+      "payload": {
+        "evaluations": [
+          {
+            "strategy_id": "extra_gap",
+            "name": "多 gap 一天(从 D-2 起算)",
+            "expected_accuracy": 71.38,
+            "cost": "low",
+            "risk": "low",
+            "rationale": "D-1 丢了就跳过,只用 D-2 及之前真值。丢信息但不引入假值。",
+            "selected": false
+          },
+          {
+            "strategy_id": "pred_fill_dm1",
+            "name": "预测值回填 D-1, 继续 gap D",
+            "expected_accuracy": 97.08,
+            "cost": "medium",
+            "risk": "medium",
+            "rationale": "用 gap 模型对 D-1 的预测值当代理真值填回,保住 lag_1d→D-1 位置。",
+            "selected": true
+          }
+        ],
+        "selected_strategy": {
+          "strategy_id": "pred_fill_dm1",
+          "name": "预测值回填 D-1, 继续 gap D",
+          "expected_accuracy": 97.08,
+          "cost": "medium",
+          "risk": "medium",
+          "rationale": "用 gap 模型对 D-1 的预测值当代理真值填回,保住 lag_1d→D-1 位置。",
+          "selected": true
+        },
+        "decision_reasoning": "pred_fill_dm1实测精度97.08%，不仅远超extra_gap的71.38%（高25.7pp），甚至超过基线94.24%。本场景中extra_gap退避到D-2严重损失了近期信息导致崩盘(71.38%)，而预测值回填D-1成功保住了lag_1d→D-1的量级锚点，回填的代理值质量高。按精度优先原则，明确选择pred_fill_dm1。"
+      },
+      "ts": "2026-06-05T17:40:24+08:00"
+    },
+    {
+      "loop_id": "loop_gap_fault_a_v1",
+      "stage": "execute",
+      "type": "execution",
+      "payload": {
+        "execution_id": "exec_gap_pred_fill_dm1_001",
+        "selected_strategy": "pred_fill_dm1",
+        "recovered_dataset_id": "ds_real_recovered_gap",
+        "new_algorithm_version": "load_xgb_v1",
+        "steps": [
+          "确认 D-1 数据不可用",
+          "用 D-2 及之前数据训练模型,预测 D-1 全天负荷",
+          "将预测值作为 D-1 代理真值回填",
+          "正常 gap D,用回填后的 D-1 构造特征并预测 D+1"
+        ],
+        "status": "success"
+      },
+      "ts": "2026-06-05T17:40:24+08:00"
+    },
+    {
+      "loop_id": "loop_gap_fault_a_v1",
+      "stage": "verify",
+      "type": "verification",
+      "payload": {
+        "accuracy": 97.08,
+        "mape": 0.029237,
+        "algorithm_version": "load_xgb_v1",
+        "prediction_id": "pred_pred_fill_dm1",
+        "recovered": true,
+        "recovery_target": 85.0
+      },
+      "ts": "2026-06-05T17:40:24+08:00"
+    },
+    {
+      "loop_id": "loop_gap_fault_a_v1",
+      "stage": "compare",
+      "type": "comparison",
+      "payload": {
+        "baseline_accuracy": 94.24,
+        "degraded_accuracy": 86.03,
+        "recovered_accuracy": 97.08,
+        "delta_recovery": 11.05,
+        "selected_strategy": "pred_fill_dm1",
+        "baseline_version": "load_xgb_v1",
+        "degraded_version": "load_xgb_v1_degraded",
+        "recovered_version": "load_xgb_v1"
+      },
+      "ts": "2026-06-05T17:40:24+08:00"
+    },
+    {
+      "loop_id": "loop_gap_fault_a_v1",
+      "stage": "coe",
+      "type": "coe_advice",
+      "payload": {
+        "advice_id": "coe_gap_fault_a_001",
+        "summary": "D-1(昨天)整天数据丢失,Agent 通过「预测值回填 D-1, 继续 gap D」恢复至 97.08%(超越基线)。",
+        "rationale": "原始负荷丢失级联影响 lag/rolling。恢复策略的选择取决于故障发生在哪天、丢了多少、预测值质量如何。",
+        "risks": "预测值回填引入代理误差;多 gap 丢失近期信息。需根据实测精度决策。",
+        "prevention": "建立负荷采集多通道冗余;设置入库超时告警;预置 gap 降级预案。"
+      },
+      "ts": "2026-06-05T17:40:24+08:00"
+    }
+  ]
+}

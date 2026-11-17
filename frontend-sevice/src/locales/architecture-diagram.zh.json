@@ -1,0 +1,135 @@
+{
+  "upgradePending": "待升级",
+  "upgrades": {
+    "virtualizedRendering": "虚拟化渲染",
+    "charts3d": "3D 图表",
+    "parallelExecution": "并行执行",
+    "postgres": "PostgreSQL"
+  },
+  "nodes": {
+    "frontendReact": {
+      "label": "React 18.2",
+      "items": ["函数式组件", "虚拟 DOM", "JSX 语法"]
+    },
+    "frontendAntd": {
+      "label": "Ant Design 5.12",
+      "items": ["UI 组件库", "表单与表格", "响应式布局"]
+    },
+    "frontendZustand": {
+      "label": "Zustand 4.4",
+      "items": ["模板状态", "用户状态", "状态管理"]
+    },
+    "frontendAxios": {
+      "label": "Axios 1.6",
+      "items": ["HTTP 请求", "拦截器", "Token 管理"]
+    },
+    "frontendRouter": {
+      "label": "React Router 6.20",
+      "items": ["路由管理", "路由守卫", "路由参数"]
+    },
+    "frontendVite": {
+      "label": "Vite 5.0",
+      "items": ["极速启动", "HMR 热更新", "TypeScript"]
+    },
+    "frontendWorkflow": {
+      "label": "React Flow 11.10",
+      "items": ["模板画布", "节点拖拽", "连线管理"]
+    },
+    "frontendEcharts": {
+      "label": "ECharts 5.6",
+      "items": ["数据可视化", "交互图表", "多种图表"]
+    },
+    "frontendWebsocket": {
+      "label": "WebSocket",
+      "items": ["实时协作", "光标同步", "在线列表"]
+    },
+    "frontendHistory": {
+      "label": "历史管理",
+      "items": ["撤销重做", "命令模式", "历史栈"]
+    },
+    "frontendClipboard": {
+      "label": "剪贴板",
+      "items": ["复制粘贴", "跨模板", "保持连接"]
+    },
+    "frontendShortcuts": {
+      "label": "快捷键",
+      "items": ["快捷键管理", "自定义配置", "冲突检测"]
+    },
+    "communication": {
+      "label": "RESTful API",
+      "items": ["JSON 数据", "HTTP/HTTPS", "CORS 跨域"]
+    },
+    "backendFastapi": {
+      "label": "FastAPI 0.109",
+      "items": ["API 路由", "自动文档", "CORS 中间件"]
+    },
+    "backendUvicorn": {
+      "label": "Uvicorn 0.27",
+      "items": ["ASGI 服务器", "异步处理", "WebSocket"]
+    },
+    "backendWorkflow": {
+      "label": "模板服务",
+      "items": ["CRUD 操作", "拓扑排序", "环检测"]
+    },
+    "backendFunction": {
+      "label": "AI 算法库服务",
+      "items": ["函数管理", "矩阵计算", "函数检索"]
+    },
+    "backendAuth": {
+      "label": "认证服务",
+      "items": ["JWT Token", "用户登录", "bcrypt 加密"]
+    },
+    "backendNetworkx": {
+      "label": "NetworkX 3.1",
+      "items": ["拓扑排序", "环检测", "图算法"]
+    },
+    "backendNumpy": {
+      "label": "NumPy 1.24",
+      "items": ["数组运算", "矩阵操作", "线性代数"]
+    },
+    "backendScipy": {
+      "label": "SciPy 1.11",
+      "items": ["科学计算", "信号处理", "优化算法"]
+    },
+    "backendVersion": {
+      "label": "版本控制",
+      "items": ["版本历史", "差异计算", "分支管理"]
+    },
+    "backendShare": {
+      "label": "共享服务",
+      "items": ["权限管理", "共享链接", "协作编辑"]
+    },
+    "backendLlm": {
+      "label": "LLM 服务",
+      "items": ["LangChain", "AI 助手", "智能建议"]
+    },
+    "backendSchedule": {
+      "label": "调度服务",
+      "items": ["Celery 队列", "定时执行", "事件触发"]
+    },
+    "dataSqlalchemy": {
+      "label": "SQLAlchemy 2.0",
+      "items": ["ORM 映射", "查询构建", "会话管理"]
+    },
+    "dataPydantic": {
+      "label": "Pydantic 2.5",
+      "items": ["数据验证", "模型定义", "JSON 序列化"]
+    },
+    "database": {
+      "label": "SQLite 数据库",
+      "items": ["用户数据", "模板", "函数元数据"]
+    },
+    "dataRedis": {
+      "label": "Redis 缓存",
+      "items": ["结果缓存", "会话存储", "消息队列"]
+    },
+    "dataStorage": {
+      "label": "对象存储",
+      "items": ["大文件存储", "MinIO/S3", "模板导出"]
+    },
+    "dataSearch": {
+      "label": "全文搜索",
+      "items": ["SQLite FTS5", "模板搜索", "节点检索"]
+    }
+  }
+}

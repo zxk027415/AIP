@@ -1,0 +1,150 @@
+/* 登录页面样式修复 */
+
+/* 检测浏览器自动填充的动画 */
+@keyframes onAutoFillStart {
+  from { opacity: 0.99; }
+  to { opacity: 1; }
+}
+
+/* 修复输入框字体和渲染问题 */
+.ant-input-affix-wrapper .ant-input,
+.ant-input-affix-wrapper .ant-input:hover,
+.ant-input-affix-wrapper .ant-input:focus,
+.ant-input-affix-wrapper .ant-input:focus-visible,
+.ant-input-affix-wrapper-focused .ant-input {
+  font-weight: 400 !important;
+  font-size: 14px !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+  
+  /* 字符间距固定 */
+  letter-spacing: 0px !important;
+  word-spacing: 0px !important;
+  
+  /* 字体渲染优化 */
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: geometricPrecision !important;
+  
+  /* 禁用字体特性 */
+  font-feature-settings: "kern" 0 !important;
+  font-kerning: none !important;
+  font-variant-ligatures: none !important;
+  
+  /* 移除边框和阴影 */
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  outline: none !important;
+  outline-offset: 0px !important;
+  
+  /* GPU 渲染优化 */
+  transform: translateZ(0) !important;
+  will-change: transform !important;
+  backface-visibility: hidden !important;
+  
+  /* 渲染质量 */
+  image-rendering: -webkit-optimize-contrast !important;
+  text-size-adjust: 100% !important;
+}
+
+/* 占位符字体 */
+.ant-input-affix-wrapper .ant-input::placeholder,
+input.ant-input::placeholder {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+}
+
+/* 浏览器自动填充样式 - 与普通状态保持一致 */
+.ant-input-affix-wrapper .ant-input:-webkit-autofill,
+.ant-input-affix-wrapper .ant-input:-webkit-autofill:hover,
+.ant-input-affix-wrapper .ant-input:-webkit-autofill:focus,
+.ant-input-affix-wrapper .ant-input:-webkit-autofill:active {
+  -webkit-text-fill-color: #000 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  letter-spacing: 0px !important;
+  transition: background-color 5000s ease-in-out 0s !important;
+  animation-name: onAutoFillStart !important;
+  animation-duration: 0.001s !important;
+}
+
+/* Firefox 自动填充 */
+.ant-input-affix-wrapper .ant-input:-moz-autofill,
+.ant-input-affix-wrapper .ant-input:-moz-autofill-preview {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  letter-spacing: 0px !important;
+}
+
+/* 输入框容器边框修复 - 使用整数像素值 */
+.ant-input-affix-wrapper,
+.ant-input-affix-wrapper:hover,
+.ant-input-affix-wrapper-focused,
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper:focus-within {
+  border-width: 1px !important;
+  border-style: solid !important;
+  border-color: #d9d9d9 !important;
+  box-sizing: border-box !important;
+  transition: none !important;
+  
+  /* 整数像素对齐 */
+  image-rendering: -webkit-optimize-contrast !important;
+  transform: translateZ(0) !important;
+  will-change: transform !important;
+}
+
+.ant-input-affix-wrapper:hover {
+  border-color: #40a9ff !important;
+}
+
+.ant-input-affix-wrapper-focused,
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper:focus-within {
+  border-color: #1890ff !important;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2) !important;
+  outline: 0 !important;
+}
+
+/* 前缀和后缀图标 */
+.ant-input-prefix {
+  margin-right: 8px !important;
+  flex-shrink: 0 !important;
+}
+
+.ant-input-suffix {
+  margin-left: 8px !important;
+  flex-shrink: 0 !important;
+}
+
+/* 密码输入框 */
+.ant-input-password,
+.ant-input-password:hover,
+.ant-input-password-focused,
+.ant-input-password:focus,
+.ant-input-password:focus-within {
+  border: 1px solid #d9d9d9 !important;
+  box-sizing: border-box !important;
+}
+
+.ant-input-password:hover {
+  border-color: #40a9ff !important;
+}
+
+.ant-input-password-focused,
+.ant-input-password:focus,
+.ant-input-password:focus-within {
+  border-color: #1890ff !important;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2) !important;
+  outline: 0 !important;
+}
+
+.ant-input-password .ant-input,
+.ant-input-password .ant-input:focus {
+  font-weight: 400 !important;
+  font-size: 14px !important;
+}

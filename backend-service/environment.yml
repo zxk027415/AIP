@@ -1,0 +1,25 @@
+name: aip_web
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  # macOS / Linux: XGBoost 动态库依赖 OpenMP，避免仅 pip 装包后报 libomp 找不到
+  - llvm-openmp
+  - pip:
+    - fastapi==0.109.0
+    - uvicorn[standard]==0.27.0
+    - numpy==1.24.3
+    - scipy==1.11.4
+    - pydantic==2.5.3
+    - python-multipart==0.0.6
+    - pytest==7.4.3
+    - pytest-asyncio==0.21.1
+    - httpx==0.25.2
+    - hypothesis==6.92.1
+    - passlib==1.7.4
+    - python-jose[cryptography]==3.3.0
+    - bcrypt==4.1.2
+    - sqlalchemy==2.0.25
+    - email-validator==2.1.0

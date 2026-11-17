@@ -1,0 +1,32 @@
+version: 1
+formatters:
+  brief:
+    format: "%(asctime)s - %(message)s"
+  simple:
+    format: "%(asctime)s - %(pathname)s %(lineno)d - %(levelname)s - %(message)s"
+handlers:
+  console:
+    class : logging.StreamHandler
+    formatter: simple
+    level   : INFO
+    stream  : ext://sys.stdout
+  file:
+    class : logging.handlers.TimedRotatingFileHandler
+    formatter: simple
+    level: INFO
+    filename: logs/debug.log
+    encoding: utf8
+  error:
+    class : logging.handlers.TimedRotatingFileHandler
+    level: ERROR
+    formatter: simple
+    filename: logs/error.log
+    encoding: utf8
+  report:
+    class: logging.FileHandler
+    level: 51
+    formatter: brief
+    filename: logs/report.log
+root:
+  level: DEBUG
+  handlers: [console, file, error, report]

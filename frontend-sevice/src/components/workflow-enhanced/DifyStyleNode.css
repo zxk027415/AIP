@@ -1,0 +1,291 @@
+/* Dify Style Node - 简化版（模仿 Dify 的极简设计） */
+
+.dify-node-wrapper {
+  position: relative;
+  display: flex;
+  border-radius: 16px;
+  
+  /* 防止拖动时模糊 - 关键优化 */
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  /* 强制像素对齐，避免亚像素模糊 */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  /* 子像素抗锯齿 */
+  -webkit-font-smoothing: subpixel-antialiased;
+  -moz-osx-font-smoothing: auto;
+}
+
+.dify-node {
+  position: relative;
+  width: 240px;
+  background: #fcfcfd;
+  /* Dify 精确样式：透明边框 */
+  border: 1px solid transparent;
+  border-radius: 15px;
+  padding-bottom: 4px;
+  /* Dify 精确阴影：shadow-xs */
+  box-shadow: 0px 1px 2px 0px rgba(16, 24, 40, 0.05);
+  
+  /* 字体平滑 - 拖动时使用子像素抗锯齿 */
+  -webkit-font-smoothing: subpixel-antialiased;
+  -moz-osx-font-smoothing: auto;
+  
+  /* 使用系统默认无衬线字体 - 和 Dify 一样 */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  
+  /* 防止拖动时模糊 */
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Hover 效果：Dify 精确样式 shadow-lg */
+.dify-node-wrapper:hover .dify-node {
+  box-shadow: 0px 4px 6px -2px rgba(16, 24, 40, 0.03), 
+              0px 12px 16px -4px rgba(16, 24, 40, 0.08);
+}
+
+.dify-node-wrapper.dify-node-selected .dify-node {
+  /* 选中时：显示蓝色边框 + shadow-lg */
+  border-color: #528BFF;
+  box-shadow: 0px 4px 6px -2px rgba(16, 24, 40, 0.03), 
+              0px 12px 16px -4px rgba(16, 24, 40, 0.08);
+}
+
+/* 状态边框：使用 Dify 的边框颜色 + shadow-xs */
+.dify-node.dify-node-running {
+  border-color: #528BFF;
+  box-shadow: 0px 1px 2px 0px rgba(16, 24, 40, 0.05);
+}
+
+.dify-node.dify-node-success {
+  border-color: #17b26a;
+  box-shadow: 0px 1px 2px 0px rgba(16, 24, 40, 0.05);
+}
+
+.dify-node.dify-node-failed {
+  border-color: #f04438;
+  box-shadow: 0px 1px 2px 0px rgba(16, 24, 40, 0.05);
+}
+
+/* 节点头部 */
+.dify-node-header {
+  display: flex;
+  align-items: center;
+  border-radius: 15px 15px 0 0;
+  padding: 12px 12px 8px 12px;
+}
+
+/* 图标容器 */
+.dify-node-icon-container {
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.dify-node-icon {
+  height: 14px;
+  width: 14px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 标题 - 简化版 */
+.dify-node-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  line-height: 16px;
+  color: #101828;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 4px;
+  display: flex;
+  align-items: center;
+  /* 拖动时使用子像素抗锯齿保持清晰 */
+  -webkit-font-smoothing: subpixel-antialiased;
+  -moz-osx-font-smoothing: auto;
+}
+
+/* 状态图标 */
+.dify-node-status-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.dify-node-status-running {
+  color: #155aef;
+  animation: spin 1s linear infinite;
+}
+
+.dify-node-status-success {
+  color: #17b26a;
+}
+
+.dify-node-status-error {
+  color: #f04438;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 描述 - 简化版 */
+.dify-node-description {
+  padding: 4px 12px 8px 12px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 16px;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* 拖动时使用子像素抗锯齿保持清晰 */
+  -webkit-font-smoothing: subpixel-antialiased;
+  -moz-osx-font-smoothing: auto;
+}
+
+/* 错误信息 */
+.dify-node-error {
+  padding: 6px 12px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #d92d20;
+  background: #fef3f2;
+  border-top: 1px solid #fecaca;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Handle 样式 */
+.dify-handle {
+  position: absolute;
+  width: 16px !important;
+  height: 16px !important;
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer;
+  z-index: 1;
+  pointer-events: auto !important;
+}
+
+.dify-handle::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 12px;
+  background: #296dff;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.dify-handle-target {
+  left: -8px;
+}
+
+.dify-handle-target::after {
+  left: 7px;
+}
+
+.dify-handle-source {
+  right: -8px;
+}
+
+.dify-handle-source::after {
+  right: 7px;
+}
+
+.dify-handle.connecting,
+.dify-handle.react-flow__handle-connecting {
+  background: #296dff !important;
+  border: 2px solid white !important;
+  border-radius: 50%;
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.dify-handle.connecting::after,
+.dify-handle.react-flow__handle-connecting::after {
+  display: none;
+}
+
+.dify-handle-wrapper {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  top: 28px;
+  z-index: 1;
+}
+
+.dify-handle-wrapper-target {
+  left: 0;
+}
+
+.dify-handle-wrapper-source {
+  right: 0;
+}
+
+.add-node-button-container {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0s;
+}
+
+.add-node-button-container.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 节点字段列表 */
+.dify-node-fields {
+  padding: 4px 12px 8px 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.dify-node-field {
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.dify-node-field-icon {
+  margin-right: 6px;
+  color: #2970ff;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.dify-node-field-name {
+  flex: 1;
+  color: #2970ff;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dify-node-field-label {
+  color: #98a2b3;
+  font-size: 11px;
+  margin-left: 8px;
+  flex-shrink: 0;
+}

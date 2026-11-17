@@ -1,0 +1,148 @@
+/* 算法模板编辑器页面（增强版） - 使用 Flex 布局优化 */
+.workflow-editor-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: white;
+}
+
+/* 覆盖 Ant Design Layout 的默认样式 */
+.workflow-editor-page.ant-layout {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 内层 Layout - 需要 flex 布局 */
+.workflow-editor-page > .ant-layout {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  /* 移除可能的默认样式 */
+  min-height: 0;
+}
+
+.workflow-editor-header {
+  background: white;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  flex: 0 0 64px;
+  /* 移除可能的默认样式 */
+  line-height: normal;
+}
+
+.workflow-editor-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.workflow-editor-header-right {
+  display: flex;
+  align-items: center;
+}
+
+.workflow-editor-sider {
+  border-right: 1px solid #f0f0f0;
+  overflow: hidden;
+  flex: 0 0 460px;
+  max-width: 460px;
+  min-width: 460px;
+  width: 460px;
+}
+
+/* @AI_GENERATED: Kiro v1.0 */
+.workflow-editor-sider.ant-layout-sider {
+  flex: 0 0 460px;
+  max-width: 460px;
+  min-width: 460px;
+  width: 460px;
+}
+
+.workflow-editor-sider .ant-layout-sider-children {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* @AI_GENERATED: end */
+
+.workflow-editor-sider-right {
+  border-left: 1px solid #f0f0f0;
+  overflow: hidden;
+  background: white;
+  flex: 0 0 320px;
+  /* 移除可能的默认样式 */
+  max-width: 320px;
+  min-width: 320px;
+  width: 320px;
+}
+
+.workflow-editor-sider-right.ant-layout-sider {
+  flex: 0 0 320px;
+  max-width: 320px;
+  min-width: 320px;
+  width: 320px;
+}
+
+.workflow-editor-sider-right .ant-layout-sider-children {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 使用 flex 布局替代 calc()，避免缩放时模糊 */
+.workflow-editor-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* 移除可能的默认样式 */
+  min-width: 0;
+  min-height: 0;
+}
+
+.workflow-editor-content.ant-layout-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 底部控制台：标签栏固定，仅内容区滚动 */
+.wf-bottom-panel-root {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wf-bottom-panel-tabs.ant-tabs {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.wf-bottom-panel-tabs .ant-tabs-nav {
+  flex-shrink: 0;
+  margin-bottom: 0 !important;
+  padding: 4px 0 0;
+  background: #fff;
+  z-index: 2;
+}
+
+.wf-bottom-panel-tabs .ant-tabs-content-holder {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.wf-bottom-panel-tabs .ant-tabs-tabpane {
+  height: auto;
+}
